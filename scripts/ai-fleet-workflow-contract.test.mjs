@@ -381,9 +381,32 @@ test('Gemini engineering collaborator uses the owner-confirmed free-tier API thr
   assert.ok(geminiCollaboratorWorkflow.includes('FREE_TIER_CONFIRMED: ${{ vars.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED }}'));
   assert.ok(geminiCollaboratorWorkflow.includes('"modelProvider": "gemini"'));
   assert.ok(geminiCollaboratorWorkflow.includes('"agentMode": "accept-edits"'));
-  for (const denied of ['command(*)', 'unsandboxed(*)', 'read_url(*)', 'execute_url(*)', 'mcp(*)']) {
-    assert.ok(geminiCollaboratorWorkflow.includes('"' + denied + '"'));
+  const deniedRules = [
+    'command(*)', 'unsandboxed(*)', 'read_url(*)', 'execute_url(*)', 'mcp(*)',
+    'read_file(.github/)', 'read_file(.env)', 'read_file(.env.local)',
+    'read_file(.env.production)', 'read_file(.dev.vars)', 'read_file(.npmrc)',
+    'read_file(.wrangler/)', 'read_file(secrets/)', 'read_file(credentials/)',
+    'read_file(signing/)', 'read_file(.ssh/)', 'read_file(.aws/)',
+    'read_file(private/)', 'read_file(certs/)', 'read_file(keys/)',
+    'read_file(package.json)', 'read_file(package-lock.json)',
+    'read_file(npm-shrinkwrap.json)', 'read_file(wrangler.toml)',
+    'read_file(vercel.json)', 'read_file(railway.toml)', 'read_file(Dockerfile)',
+    'read_file(.git/)', 'write_file(.github/)', 'write_file(GEMINI.md)',
+    'write_file(AGENTS.md)', 'write_file(package.json)',
+    'write_file(package-lock.json)', 'write_file(npm-shrinkwrap.json)',
+    'write_file(.npmrc)', 'write_file(.env)', 'write_file(.env.local)',
+    'write_file(.env.production)', 'write_file(.dev.vars)',
+    'write_file(.wrangler/)', 'write_file(secrets/)',
+    'write_file(credentials/)', 'write_file(signing/)', 'write_file(.ssh/)',
+    'write_file(.aws/)', 'write_file(private/)', 'write_file(certs/)',
+    'write_file(keys/)', 'write_file(wrangler.toml)', 'write_file(vercel.json)',
+    'write_file(railway.toml)', 'write_file(Dockerfile)', 'write_file(.git/)',
+  ];
+  for (const denied of deniedRules) {
+    assert.ok(geminiCollaboratorWorkflow.includes('"' + denied + '"'), 'missing Antigravity deny rule: ' + denied);
   }
+  assert.match(geminiCollaboratorWorkflow, /repository_read_rule = f"read_file\(\{repository_root\}\)"/);
+  assert.ok(geminiCollaboratorWorkflow.includes('denied.append(repository_read_rule)'));
   assert.ok(geminiCollaboratorWorkflow.includes('AGY_MODEL: gemini-3.8-flash'));
   assert.ok(geminiCollaboratorWorkflow.includes('AGY_EFFORT: medium'));
   assert.ok(geminiCollaboratorWorkflow.includes('agy -p "$GEMINI_PROMPT" --model "$AGY_MODEL" --effort "$AGY_EFFORT"'));
@@ -697,12 +720,20 @@ test('NEURAL dependency audit scans the hash-pinned exported lock set', () => {
     'the audit must not inspect the installed editable glorifier-neural project itself');
 });
 
-test('Gemini collaborator pins the Antigravity CLI release and validates its published SHA-256 digest', () => {
+test('Gemini collaborator pins the Antigravity download and verifies the published digest before extraction', () => {
+  const download = 'DOWNLOAD_URL="https://github.com/google-antigravity/antigravity-cli/releases/download/$CLI_VERSION/$ASSET"';
+  const verify = 'sha256sum --check --strict';
+  const extract = 'tar -xzf "$ARCHIVE" -C "$INSTALL_DIR" antigravity';
   assert.ok(geminiCollaboratorWorkflow.includes('CLI_VERSION="1.5.5"'));
+  assert.ok(geminiCollaboratorWorkflow.includes('ASSET="agy_cli_linux_x64.tar.gz"'));
   assert.ok(geminiCollaboratorWorkflow.includes('api.github.com/repos/google-antigravity/antigravity-cli/releases/tags/$CLI_VERSION'));
+  assert.ok(geminiCollaboratorWorkflow.includes(download));
   assert.ok(geminiCollaboratorWorkflow.includes('assets[0].get("digest")'));
   assert.ok(geminiCollaboratorWorkflow.includes('re.fullmatch(r"sha256:[0-9a-f]{64}", digest)'));
-  assert.ok(geminiCollaboratorWorkflow.includes('sha256sum --check --strict'));
+  assert.match(geminiCollaboratorWorkflow, /printf '%s  %s\\n' "\$\{EXPECTED_DIGEST#sha256:\}" "\$ARCHIVE" \| sha256sum --check --strict/);
+  assert.ok(geminiCollaboratorWorkflow.includes(extract));
+  assert.ok(geminiCollaboratorWorkflow.indexOf(verify) < geminiCollaboratorWorkflow.indexOf(extract),
+    'archive integrity must be checked before extraction');
 });
 test('NEURAL dependency audit covers both development and production Neon extras', () => {
   const testJob = neuralJobSection(neuralCiWorkflow, 'test');
