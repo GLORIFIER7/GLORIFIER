@@ -28,7 +28,8 @@ jobs:
       contents: read
       pull-requests: read
     outputs:
-      has_changes: ${{ steps.patch.outputs.has_changes }}
+      has_changes: ${{ steps.patch.outputs.has_changes || 'false' }}
+      provider_unavailable: ${{ steps.gemini.outputs.provider_unavailable || 'false' }}
     env:
       HAS_GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY != '' }}
     steps:
@@ -126,29 +127,15 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          GEMINI_OUTPUT="$RUNNER_TEMP/gemini-output.json"
-          gemini --skip-trust --model "$GEMINI_MODEL" --approval-mode auto_edit --prompt "$GEMINI_PROMPT" --output-format json > "$GEMINI_OUTPUT"
-          python - "$GEMINI_OUTPUT" "$GITHUB_OUTPUT" <<'PY'
-          import json
-          import secrets
-          import sys
+          bash scripts/run-gemini-collaboration.sh
 
-          with open(sys.argv[1], encoding="utf-8") as handle:
-              payload = json.load(handle)
-          response = payload.get("response")
-          if not isinstance(response, str) or not response.strip():
-              raise SystemExit("Gemini CLI returned an empty response.")
-          delimiter = "GEMINI_" + secrets.token_hex(16)
-          while delimiter in response:
-              delimiter = "GEMINI_" + secrets.token_hex(16)
-          with open(sys.argv[2], "a", encoding="utf-8") as handle:
-              handle.write(f"summary<<{delimiter}\n")
-              handle.write(response)
-              handle.write(f"\n{delimiter}\n")
-          PY
+      - name: Report transient Gemini API unavailability
+        if: ${{ steps.gemini.outputs.provider_unavailable == 'true' }}
+        run: echo "::warning::Gemini returned HTTP 503. No patch, provider fallback, paid inference, or pull request was produced."
+
       - name: Prepare and validate Gemini patch
         id: patch
-        if: ${{ steps.duplicate.outputs.blocked != 'true' && steps.gemini.outcome == 'success' }}
+        if: ${{ steps.duplicate.outputs.blocked != 'true' && steps.gemini.outcome == 'success' && steps.gemini.outputs.provider_unavailable != 'true' }}
         shell: bash
         run: |
           set -euo pipefail
