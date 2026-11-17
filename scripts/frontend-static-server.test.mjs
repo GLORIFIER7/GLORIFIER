@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
-import { createFrontendServer } from './serve-frontend.mjs';
+import { createFrontendServer, isInsideRoot } from './serve-frontend.mjs';
 
 async function startFixture(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'glorifier-mphr-'));
@@ -65,6 +65,28 @@ test('does not pretend backend write routes are available on a static-only host'
   const body = await response.json();
   assert.equal(body.ok, false);
   assert.equal(body.code, 'BACKEND_NOT_CONFIGURED');
+});
+
+test('encoded and multiply encoded backend route prefixes fail closed before SPA routing', async (t) => {
+  const { origin } = await startFixture(t);
+  for (const route of ['/%61pi/health', '/api%2Fhealth', '/%2561pi/health', '/%252561pi/health']) {
+    const response = await fetch(origin + route);
+    assert.equal(response.status, 503, route);
+    assert.equal((await response.json()).code, 'BACKEND_NOT_CONFIGURED');
+  }
+});
+
+test('malformed path encodings are rejected instead of falling through to the SPA', async (t) => {
+  const { origin } = await startFixture(t);
+  const response = await fetch(origin + '/bad%2');
+  assert.equal(response.status, 400);
+  assert.equal((await response.json()).code, 'INVALID_PATH_ENCODING');
+});
+
+test('filesystem-root path containment accepts root children but blocks sibling prefixes', () => {
+  assert.equal(isInsideRoot('/', '/index.html'), true);
+  assert.equal(isInsideRoot('/tmp/glorifier', '/tmp/glorifier/assets/app.js'), true);
+  assert.equal(isInsideRoot('/tmp/glorifier', '/tmp/glorifier-evil/assets/app.js'), false);
 });
 
 test('returns JSON 404 for missing file-like assets instead of SPA HTML', async (t) => {
