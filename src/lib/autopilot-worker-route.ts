@@ -148,12 +148,6 @@ function isJsonContentType(value: string): boolean {
     (mediaType.startsWith('application/') && mediaType.endsWith('+json'));
 }
 
-function inferenceAuthorized(environment: AutopilotWorkerRouteEnvironment): boolean {
-  return environment.GLORIFIER_ENABLE_INFERENCE === 'true' &&
-    environment.GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS === 'true' &&
-    environment.GLORIFIER_PAID_INFERENCE_AUTHORIZED === 'true';
-}
-
 function buildWorkerControl() {
   return {
     mode: 'cloudflare-hyperdrive',
@@ -205,7 +199,9 @@ function buildWorkerOrchestration(environment: AutopilotWorkerRouteEnvironment) 
     aiCeoConnected: false,
     specialistCouncilConnected: false,
     providerOrchestratorConnected: false,
-    inferenceAuthorized: localGateReady,
+    inferenceAuthorized: false,
+    freeOnlyConfigurationPresent: localGateReady,
+    neuralRuntimeReadinessRequired: true,
     inferenceMode: localGateReady
       ? 'free-only-neural-readiness-required'
       : 'disabled-zero-paid-budget-default',
@@ -219,7 +215,7 @@ function buildWorkerOrchestration(environment: AutopilotWorkerRouteEnvironment) 
     autoMerge: false,
     autoDeploy: false,
     externalActionExecution: false,
-    scheduledReadOnlyAnalysis: localGateReady,
+    scheduledReadOnlyAnalysisConfigured: localGateReady,
     reason,
     limitations: [
       'Scheduled cycles require both the GLORIFIER Worker and NEURAL to attest the exact Workers Free plan and free-only provider configuration.',
