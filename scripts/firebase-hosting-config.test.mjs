@@ -15,7 +15,7 @@ const fixturePaths = {
   requiredWorkerSecrets: { path: '../scripts/cloudflare-worker-required-secrets.json', json: true },
 };
 
-const loadFixture = async (name, { path, json }) => {
+const loadFixture = async ({ path, json }) => {
   try {
     const contents = await readFile(new URL(path, import.meta.url), 'utf8');
     return { ok: true, value: json ? JSON.parse(contents) : contents };
@@ -27,7 +27,7 @@ const loadFixture = async (name, { path, json }) => {
 const fixtureResults = Object.fromEntries(await Promise.all(
   Object.entries(fixturePaths).map(async ([name, fixtureSpec]) => [
     name,
-    await loadFixture(name, fixtureSpec),
+    await loadFixture(fixtureSpec),
   ]),
 ));
 
