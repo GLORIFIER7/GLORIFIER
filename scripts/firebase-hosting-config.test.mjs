@@ -13,6 +13,7 @@ const fixturePaths = {
   bootCss: { path: '../public/boot.css', json: false },
   wrangler: { path: '../wrangler.jsonc', json: true },
   requiredWorkerSecrets: { path: '../scripts/cloudflare-worker-required-secrets.json', json: true },
+  cloudflareWorkflow: { path: '../.github/workflows/cloudflare-worker.yml', json: false },
 };
 
 const loadFixture = async ({ path, json }) => {
@@ -134,6 +135,11 @@ test('Cloudflare Worker Firebase verification targets the registered project and
     'Wrangler and the production deployment preflight must share the same required-secret manifest');
   assert.ok(requiredWorkerSecrets.secrets.includes('FIREBASE_WEB_API_KEY'),
     'the Worker Firebase verification secret must be checked before deployment');
+  const cloudflareWorkflow = fixture('cloudflareWorkflow');
+  const manifestReference = cloudflareWorkflow.indexOf('scripts/cloudflare-worker-required-secrets.json');
+  const deployStep = cloudflareWorkflow.indexOf('- name: Deploy Cloudflare Worker');
+  assert.ok(manifestReference >= 0, 'the production deployment workflow must read the shared required-secret manifest');
+  assert.ok(deployStep > manifestReference, 'the required-secret preflight must run before the production deploy step');
 });
 
 test('the Hosting CSP does not require unsafe-inline for the app progress indicator', () => {
