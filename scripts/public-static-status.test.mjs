@@ -36,7 +36,7 @@ test('service-worker update replaces stale dashboard caches with the static page
   assert.match(serviceWorker, /glorifier-services-official-logo-001\.png/);
 });
 
-test('the canonical public sitemap lists only the static status page', () => {
+test('the public sitemap lists the Cloudflare status page and preserved GitHub Pages source', () => {
   assert.match(sitemap, /https:\/\/glorifier\.pages\.dev\//);
-  assert.doesNotMatch(sitemap, /project\.html/);
+  assert.match(sitemap, /https:\/\/glorifier7\.github\.io\/GLORIFIER\/project\.html/);
 });
