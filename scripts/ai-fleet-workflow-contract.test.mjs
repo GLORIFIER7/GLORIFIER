@@ -390,7 +390,8 @@ test('Gemini engineering collaborator uses the owner-confirmed free-tier API thr
   assert.ok(geminiCollaboratorWorkflow.includes('--mode accept-edits'));
   assert.ok(geminiCollaboratorWorkflow.includes('--output-format json'));
   assert.ok(geminiCollaboratorWorkflow.includes('--print-timeout 35m'));
-  assert.ok(geminiCollaboratorWorkflow.includes('payload.get("status") != "SUCCESS"'));
+  assert.ok(geminiCollaboratorWorkflow.includes('status = payload.get("status")'));
+  assert.ok(geminiCollaboratorWorkflow.includes('if status != "SUCCESS":'));
   assert.ok(geminiCollaboratorWorkflow.includes('CLI_VERSION="1.5.5"'));
   assert.ok(geminiCollaboratorWorkflow.includes('agy_cli_linux_x64.tar.gz'));
   assert.ok(geminiCollaboratorWorkflow.includes('releases/download/$CLI_VERSION/$ASSET'));
@@ -696,10 +697,11 @@ test('NEURAL dependency audit scans the hash-pinned exported lock set', () => {
     'the audit must not inspect the installed editable glorifier-neural project itself');
 });
 
-test('Gemini collaborator pins the Antigravity CLI release and verifies its immutable artifact digest', () => {
-  const pinnedAsset = '/releases/download/1.5.10/agy_cli_linux_x64.tar.gz';
-  assert.ok(geminiCollaboratorWorkflow.includes(pinnedAsset));
-  assert.ok(geminiCollaboratorWorkflow.includes('72fb2946d6f5bee3d4e8928fb8a7901104361566619e69d40ae6dc03e094917b'));
+test('Gemini collaborator pins the Antigravity CLI release and validates its published SHA-256 digest', () => {
+  assert.ok(geminiCollaboratorWorkflow.includes('CLI_VERSION="1.5.5"'));
+  assert.ok(geminiCollaboratorWorkflow.includes('api.github.com/repos/google-antigravity/antigravity-cli/releases/tags/$CLI_VERSION'));
+  assert.ok(geminiCollaboratorWorkflow.includes('assets[0].get("digest")'));
+  assert.ok(geminiCollaboratorWorkflow.includes('re.fullmatch(r"sha256:[0-9a-f]{64}", digest)'));
   assert.ok(geminiCollaboratorWorkflow.includes('sha256sum --check --strict'));
 });
 test('NEURAL dependency audit covers both development and production Neon extras', () => {
