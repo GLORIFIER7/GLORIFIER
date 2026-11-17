@@ -8,7 +8,8 @@ import { createFrontendServer } from './serve-frontend.mjs';
 async function startFixture(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'glorifier-mphr-'));
   await mkdir(path.join(root, 'assets'), { recursive: true });
-  await writeFile(path.join(root, 'index.html'), '<!doctype html><html><head><script>window.booted = true;</script><script type="module" src="/assets/app-12345678.js"></script></head><body><div id="root">GLORIFIER React app</div></body></html>');
+  await writeFile(path.join(root, 'index.html'), '<!doctype html><html><head><script defer src="/startup-status.js"></script><script type="module" src="/assets/app-12345678.js"></script></head><body><div id="root">GLORIFIER React app</div></body></html>');
+  await writeFile(path.join(root, 'startup-status.js'), 'window.booted = true;');
   await writeFile(path.join(root, 'assets', 'app-12345678.js'), 'console.log("app");');
   const server = createFrontendServer({ root });
   await new Promise((resolve, reject) => {
@@ -78,21 +79,29 @@ test('exposes a static-server-only health endpoint with no backend readiness cla
   });
 });
 
-test('HTML responses use a nonce-based script policy and restrict active content', async (t) => {
+test('HTML responses use a same-origin script policy and restrict active content', async (t) => {
   const { origin } = await startFixture(t);
   const response = await fetch(origin + '/');
   assert.equal(response.status, 200);
   const policy = response.headers.get('content-security-policy') || '';
   assert.match(policy, /default-src 'self'/);
-  assert.match(policy, /script-src 'self' 'nonce-[A-Za-z0-9+/]+=*'/);
+  assert.match(policy, /script-src 'self'/);
+  assert.doesNotMatch(policy, /script-src[^;]*unsafe-inline/);
   assert.match(policy, /object-src 'none'/);
   assert.match(policy, /base-uri 'self'/);
   assert.match(policy, /frame-ancestors 'none'/);
-  const nonce = policy.match(/script-src 'self' 'nonce-([^']+)'/)?.[1];
-  assert.ok(nonce);
   const html = await response.text();
-  assert.ok(html.includes('<script nonce="' + nonce + '">window.booted = true;</script>'));
+  assert.ok(html.includes('<script defer src="/startup-status.js"></script>'));
   assert.ok(html.includes('<script type="module" src="/assets/app-12345678.js"></script>'));
+  assert.doesNotMatch(html, /<script(?![^>]*\\ssrc\\s*=)[^>]*>/i);
+});
+
+test('serves the externalized startup status script as a same-origin asset', async (t) => {
+  const { origin } = await startFixture(t);
+  const response = await fetch(origin + '/startup-status.js');
+  assert.equal(response.status, 200);
+  assert.equal(response.headers.get('content-type'), 'text/javascript; charset=utf-8');
+  assert.equal(await response.text(), 'window.booted = true;');
 });
 
 test('does not SPA-fallback extensionless paths under the assets directory', async (t) => {
