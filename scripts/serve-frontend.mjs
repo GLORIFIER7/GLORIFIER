@@ -231,7 +231,7 @@ export function createFrontendServer(options = {}) {
         const nonce = randomBytes(18).toString('base64');
         const html = await readFile(resolved.filePath, 'utf8');
         const securedHtml = html.replace(
-          /<script(?![^>]*\\ssrc\\s*=)([^>]*)>/gi,
+          /<script(?![^>]*\ssrc\s*=)([^>]*)>/gi,
           (_match, attributes) => '<script' + attributes + ' nonce="' + nonce + '">',
         );
         const payload = Buffer.from(securedHtml);
