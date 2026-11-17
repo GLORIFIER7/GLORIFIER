@@ -137,7 +137,7 @@ jobs:
               denied.append(repository_read_rule)
           with settings_path.open("w", encoding="utf-8") as handle:
               json.dump(settings, handle, indent=2)
-              handle.write("\\n")
+              handle.write("\n")
           os.chmod(settings_path, 0o600)
           PY
 
@@ -381,8 +381,8 @@ jobs:
           changed = subprocess.check_output(git + ["diff", "--name-only", "-z", "HEAD"])
           paths = [path for path in changed.decode("utf-8", "surrogateescape").split("\0") if path]
           protected = re.compile(
-              r"(^|/)\.github(?:/|$)|(^|/)GEMINI\.md$|(^|/)AGENTS\.md$|"
-              r"(^|/)\.env(?:$|[./])|(^|/)package\.json$|(^|/)package-lock\.json$|"
+              r"(^|/)(?:\.git|\.github|node_modules|\.wrangler)(?:/|$)|(^|/)(?:GEMINI|AGENTS)\.md$|"
+              r"(^|/)\.env(?:$|[./])|(^|/)\.dev\.vars$|(^|/)package\.json$|(^|/)package-lock\.json$|"
               r"(^|/)npm-shrinkwrap\.json$|(^|/)\.npmrc$|"
               r"(^|/)(?:secrets|credentials|signing|\.ssh|\.aws|private|certs|keys)(?:/|$)|"
               r"(^|/)(?:wrangler\.toml|vercel\.json|railway\.toml|Dockerfile)$|"
@@ -398,7 +398,8 @@ jobs:
               print("Antigravity produced no publishable changes; no PR will be created.")
               sys.exit(0)
 
-          patch = subprocess.check_output(git + ["diff", "--binary", "--no-ext-diff", "HEAD", "--", *safe_paths])
+          literal_paths = [":(literal)" + path for path in safe_paths]
+          patch = subprocess.check_output(git + ["diff", "--binary", "--no-ext-diff", "HEAD", "--", *literal_paths])
           if len(patch) > 500000:
               print("::error::Antigravity patch exceeds the 500 KB review limit.")
               sys.exit(1)
@@ -457,10 +458,10 @@ jobs:
           untracked = subprocess.check_output(git + ["ls-files", "--others", "--exclude-standard", "-z"])
           paths = (changed + untracked).decode("utf-8", "surrogateescape").split("\0")
           protected = re.compile(
-              r"(^|/)\.github(?:/|$)|(^|/)GEMINI\.md$|(^|/)AGENTS\.md$|"
-              r"(^|/)\.env(?:$|[./])|(^|/)package\.json$|(^|/)package-lock\.json$|"
+              r"(^|/)(?:\.git|\.github|node_modules|\.wrangler)(?:/|$)|(^|/)(?:GEMINI|AGENTS)\.md$|"
+              r"(^|/)\.env(?:$|[./])|(^|/)\.dev\.vars$|(^|/)package\.json$|(^|/)package-lock\.json$|"
               r"(^|/)npm-shrinkwrap\.json$|(^|/)\.npmrc$|"
-              r"(^|/)(?:secrets|credentials|signing)(?:/|$)|"
+              r"(^|/)(?:secrets|credentials|signing|\.ssh|\.aws|private|certs|keys)(?:/|$)|"
               r"(^|/)(?:wrangler\.toml|vercel\.json|railway\.toml|Dockerfile)$|"
               r"\.(?:pem|key|p12|pfx|crt|cer|der|gpg|asc|jks|keystore|pkcs12|p7b|p7c|p7m|p7s|spc|csr|mobileprovision|provisionprofile)$",
               re.IGNORECASE)
