@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 
 # Build the same React/Vite application used by the Cloudflare and Vercel targets.
-FROM node:24-trixie-slim AS build
+FROM node:24.22.3-trixie-slim@sha256:6933172a7f9a11092eb1df709088a1604b6de0783f2a0011cc8b58197e32d6b7 AS build
 
 ENV NODE_ENV=production \
     NPM_CONFIG_UPDATE_NOTIFIER=false \
@@ -16,7 +16,7 @@ COPY . .
 RUN npm run build:frontend
 
 # This is a static frontend container, not the GLORIFIER API/backend runtime.
-FROM node:24-trixie-slim AS runtime
+FROM node:24.22.3-trixie-slim@sha256:6933172a7f9a11092eb1df709088a1604b6de0783f2a0011cc8b58197e32d6b7 AS runtime
 
 ENV NODE_ENV=production \
     PORT=8080 \
