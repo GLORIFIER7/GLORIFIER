@@ -37,10 +37,12 @@ test('Vercel forwards only documented runtime paths to the current Cloudflare Pa
     'the Vercel frontend standby must not restore the retired Railway API origin');
 });
 
-test('Cloudflare Pages and Vercel serve the same explicit restrictive CSP policy', () => {
+test('Cloudflare Pages, Vercel and Docker use the same restrictive CSP policy', () => {
   const vercelHeaders = vercel.headers?.find((entry) => entry.source === '/(.*)')?.headers;
   const vercelCsp = vercelHeaders?.find((entry) => entry.key === 'Content-Security-Policy')?.value;
   const cloudflareHeaders = read('public/_headers');
+  const dockerServer = read('scripts/serve-frontend.mjs');
+  const dockerCsp = dockerServer.match(/const CONTENT_SECURITY_POLICY = "([^"]+)";/)?.[1];
   assert.ok(vercelCsp, 'Vercel must set a CSP header on frontend routes');
   assert.match(vercelCsp, /default-src 'self'/);
   assert.match(vercelCsp, /script-src 'self'/);
@@ -50,8 +52,12 @@ test('Cloudflare Pages and Vercel serve the same explicit restrictive CSP policy
   assert.match(cloudflareHeaders, /Content-Security-Policy:/);
   assert.ok(cloudflareHeaders.includes(vercelCsp),
     'Cloudflare Pages and Vercel must use the same CSP policy');
+  assert.equal(dockerCsp, vercelCsp,
+    'Docker static server must use the same CSP policy as Cloudflare Pages and Vercel');
+  assert.match(read('index.html'), /startup-status\.js/);
+  assert.doesNotMatch(read('index.html'), /<script>\s*[\s\S]*?<\/script>/,
+    'the application entry document must not reintroduce inline scripts');
 });
-
 test('the frontend container is non-root and reports static availability separately from backend readiness', () => {
   const dockerfile = read('Dockerfile.frontend');
   const server = read('scripts/serve-frontend.mjs');
