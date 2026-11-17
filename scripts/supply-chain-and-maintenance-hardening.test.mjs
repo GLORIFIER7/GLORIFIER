@@ -79,7 +79,7 @@ test('Gemini collaborator uses the pinned Antigravity binary and exact Gemini mo
   assert.ok(geminiWorkflow.includes('CLI_VERSION="1.5.5"'));
   assert.ok(geminiWorkflow.includes('agy_cli_linux_x64.tar.gz'));
   assert.ok(geminiWorkflow.includes('releases/download/$CLI_VERSION/$ASSET'));
-  assert.match(geminiWorkflow, /api\.github\.com\/repos\/google-antigravity\/antigravity-cli\/releases\/tags\/1\.5\.5/);
+  assert.ok(geminiWorkflow.includes('api.github.com/repos/google-antigravity/antigravity-cli/releases/tags/$CLI_VERSION'));
   assert.match(geminiWorkflow, /get\("digest"\)/);
   assert.match(geminiWorkflow, /tar -xzf "\$ARCHIVE" -C "\$INSTALL_DIR" antigravity/);
   assert.match(geminiWorkflow, /install -m 755 "\$INSTALL_DIR\/antigravity" "\$HOME\/\.local\/bin\/agy"/);
@@ -327,7 +327,8 @@ test('scheduled Gemini collaborator separates read-only model execution from PR 
   assert.match(publisherJob, /npm run lint/);
   assert.match(publisherJob, /npm run build/);
   assert.doesNotMatch(geminiWorkflow, /GEMINI_CLI_TRUST_WORKSPACE/);
-  assert.match(modelJob, /agy -p "\$GEMINI_PROMPT" --model "\$AGY_MODEL" --effort "\$AGY_EFFORT" --mode accept-edits/);
+  assert.ok(modelJob.includes('agy -p "$GEMINI_PROMPT" --model "$AGY_MODEL" --effort "$AGY_EFFORT"'));
+  assert.ok(modelJob.includes('--mode accept-edits'));
   assert.match(modelJob, /AGY_MODEL: gemini-3\.8-flash/);
   assert.match(modelJob, /AGY_EFFORT: medium/);
   assert.doesNotMatch(modelJob, /bash scripts\/run-gemini-collaboration\.sh|gemini --skip-trust/);
