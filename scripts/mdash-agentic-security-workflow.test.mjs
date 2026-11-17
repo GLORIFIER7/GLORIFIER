@@ -57,7 +57,8 @@ test('the Defender CLI binary is SHA-256 verified before chmod and execution', (
   assert.ok(verifyIndex > downloadIndex, 'digest check must follow download');
   assert.ok(chmodIndex > verifyIndex, 'digest check must precede chmod');
   assert.ok(executeIndex > chmodIndex, 'digest check must precede execution');
-  assert.ok(scanJob.includes('https://cli.dfd.security.azure.com/public/v2/latest/Defender_linux-x64'));
+  const expectedDownloadUrlLine = '"https://cli.dfd.security.azure.com/public/v2/latest/Defender_linux-x64" ' + String.fromCharCode(92);
+  assert.ok(scanJob.split('\n').some((line) => line.trim() === expectedDownloadUrlLine));
 });
 
 test('scan uses the documented standard profile and does not print captured CLI output', () => {
