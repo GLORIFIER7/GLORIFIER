@@ -76,8 +76,5 @@
       "**/__pycache__",
       "**/*.dist-info/*.txt"
     ]
-  },
-  "ai": {
-    "binding": "AI"
   }
 }
