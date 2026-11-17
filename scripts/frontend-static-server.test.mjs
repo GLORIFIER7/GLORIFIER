@@ -8,7 +8,7 @@ import { createFrontendServer } from './serve-frontend.mjs';
 async function startFixture(t) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'glorifier-mphr-'));
   await mkdir(path.join(root, 'assets'), { recursive: true });
-  await writeFile(path.join(root, 'index.html'), '<!doctype html><html><div id="root">GLORIFIER React app</div></html>');
+  await writeFile(path.join(root, 'index.html'), '<!doctype html><html><head><script>window.booted = true;</script><script type="module" src="/assets/app-12345678.js"></script></head><body><div id="root">GLORIFIER React app</div></body></html>');
   await writeFile(path.join(root, 'assets', 'app-12345678.js'), 'console.log("app");');
   const server = createFrontendServer({ root });
   await new Promise((resolve, reject) => {
@@ -40,6 +40,8 @@ test('serves real static assets with their content type and cache policy', async
   assert.equal(response.status, 200);
   assert.match(response.headers.get('content-type') || '', /javascript/);
   assert.match(response.headers.get('cache-control') || '', /immutable/);
+  assert.equal(response.headers.get('content-length'), null,
+    'streamed asset responses must not advertise a potentially stale stat size');
   assert.equal(await response.text(), 'console.log("app");');
 });
 
@@ -74,6 +76,23 @@ test('exposes a static-server-only health endpoint with no backend readiness cla
     status: 'static-assets-ready',
     backend: 'not-probed',
   });
+});
+
+test('HTML responses use a nonce-based script policy and restrict active content', async (t) => {
+  const { origin } = await startFixture(t);
+  const response = await fetch(origin + '/');
+  assert.equal(response.status, 200);
+  const policy = response.headers.get('content-security-policy') || '';
+  assert.match(policy, /default-src 'self'/);
+  assert.match(policy, /script-src 'self' 'nonce-[A-Za-z0-9+/]+=*'/);
+  assert.match(policy, /object-src 'none'/);
+  assert.match(policy, /base-uri 'self'/);
+  assert.match(policy, /frame-ancestors 'none'/);
+  const nonce = policy.match(/script-src 'self' 'nonce-([^']+)'/)?.[1];
+  assert.ok(nonce);
+  const html = await response.text();
+  assert.ok(html.includes('<script nonce="' + nonce + '">window.booted = true;</script>'));
+  assert.ok(html.includes('<script type="module" src="/assets/app-12345678.js"></script>'));
 });
 
 test('does not SPA-fallback extensionless paths under the assets directory', async (t) => {
