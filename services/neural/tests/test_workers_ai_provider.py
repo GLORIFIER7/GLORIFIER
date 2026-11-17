@@ -191,6 +191,7 @@ def test_runtime_registers_workers_ai_only_when_all_free_only_gates_are_satisfie
         "GLORIFIER_PAID_INFERENCE_AUTHORIZED": "false",
         "GLORIFIER_WORKERS_AI_FREE_ONLY": "true",
         "GLORIFIER_WORKERS_PLAN": "free",
+        "GLORIFIER_WORKERS_PLAN_VERIFIED": "true",
         "AI": binding,
     }
 
@@ -226,6 +227,7 @@ def test_runtime_never_turns_on_paid_providers_under_free_only_environment():
         "GLORIFIER_PAID_INFERENCE_AUTHORIZED": "false",
         "GLORIFIER_WORKERS_AI_FREE_ONLY": "true",
         "GLORIFIER_WORKERS_PLAN": "free",
+        "GLORIFIER_WORKERS_PLAN_VERIFIED": "true",
         "OPENAI_API_KEY": "must-not-be-used",
     }
 
@@ -244,6 +246,7 @@ def test_runtime_executes_only_the_explicit_workers_ai_provider():
         "GLORIFIER_PAID_INFERENCE_AUTHORIZED": "false",
         "GLORIFIER_WORKERS_AI_FREE_ONLY": "true",
         "GLORIFIER_WORKERS_PLAN": "free",
+        "GLORIFIER_WORKERS_PLAN_VERIFIED": "true",
         "AI": binding,
     }
     orchestrator = build_orchestrator_from_environment(env)
@@ -275,6 +278,7 @@ def test_runtime_denies_workers_ai_when_external_or_paid_authorization_is_set(fl
         "GLORIFIER_PAID_INFERENCE_AUTHORIZED": "false",
         "GLORIFIER_WORKERS_AI_FREE_ONLY": "true",
         "GLORIFIER_WORKERS_PLAN": "free",
+        "GLORIFIER_WORKERS_PLAN_VERIFIED": "true",
         "AI": _FakeWorkersAIBinding(),
     }
     env[flag] = value
@@ -292,6 +296,7 @@ def test_runtime_keeps_workers_ai_disabled_without_explicit_inference_opt_in():
         "GLORIFIER_PAID_INFERENCE_AUTHORIZED": "false",
         "GLORIFIER_WORKERS_AI_FREE_ONLY": "true",
         "GLORIFIER_WORKERS_PLAN": "free",
+        "GLORIFIER_WORKERS_PLAN_VERIFIED": "true",
         "AI": binding,
     }
 
@@ -308,3 +313,20 @@ def test_runtime_keeps_workers_ai_disabled_without_explicit_inference_opt_in():
     assert "inference:disabled" in response.evidence
     assert "execution:none" in response.evidence
     assert binding.calls == []
+
+
+def test_runtime_rejects_owner_plan_label_without_separate_verification_attestation():
+    env = {
+        "GLORIFIER_PROVIDER": "cloudflare_workers_ai",
+        "GLORIFIER_ENABLE_INFERENCE": "true",
+        "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS": "false",
+        "GLORIFIER_PAID_INFERENCE_AUTHORIZED": "false",
+        "GLORIFIER_WORKERS_AI_FREE_ONLY": "true",
+        "GLORIFIER_WORKERS_PLAN": "free",
+        "AI": _FakeWorkersAIBinding(),
+    }
+
+    orchestrator = build_orchestrator_from_environment(env)
+
+    assert orchestrator._allow_inference is False
+    assert orchestrator._providers.get("cloudflare_workers_ai") is None
