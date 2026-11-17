@@ -58,6 +58,15 @@ test('does not return the SPA shell for API, auth, MCP or agent-card routes', as
   }
 });
 
+test('does not pretend backend write routes are available on a static-only host', async (t) => {
+  const { origin } = await startFixture(t);
+  const response = await fetch(origin + '/api/health', { method: 'POST', body: JSON.stringify({ probe: true }) });
+  assert.equal(response.status, 503);
+  const body = await response.json();
+  assert.equal(body.ok, false);
+  assert.equal(body.code, 'BACKEND_NOT_CONFIGURED');
+});
+
 test('returns JSON 404 for missing file-like assets instead of SPA HTML', async (t) => {
   const { origin } = await startFixture(t);
   const response = await fetch(origin + '/assets/missing.js');
