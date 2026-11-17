@@ -204,6 +204,10 @@ jobs:
           print(digest)
           PY
           )"
+          if [[ "$PUBLISHED_DIGEST" != "sha256:$EXPECTED_SHA256" ]]; then
+            echo "::error::Published Antigravity digest did not match the reviewed SHA-256 pin."
+            exit 1
+          fi
           curl --fail --location --silent --show-error --proto '=https' --tlsv1.2 \
             "$DOWNLOAD_URL" --output "$ARCHIVE"
           printf '%s  %s\n' "$EXPECTED_SHA256" "$ARCHIVE" | sha256sum --check --strict
