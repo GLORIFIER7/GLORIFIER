@@ -12,7 +12,7 @@ const fixturePaths = {
   startupWatchdog: { path: '../public/startup-watchdog.js', json: false },
   bootCss: { path: '../public/boot.css', json: false },
   wrangler: { path: '../wrangler.jsonc', json: true },
-  cloudflareWorkflow: { path: '../.github/workflows/cloudflare-worker.yml', json: false },
+  requiredWorkerSecrets: { path: '../scripts/cloudflare-worker-required-secrets.json', json: true },
 };
 
 const loadFixture = async (name, { path, json }) => {
@@ -129,11 +129,11 @@ test('Cloudflare Worker Firebase verification targets the registered project and
     'preview must not duplicate the Worker Web API key as a plain-text variable');
   assert.ok(wrangler.secrets.required.includes('FIREBASE_WEB_API_KEY'),
     'the Worker Web API key must be configured as a Wrangler secret');
-  const workflow = fixture('cloudflareWorkflow');
-  const preflight = workflow.match(/required\s*=\s*\{([^}]+)\}/);
-  assert.ok(preflight, 'the production Worker secret preflight set must be present');
-  assert.match(preflight[1], /FIREBASE_WEB_API_KEY/,
-    'the production preflight must check the Firebase secret before starting deployment');
+  const requiredWorkerSecrets = fixture('requiredWorkerSecrets');
+  assert.deepEqual([...wrangler.secrets.required].sort(), [...requiredWorkerSecrets.secrets].sort(),
+    'Wrangler and the production deployment preflight must share the same required-secret manifest');
+  assert.ok(requiredWorkerSecrets.secrets.includes('FIREBASE_WEB_API_KEY'),
+    'the Worker Firebase verification secret must be checked before deployment');
 });
 
 test('the Hosting CSP does not require unsafe-inline for the app progress indicator', () => {
