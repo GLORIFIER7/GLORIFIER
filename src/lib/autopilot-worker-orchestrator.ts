@@ -13,6 +13,8 @@ export type CloudflareAutopilotEnvironment = {
   APP_STATE_HYPERDRIVE?: WorkerNeonBinding;
   GLORIFIER_NEURAL?: WorkerServiceBinding;
   GLORIFIER_API_TOKEN?: string;
+  GLORIFIER_PROVIDER?: string;
+  GLORIFIER_WORKERS_AI_MODEL?: string;
   GLORIFIER_WORKERS_PLAN?: string;
   GLORIFIER_WORKERS_PLAN_VERIFIED?: string;
   GLORIFIER_WORKERS_AI_FREE_ONLY?: string;
@@ -33,6 +35,8 @@ export type CloudflareAutopilotCycleDependencies = {
   fetchNeural?: (request: Request, environment: CloudflareAutopilotEnvironment) => Promise<Response>;
   now?: () => string;
   workerId?: string;
+  readinessTimeoutMs?: number;
+  taskTimeoutMs?: number;
 };
 
 export type CloudflareAutopilotCycleResult = {
@@ -72,6 +76,13 @@ const defaultFetchNeural = (
 const freeOnlyGateReason = (
   environment: CloudflareAutopilotEnvironment,
 ): string | null => {
+  if (environment.GLORIFIER_PROVIDER !== PROVIDER_ID) {
+    return 'workers-ai-provider-not-pinned';
+  }
+  const selectedModel = environment.GLORIFIER_WORKERS_AI_MODEL?.trim() || PROVIDER_MODEL;
+  if (selectedModel !== PROVIDER_MODEL) {
+    return 'workers-ai-model-not-pinned';
+  }
   if (environment.GLORIFIER_WORKERS_PLAN !== 'free') {
     return 'workers-free-plan-not-verified';
   }
@@ -117,7 +128,8 @@ function isCredentialLike(value: string): boolean {
 }
 
 function safePromptForMission(mission: AutopilotMission): string | null {
-  if (!mission.objective || mission.objective.length > 5_000 || isCredentialLike(mission.objective)) {
+  if (!mission.objective || mission.objective.length > 5_000 ||
+      isCredentialLike(mission.title) || isCredentialLike(mission.objective)) {
     return null;
   }
   const prompt = [
@@ -142,9 +154,30 @@ async function sha256Hex(value: string): Promise<string> {
   return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('');
 }
 
+async function withServiceBindingTimeout<T>(
+  operation: () => Promise<T>,
+  timeoutMs: number,
+): Promise<T> {
+  if (!Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > 60_000) {
+    throw new Error('Service Binding timeout must be between 1 and 60000 milliseconds.');
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      operation(),
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(() => reject(new Error('Service Binding request timed out.')), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== undefined) clearTimeout(timer);
+  }
+}
+
 async function probeNeuralFreeProvider(
   environment: CloudflareAutopilotEnvironment,
   fetchNeural: CloudflareAutopilotCycleDependencies['fetchNeural'],
+  timeoutMs = 8_000,
 ): Promise<{ ready: true; model: string } | { ready: false; reason: string }> {
   const token = environment.GLORIFIER_API_TOKEN?.trim();
   if (!token) return { ready: false, reason: 'neural-api-token-not-configured' };
@@ -154,14 +187,19 @@ async function probeNeuralFreeProvider(
       Authorization: 'Bearer ' + token,
       Accept: 'application/json',
     },
-    signal: AbortSignal.timeout(8_000),
   });
   try {
-    const response = await (fetchNeural ?? defaultFetchNeural)(request, environment);
-    if (!response.ok) return { ready: false, reason: 'neural-readiness-probe-failed' };
-    const text = await response.text();
-    if (text.length > 8_192) return { ready: false, reason: 'neural-readiness-response-invalid' };
-    const body = JSON.parse(text) as Record<string, unknown>;
+    const body = await withServiceBindingTimeout(async () => {
+      const response = await (fetchNeural ?? defaultFetchNeural)(request, environment);
+      if (!response.ok) throw new Error('NEURAL readiness probe returned a non-success response.');
+      const text = await response.text();
+      if (text.length > 8_192) throw new Error('NEURAL readiness response exceeded the size limit.');
+      const parsed: unknown = JSON.parse(text);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+        throw new Error('NEURAL readiness response must be a JSON object.');
+      }
+      return parsed as Record<string, unknown>;
+    }, timeoutMs);
     if (
       body.eligible !== true ||
       body.provider !== PROVIDER_ID ||
@@ -217,7 +255,11 @@ export async function runCloudflareAutopilotCycle(
   const gateReason = freeOnlyGateReason(environment);
   if (gateReason) return { status: 'blocked', reason: gateReason };
 
-  const neural = await probeNeuralFreeProvider(environment, dependencies.fetchNeural);
+  const neural = await probeNeuralFreeProvider(
+    environment,
+    dependencies.fetchNeural,
+    dependencies.readinessTimeoutMs ?? 8_000,
+  );
   if (!neural.ready) {
     return { status: 'blocked', reason: neural.reason };
   }
@@ -292,8 +334,6 @@ export async function runCloudflareAutopilotCycle(
         Authorization: 'Bearer ' + environment.GLORIFIER_API_TOKEN!.trim(),
         'Content-Type': 'application/json',
         Accept: 'application/json',
-        // A single internal service identity shares one NEURAL rate-limit bucket.
-        'cf-connecting-ip': '127.0.0.1',
         'x-correlation-id': crypto.randomUUID(),
       },
       body: JSON.stringify({
@@ -302,12 +342,15 @@ export async function runCloudflareAutopilotCycle(
         require_approval: false,
         action_class: 'read_only',
       }),
-      signal: AbortSignal.timeout(30_000),
     });
 
-    let response: Response;
+    let taskResponse: { ok: boolean; text: string };
     try {
-      response = await (dependencies.fetchNeural ?? defaultFetchNeural)(taskRequest, environment);
+      taskResponse = await withServiceBindingTimeout(async () => {
+        const response = await (dependencies.fetchNeural ?? defaultFetchNeural)(taskRequest, environment);
+        if (!response.ok) return { ok: false, text: '' };
+        return { ok: true, text: await response.text() };
+      }, dependencies.taskTimeoutMs ?? 30_000);
     } catch {
       const saved = await saveTerminalMission(
         store,
@@ -324,7 +367,7 @@ export async function runCloudflareAutopilotCycle(
       };
     }
 
-    if (!response.ok) {
+    if (!taskResponse.ok) {
       const saved = await saveTerminalMission(
         store,
         mission,
@@ -342,9 +385,10 @@ export async function runCloudflareAutopilotCycle(
 
     let body: Record<string, unknown>;
     try {
-      const text = await response.text();
-      if (text.length > 32_768) throw new Error('oversized');
-      body = JSON.parse(text) as Record<string, unknown>;
+      if (taskResponse.text.length > 32_768) throw new Error('oversized');
+      const parsed: unknown = JSON.parse(taskResponse.text);
+      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('invalid-json-object');
+      body = parsed as Record<string, unknown>;
     } catch {
       const saved = await saveTerminalMission(
         store,
