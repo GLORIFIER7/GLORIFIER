@@ -9,7 +9,12 @@
     "GLORIFIER_NEURAL_ALLOWED_HOSTS": "glorifier-neural.glorifier.workers.dev",
     "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS": "false",
     "GLORIFIER_ENABLE_INFERENCE": "false",
-    "GLORIFIER_PAID_INFERENCE_AUTHORIZED": "false"
+    "GLORIFIER_PAID_INFERENCE_AUTHORIZED": "false",
+    "GLORIFIER_WORKERS_PLAN": "unverified",
+    "GLORIFIER_WORKERS_AI_FREE_ONLY": "false",
+    "GLORIFIER_PROVIDER": "cloudflare_workers_ai",
+    "GLORIFIER_WORKERS_AI_MODEL": "@cf/google/gemma-4-26b-a4b-it",
+    "GLORIFIER_WORKERS_PLAN_VERIFIED": "false"
   },
   "services": [
     {
@@ -102,11 +107,21 @@
       "GLORIFIER_NEURAL_ALLOWED_HOSTS": "",
       "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS": "false",
       "GLORIFIER_ENABLE_INFERENCE": "false",
-      "GLORIFIER_PAID_INFERENCE_AUTHORIZED": "false"
+      "GLORIFIER_PAID_INFERENCE_AUTHORIZED": "false",
+      "GLORIFIER_WORKERS_PLAN": "unverified",
+      "GLORIFIER_WORKERS_AI_FREE_ONLY": "false",
+      "GLORIFIER_PROVIDER": "cloudflare_workers_ai",
+      "GLORIFIER_WORKERS_AI_MODEL": "@cf/google/gemma-4-26b-a4b-it",
+      "GLORIFIER_WORKERS_PLAN_VERIFIED": "false"
     }
   },
   "main": "./src/worker.ts",
   "compatibility_flags": [
     "nodejs_compat"
-  ]
+  ],
+  "triggers": {
+    "crons": [
+      "*/5 * * * *"
+    ]
+  }
 }

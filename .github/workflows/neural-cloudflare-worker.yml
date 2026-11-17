@@ -7,6 +7,7 @@ on:
       - "services/neural/cloudflare/**"
       - "services/neural/pyproject.toml"
       - "services/neural/uv.lock"
+      - "services/neural/tests/**"
       - ".github/workflows/neural-cloudflare-worker.yml"
   pull_request:
     paths:
@@ -60,6 +61,11 @@ jobs:
       - name: Install Cloudflare Worker dependencies
         working-directory: services/neural/cloudflare
         run: uv sync --locked --group dev --no-install-project
+      - name: Run Workers AI free-only and Autopilot readiness unit tests
+        working-directory: services/neural/cloudflare
+        env:
+          PYTHONPATH: ..
+        run: uv run --locked pytest ../tests/test_workers_ai_provider.py ../tests/test_autopilot_workers_ai_readiness.py -q
       - name: Verify Cloudflare Python Worker runtime startup including asyncpg
         working-directory: services/neural/cloudflare
         env:

@@ -18,5 +18,7 @@ glorifier-neural-app = { path = "neural_app", editable = false }
 dev = [
     "workers-py==1.17.8",
     "workers-runtime-sdk",
+    "pytest>=8.0",
+    "httpx>=0.27",
 ]
 

@@ -19,6 +19,7 @@ from app.api_support import (
 )
 from app.database.neon import NeonConnectivityProbe
 from app.database.task_runs import TaskRunRepository
+from app.providers.workers_ai import DEFAULT_WORKERS_AI_MODEL
 from app.neural.torch_status import pytorch_status
 from app.runtime import build_orchestrator_from_environment
 from app.request_limits import RequestBodyLimitMiddleware
@@ -660,6 +661,93 @@ async def _process_authenticated_task(
             audit_sink, result, request_id, correlation_id, task_request, worker_request
         )
     return result
+
+
+
+@app.get("/__internal/autopilot/readiness", include_in_schema=False)
+async def autopilot_workers_ai_readiness(
+    request: Request,
+    authorization: str | None = Header(default=None),
+) -> JSONResponse:
+    """Expose only boolean free-tier readiness to the trusted GLORIFIER Worker."""
+    worker_env = request.scope.get("env")
+    if worker_env is None:
+        raise HTTPException(status_code=404, detail="Not Found")
+
+    expected = _request_environment_value(request, "GLORIFIER_API_TOKEN")
+    supplied = (authorization or "").strip()
+    if not expected or not hmac.compare_digest(
+        supplied.encode("utf-8"), f"Bearer {expected}".encode()
+    ):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    workers_plan_assertion = (
+        _request_environment_value(request, "GLORIFIER_WORKERS_PLAN") or "unverified"
+    ).strip().casefold()
+    workers_plan_verified = (
+        (_request_environment_value(request, "GLORIFIER_WORKERS_PLAN_VERIFIED") or "")
+        .strip().casefold() == "true"
+    )
+    workers_plan = (
+        "free" if workers_plan_assertion == "free" and workers_plan_verified
+        else "unverified"
+    )
+    free_only = (
+        _request_environment_value(request, "GLORIFIER_WORKERS_AI_FREE_ONLY") or ""
+    ).strip().casefold() == "true"
+    inference_enabled = (
+        _request_environment_value(request, "GLORIFIER_ENABLE_INFERENCE") or ""
+    ).strip().casefold() == "true"
+    external_egress = (
+        _request_environment_value(request, "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS") or ""
+    ).strip().casefold() == "true"
+    paid_authorized = (
+        _request_environment_value(request, "GLORIFIER_PAID_INFERENCE_AUTHORIZED") or ""
+    ).strip().casefold() == "true"
+    provider_name = (
+        _request_environment_value(request, "GLORIFIER_PROVIDER") or ""
+    ).strip().casefold()
+    model = (
+        _request_environment_value(request, "GLORIFIER_WORKERS_AI_MODEL")
+        or DEFAULT_WORKERS_AI_MODEL
+    ).strip()
+
+    # Use the public runtime contract; readiness must not depend on private fields.
+    runtime = _request_orchestrator(request)
+    provider_configured = runtime.has_configured_provider("cloudflare_workers_ai")
+    eligible = (
+        workers_plan == "free"
+        and workers_plan_verified
+        and free_only
+        and inference_enabled
+        and not external_egress
+        and not paid_authorized
+        and provider_name == "cloudflare_workers_ai"
+        and provider_configured
+        and runtime.inference_enabled is True
+    )
+    reason = (
+        "ready"
+        if eligible
+        else "workers-ai-free-only-configuration-not-verified"
+    )
+    return JSONResponse(
+        status_code=200,
+        content={
+            "eligible": eligible,
+            "reason": reason,
+            "provider": "cloudflare_workers_ai",
+            "model": model or None,
+            "workersPlan": "free" if workers_plan == "free" else "unverified",
+            "workersPlanVerified": workers_plan_verified,
+            "freeOnly": free_only,
+            "inferenceEnabled": inference_enabled,
+            "externalDataEgress": external_egress,
+            "paidInferenceAuthorized": paid_authorized,
+            "factualVerification": False,
+        },
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @app.post("/v1/tasks", response_model=TaskResponse, tags=["orchestration"])

@@ -61,7 +61,7 @@
     "test:glr-solana-verifier": "node --import tsx/esm --test src/lib/glr-solana-verifier.test.ts",
     "test:alpaca-oauth-url": "tsx src/lib/alpaca-oauth-url.test.ts",
     "test:outcome-evidence-gates": "tsx src/lib/governance/outcome-evidence-gates.test.ts",
-    "test:cloudflare-worker": "tsx src/worker.test.ts && tsx src/worker-neural-diagnostic.test.ts && node scripts/neural-worker-config.test.mjs && node --test scripts/cloudflare-pages-proxy.test.mjs && node --test scripts/mcp-conformance-target.test.mjs scripts/mcp-live-smoke.test.mjs && npm run test:autopilot-worker-store && npm run test:autopilot-worker-route && npm run test:autopilot-worker-migration",
+    "test:cloudflare-worker": "tsx src/worker.test.ts && npm run test:autopilot-worker-orchestrator && tsx src/worker-neural-diagnostic.test.ts && node scripts/neural-worker-config.test.mjs && node --test scripts/cloudflare-pages-proxy.test.mjs && node --test scripts/mcp-conformance-target.test.mjs scripts/mcp-live-smoke.test.mjs && npm run test:autopilot-worker-store && npm run test:autopilot-worker-route && npm run test:autopilot-worker-migration",
     "test:worker-integration-registry": "tsx src/lib/worker-integration-registry.test.ts",
     "test:opensea-worker": "tsx src/lib/opensea-worker.test.ts",
     "test:huggingface-space-deploy": "node scripts/huggingface-space-deploy.test.cjs",
@@ -130,7 +130,8 @@
     "test:repository-provider-budget": "node --import tsx/esm --test src/lib/ai/repository-provider-budget.test.ts",
     "test:github-app-auth": "node --import tsx/esm --test src/lib/github-app-auth.test.ts",
     "test:skillhub-registry": "node --import tsx/esm --test src/lib/skillhub-registry.test.ts",
-    "test:specialist-council": "node --import tsx/esm --test src/lib/ai/specialist-council.test.ts"
+    "test:specialist-council": "node --import tsx/esm --test src/lib/ai/specialist-council.test.ts",
+    "test:autopilot-worker-orchestrator": "node --import tsx/esm --test src/lib/autopilot-worker-orchestrator.test.ts src/lib/autopilot-worker-scheduler.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",

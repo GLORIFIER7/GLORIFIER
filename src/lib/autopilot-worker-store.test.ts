@@ -130,6 +130,48 @@ test('Worker Autopilot store reserves mission claiming and expiry recovery for a
   await assert.rejects(() => userScoped.recoverExpired('2026-11-15T10:00:00.000Z'), /internal|elevated/i);
 });
 
+test('internal-service claiming and recovery remain requester-scoped with allowAll false', async () => {
+  const serviceMission = sampleMission({
+    requester: 'glorifier-internal-service',
+    status: 'planning',
+    version: 2,
+    leaseOwner: 'glorifier-cloudflare-autopilot',
+    leaseExpiresAt: '2026-11-15T10:10:00.000Z',
+  });
+  const fake = fakeFactory((sql, values) => {
+    if (sql.includes('WITH candidate AS')) {
+      assert.match(sql, /AND requester = \$4/);
+      assert.equal(values?.[3], 'glorifier-internal-service');
+      return { rows: [{ payload: serviceMission }] };
+    }
+    if (sql.includes('WHERE status IN')) {
+      assert.match(sql, /AND requester = \$2/);
+      assert.equal(values?.[1], 'glorifier-internal-service');
+      return { rows: [], rowCount: 0 };
+    }
+    return { rows: [] };
+  });
+  const store = new WorkerAutopilotMissionStore(binding, {
+    requester: 'glorifier-internal-service',
+    allowAll: false,
+    source: 'internal-service',
+  }, fake.factory as never);
+
+  const claimed = await store.claimNext('glorifier-cloudflare-autopilot', 60_000, '2026-11-15T10:00:00.000Z');
+  const recovered = await store.recoverExpired('2026-11-15T10:00:00.000Z');
+
+  assert.equal(claimed?.requester, 'glorifier-internal-service');
+  assert.equal(recovered, 0);
+  const settings = fake.statements.find(statement => statement.sql.includes("set_config('glorifier.requester'"));
+  assert.ok(settings);
+  assert.deepEqual(settings.values, ['glorifier-internal-service', 'false']);
+});
+
+test('internal-service source rejects a non-service requester at construction', () => {
+  assert.throws(() => new WorkerAutopilotMissionStore(binding, {
+    requester: 'owner-uid', allowAll: false, source: 'internal-service',
+  }, fakeFactory(() => ({ rows: [] })).factory as never), /Internal-service access must use the fixed requester partition/);
+});
 test('Worker Autopilot store rolls back a failed mission write and always closes its connection', async () => {
   const fake = fakeFactory((sql) => {
     if (sql.includes('INSERT INTO public.glorifier_autopilot_missions')) throw new Error('database write failed');

@@ -243,10 +243,13 @@ def test_cloudflare_worker_keeps_external_egress_and_inference_disabled_by_defau
     config = json.loads(config_path.read_text(encoding="utf-8"))
     variables = config.get("vars", {})
 
-    assert variables.get("GLORIFIER_PROVIDER") == "openai"
+    assert variables.get("GLORIFIER_PROVIDER") == "cloudflare_workers_ai"
     assert variables.get("GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS") == "false"
     assert variables.get("GLORIFIER_ENABLE_INFERENCE", "false").casefold() == "false"
     assert variables.get("GLORIFIER_PAID_INFERENCE_AUTHORIZED", "false").casefold() == "false"
+    assert variables.get("GLORIFIER_WORKERS_PLAN") == "unverified"
+    assert variables.get("GLORIFIER_WORKERS_PLAN_VERIFIED") == "false"
+    assert variables.get("GLORIFIER_WORKERS_AI_FREE_ONLY") == "false"
 
 
 def test_cloudflare_local_validation_does_not_bind_workers_ai_before_free_plan_verification():

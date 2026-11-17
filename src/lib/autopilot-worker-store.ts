@@ -31,6 +31,7 @@ const defaultClientFactory: WorkerAutopilotPgClientFactory = (connectionString, 
   new Client({ connectionString, ...options }) as unknown as WorkerAutopilotPgClient;
 
 const TABLE_NAME = 'public.glorifier_autopilot_missions';
+const INTERNAL_SERVICE_REQUESTER = 'glorifier-internal-service';
 
 export class WorkerAutopilotSchemaNotReadyError extends Error {
   readonly code = 'AUTOPILOT_MISSION_SCHEMA_NOT_READY';
@@ -79,6 +80,7 @@ function parseMission(value: unknown): AutopilotMission {
 export class WorkerAutopilotMissionStore implements AutopilotMissionStore {
   private readonly requester: string;
   private readonly allowAll: boolean;
+  private readonly source?: 'owner' | 'internal-service';
 
   constructor(
     private readonly binding: WorkerNeonBinding,
@@ -91,6 +93,11 @@ export class WorkerAutopilotMissionStore implements AutopilotMissionStore {
     }
     this.requester = requester;
     this.allowAll = access.allowAll === true;
+    this.source = access.source;
+    if (this.source === 'internal-service' &&
+        (this.allowAll || this.requester !== INTERNAL_SERVICE_REQUESTER)) {
+      throw new Error('Internal-service access must use the fixed requester partition with allowAll=false.');
+    }
     const connectionString = typeof binding?.connectionString === 'string' ? binding.connectionString.trim() : '';
     if (!connectionString || !/^postgres(?:ql)?:\/\//i.test(connectionString)) {
       throw new Error('A valid Neon Hyperdrive connection string is required.');
@@ -131,8 +138,12 @@ export class WorkerAutopilotMissionStore implements AutopilotMissionStore {
   }
 
   private requireElevatedAccess(operation: string): void {
-    if (!this.allowAll) {
-      throw new Error(`An owner or internal-service context is required for Autopilot ${operation}.`);
+    const ownerAccess = this.allowAll && this.source !== 'internal-service';
+    const scopedInternalServiceAccess = !this.allowAll &&
+      this.source === 'internal-service' &&
+      this.requester === INTERNAL_SERVICE_REQUESTER;
+    if (!ownerAccess && !scopedInternalServiceAccess) {
+      throw new Error(`An owner or scoped internal-service context is required for Autopilot ${operation}.`);
     }
   }
 
@@ -283,6 +294,9 @@ export class WorkerAutopilotMissionStore implements AutopilotMissionStore {
     if (!Number.isSafeInteger(leaseMs) || leaseMs < 30_000 || leaseMs > 30 * 60_000) {
       throw new Error('Autopilot mission lease must be between 30 seconds and 30 minutes.');
     }
+    const requesterClause = this.allowAll ? '' : 'AND requester = $4';
+    const missionRequesterClause = this.allowAll ? '' : 'AND mission.requester = $4';
+    const values = this.allowAll ? [workerId, leaseMs, now] : [workerId, leaseMs, now, this.requester];
     return this.withTransaction(async client => {
       const result = await client.query(
         `WITH candidate AS (
@@ -291,6 +305,7 @@ export class WorkerAutopilotMissionStore implements AutopilotMissionStore {
            WHERE status = 'queued'
              AND (next_run_at IS NULL OR next_run_at <= $3::timestamptz)
              AND (lease_expires_at IS NULL OR lease_expires_at <= $3::timestamptz)
+             ${requesterClause}
            ORDER BY COALESCE(next_run_at, created_at), created_at
            FOR UPDATE SKIP LOCKED
            LIMIT 1
@@ -315,8 +330,9 @@ export class WorkerAutopilotMissionStore implements AutopilotMissionStore {
                'updatedAt', $3::timestamptz
              )
          WHERE mission.id = (SELECT id FROM candidate)
+           ${missionRequesterClause}
          RETURNING mission.payload`,
-        [workerId, leaseMs, now],
+        values,
       );
       return result.rows[0]?.payload ? parseMission(result.rows[0].payload) : null;
     });
@@ -350,6 +366,8 @@ export class WorkerAutopilotMissionStore implements AutopilotMissionStore {
 
   async recoverExpired(now: string): Promise<number> {
     this.requireElevatedAccess('expired-lease recovery');
+    const requesterClause = this.allowAll ? '' : 'AND requester = $2';
+    const values = this.allowAll ? [now] : [now, this.requester];
     return this.withTransaction(async client => {
       const result = await client.query(
         `UPDATE ${TABLE_NAME}
@@ -387,8 +405,9 @@ export class WorkerAutopilotMissionStore implements AutopilotMissionStore {
          WHERE status IN ('planning', 'executing')
            AND lease_expires_at IS NOT NULL
            AND lease_expires_at <= $1::timestamptz
+           ${requesterClause}
          RETURNING id`,
-        [now],
+        values,
       );
       return result.rowCount ?? result.rows.length;
     });

@@ -76,9 +76,17 @@ def build_orchestrator_from_environment(
     )
 
     if provider_name == WorkersAIAdapter.name:
-        workers_plan = _environment_value(
+        workers_plan_assertion = _environment_value(
             environment, "GLORIFIER_WORKERS_PLAN", "unverified"
         ).strip().casefold()
+        workers_plan_verified = (
+            _environment_value(environment, "GLORIFIER_WORKERS_PLAN_VERIFIED")
+            .strip().casefold() == "true"
+        )
+        workers_plan = (
+            "free" if workers_plan_assertion == "free" and workers_plan_verified
+            else "unverified"
+        )
         free_only_enabled = (
             _environment_value(
                 environment, "GLORIFIER_WORKERS_AI_FREE_ONLY"
