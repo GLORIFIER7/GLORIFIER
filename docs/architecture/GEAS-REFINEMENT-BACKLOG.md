@@ -422,3 +422,52 @@ A comment-only Amazon Q review on PR #882 identified that the new `isMatchingSou
 - **Branch:** `geas/nist-ir-8259r1-iot-lifecycle-source-20261116`.
 - **Implementation commits:** Recorded in the PR and final run report after GitHub returns the commit SHAs.
 - **Governance:** This finding is auto-approved for refinement only. No PR review approval, merge, deployment, or production change is authorized.
+
+
+## 2026-11-17 — NIST IR 8621 SI incident-management evidence
+
+### Observed facts
+- NIST CSRC lists **NIST IR 8621, NIST Workshop on SI Incident Management**, as a final publication dated November 2, 2026: https://csrc.nist.gov/pubs/ir/8621/final.
+- The abstract reports stakeholder findings around reasoning-layer telemetry, non-human identity governance, authorization-scoped containment, evidentiary/reporting schemas, and coordination across distributed SI value chains.
+- NIST describes the report as workshop findings and a foundation for future guidelines and operational playbooks. It is not a normative conformance standard.
+
+### Analysis
+- The source supports an analysis pattern for SI incident readiness, evidence collection, identity governance, and scoped containment.
+- A content match does not establish that GLORIFIER has those runtime controls, incident telemetry, containment procedures, or conformance.
+- Source availability alone must not instantiate the pattern or support an implementation claim.
+
+### Auto-approval record
+- **Classification:** LOW risk; pre-authorized for engineering refinement.
+- **Rationale:** One exact NIST source registration, one source-specific excerpt selector, one analysis-only pattern, regression tests, and existing CI validators. No runtime behavior, production configuration, data, credentials, permissions, paid resources, or external commitments change.
+- **Source:** NIST CSRC, NIST IR 8621, final publication, November 2, 2026: https://csrc.nist.gov/pubs/ir/8621/final.
+- **Registry entry:** `nist-ir-8621`; authority NIST; domain `cybersecurity`; 14-day review cadence / 336-hour scanner cadence; implementation status `not-assessed`; claim type `si-incident-management-guidance`.
+- **Analysis pattern:** `si-incident-management-evidence`; remains `analysis` only and explicitly disclaims conformance and GLORIFIER implementation.
+- **Evidence selector:** The source-specific phrase `reasoning-layer telemetry, non-human identity governance, authorization-scoped containment`; generic page availability and navigation text are not sufficient.
+- **Affected files:** `docs/architecture/geas-authoritative-source-registry.json`, `src/lib/governance/geas-architecture-scientist.ts`, `src/lib/governance/geas-architecture-scientist.test.ts`, and this backlog.
+- **Regression tests:** Exact canonical URL and trusted-source admission; 336-hour cadence; source-pattern and claimsAllowed linkage; substantive excerpt selection; content-matched observation produces only a cybersecurity analysis pattern; source-available-only observation produces no pattern.
+- **CI gates:** Existing GEAS source-registry/cadence parity, authoritative-registry validation, scientist tests, evidence-policy tests, and exact-head architecture scan.
+- **Branch:** `geas/nist-ir-8621-si-incident-evidence-20261117`.
+- **Implementation commits:** Registry `263090e203f8134dc099668572fd31461f1139f2`; scanner/pattern `9fda0aec9e473326c2db7ea52c1c8e6e64cc6375`; regression tests `6103dc4bc6357d06e67f37bffa4f6d9c789fb08d`.
+- **Governance:** Auto-approval covers engineering refinement only. No PR review approval, merge, deployment, or production change is authorized.
+
+
+## 2026-11-17 — Evidence excerpt word-boundary integrity
+
+### Observed fact
+- The exact-head artifact for PR #909 (run 44013438199; source head 35d5068e7b4f8acec394f08c9272792e6ed52b2c; tested merge 26e9e5e52d40166a9a56f45c2c51938bd65465cc; ZIP SHA-256 1b573ac499578ce6bedd8f507ed2d44fb17b858c577365071a7d2f05e81e2c19) contains an NIST IR 8621 excerpt beginning with the complete word "presentations" and ending with "reporting schemas." The official NIST abstract says "Discussions and technical presentations highlighted..." The excerpt omits the preceding adjective "technical" but does not split the word. The source URL, content SHA-256, and analysis classification remain intact.
+- NIST source: https://csrc.nist.gov/pubs/ir/8621/final, full abstract lines 76–78; publication history identifies IR 8621 Final on 2026-11-02.
+
+### Analysis
+- A synthetic regression fixture demonstrated that a fixed character offset can split a word when the selected start or end falls inside a token.
+- The new helper expands offsets to whole-word boundaries. The live artifact confirms a word-aligned excerpt; the omitted adjective is context truncation, not a mid-word integrity defect.
+- This is evidence-presentation behavior only. It does not alter the source digest, evidence class, claim authorization, or claim-support admission.
+
+### Auto-approval record
+- Classification: LOW risk; pre-authorized for engineering refinement.
+- Rationale: Deterministic excerpt formatting only. No source trust, claim authorization, evidence classification, production behavior, data, security posture, permissions, or budget changes.
+- Affected files: src/lib/governance/geas-architecture-scientist.ts, src/lib/governance/geas-architecture-scientist.test.ts, and this backlog.
+- Implementation: Add trimEvidenceExcerptToWordBoundaries and use it in createEvidenceExcerpt.
+- Regression tests: Synthetic leading and trailing mid-word offsets expand to whole-word boundaries; out-of-range offsets clamp to source length.
+- Commits: 65ac91bb9f95cd892146fc56eb1c3af1b1081dd6 (helper); f71ba7acae5c8351366e0f002ba4fcddcd594df6 (tests).
+- Verification limitation: Run 44013438199 is the exact-head artifact for the source head above. Its ZIP was independently downloaded and SHA-256 verified. No claim was promoted to claim-supported.
+- Governance: Excerpt formatting only. No claim promotion, PR review approval, merge, deployment, or production mutation.

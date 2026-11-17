@@ -336,6 +336,7 @@ const SOURCES: ArchitectureSource[] = [
   createArchitectureSource('ietf-rfcs', 'IETF', 'integration', 'https://www.ietf.org/process/rfcs/', ['protocol-neutral-interoperability'], 336, ["protocol-neutral-interoperability"]),
   createArchitectureSource('nist-iot', 'NIST', 'iot', 'https://www.nist.gov/itl/applied-cybersecurity/nist-cybersecurity-iot-program', ['iot-device-boundaries'], 336, ["iot-device-boundaries"]),
   createArchitectureSource('nist-ir-8259r1', 'NIST', 'iot', 'https://csrc.nist.gov/pubs/ir/8259/r1/final', ['iot-product-cybersecurity-lifecycle'], 336, ['iot-product-cybersecurity-lifecycle-guidance']),
+  createArchitectureSource('nist-ir-8621', 'NIST', 'cybersecurity', 'https://csrc.nist.gov/pubs/ir/8621/final', ['si-incident-management-evidence'], 336, ['si-incident-management-guidance']),
   createArchitectureSource('etsi-edge', 'ETSI', 'edge', 'https://www.etsi.org/technologies/multi-access-edge-computing', ['edge-degradation'], 336, ["edge-degradation"]),
   createArchitectureSource('nist-blockchain', 'NIST', 'blockchain', 'https://csrc.nist.gov/pubs/ir/8202/final', ['selective-trust-anchoring'], 336, ["selective-trust-anchoring"]),
   createArchitectureSource('iso-42001', 'ISO', 'governance', 'https://www.iso.org/standard/42001', ['ai-management-system'], 336, ["ai-management-system"]),
@@ -416,6 +417,16 @@ const PATTERN_DEFINITIONS: PatternDefinition[] = [
   ),
   definePattern('agent-identity-delegation', 'Agent identity and authorization', 'ai', 'nist-ai-agents', 'Treat agent identity, authorization, auditing and non-repudiation as explicit architecture concerns.', 'Agent Identity + Delegation Plane', ['SEC-01', 'AUTH-01'], ['identity', 'authorization', 'auditing', 'agent']),
   definePattern('identity-risk-controls', 'Risk-based cybersecurity controls', 'cybersecurity', 'nist-csf', 'Organize cybersecurity outcomes around governance, identification, protection, detection, response and recovery.', 'GEAS security control crosswalk', ['SEC-01', 'REL-01'], ['governance', 'identify', 'protect', 'detect', 'respond', 'recover']),
+  definePattern(
+    'si-incident-management-evidence',
+    'SI incident management evidence and containment',
+    'cybersecurity',
+    'nist-ir-8621',
+    'Analyze incident readiness for probabilistic, autonomous, and deeply integrated SI systems, including reasoning-layer telemetry, non-human identity governance, authorization-scoped containment, and evidentiary/reporting schemas.',
+    'Analysis only: NIST IR 8621 summarizes workshop findings and future NIST work; it is not a conformance standard and does not prove GLORIFIER has incident telemetry, identity governance, containment, or response capabilities.',
+    ['SEC-01', 'OBS-01', 'EVID-01', 'AUTH-01', 'REL-01'],
+    ['reasoning-layer telemetry', 'non-human identity governance', 'authorization-scoped containment', 'evidentiary and reporting schemas', 'distributed SI value chains'],
+  ),
   definePattern('software-supply-chain', 'Secure software supply chain', 'software', 'nist-ssdf', 'Integrate secure software practices throughout the software development lifecycle.', 'Code Sentinel + provenance graph + release gates', ['SUPPLY-01', 'POL-01'], ['software', 'secure', 'development', 'supply chain']),
   definePattern('vendor-neutral-telemetry', 'Common telemetry semantics', 'observability', 'opentelemetry-semconv', 'Use common semantic conventions so telemetry can be correlated across systems.', 'Agent observability + evidence graph', ['OBS-01'], ['semantic conventions', 'telemetry', 'traces', 'metrics']),
   definePattern('evidence-minimization', 'Sensitive telemetry minimization', 'observability', 'opentelemetry-semconv', 'Treat telemetry data as potentially sensitive and apply redaction and retention controls.', 'Evidence minimization policy', ['EVID-01'], ['sensitive', 'redact', 'privacy']),
@@ -1141,8 +1152,40 @@ export const findEarliestKeywordIndex = (text: string, keywords: string[]): numb
   return firstIndex;
 };
 
-const createEvidenceExcerpt = (text: string, matchIndex: number): string =>
-  text.slice(Math.max(0, matchIndex - 240), Math.min(text.length, matchIndex + 760)).trim();
+export function trimEvidenceExcerptToWordBoundaries(
+  text: string,
+  start: number,
+  end: number,
+): string {
+  let startIndex = Math.max(0, Math.min(text.length, Math.trunc(start)));
+  let endIndex = Math.max(startIndex, Math.min(text.length, Math.trunc(end)));
+
+  if (
+    startIndex > 0
+    && startIndex < text.length
+    && !/\s/u.test(text[startIndex - 1])
+    && !/\s/u.test(text[startIndex])
+  ) {
+    while (startIndex > 0 && !/\s/u.test(text[startIndex - 1])) startIndex -= 1;
+  }
+
+  if (
+    endIndex > startIndex
+    && endIndex < text.length
+    && !/\s/u.test(text[endIndex - 1])
+    && !/\s/u.test(text[endIndex])
+  ) {
+    while (endIndex < text.length && !/\s/u.test(text[endIndex])) endIndex += 1;
+  }
+
+  return text.slice(startIndex, endIndex).trim();
+}
+
+const createEvidenceExcerpt = (text: string, matchIndex: number): string => {
+  const start = Math.max(0, matchIndex - 240);
+  const end = Math.min(text.length, matchIndex + 760);
+  return trimEvidenceExcerptToWordBoundaries(text, start, end);
+};
 
 const extractEvidence = (body: string, keywords: string[]): string | null => {
   const text = stripHtmlForEvidence(body);
@@ -1416,6 +1459,9 @@ const SOURCE_PATTERN_KEYWORD_OVERRIDES: Readonly<Record<string, readonly string[
   ],
   'nist-ir-8259r1': [
     'This publication describes recommended activities related to cybersecurity that manufacturers should consider performing before their IoT products are sold to customers.',
+  ],
+  'nist-ir-8621': [
+    'reasoning-layer telemetry, non-human identity governance, authorization-scoped containment',
   ],
 };
 
