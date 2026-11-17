@@ -29,7 +29,7 @@ test('keeps default setup model-call-free and prevents automatic tool removal', 
   assert.doesNotMatch(installer, /OPENAI_API_KEY|ANTHROPIC_API_KEY|GEMINI_API_KEY|NVIDIA_API_KEY/);
 });
 
-test('keeps the integration local and never changes CI, deployment, or merge state', () => {
+test('keeps the installer isolated from repository remote writes and deployment', () => {
   assert.doesNotMatch(installer, /git push|gh pr |gh workflow|wrangler deploy|vercel --prod|firebase deploy|merge_pull_request/i);
   assert.match(guide, /local Codex/i);
   assert.match(guide, /not a GitHub Actions integration/i);
