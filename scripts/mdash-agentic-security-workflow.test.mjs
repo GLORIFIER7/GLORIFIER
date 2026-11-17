@@ -57,6 +57,10 @@ test('the Defender CLI binary is SHA-256 verified before chmod and execution', (
   assert.ok(verifyIndex > downloadIndex, 'digest check must follow download');
   assert.ok(chmodIndex > verifyIndex, 'digest check must precede chmod');
   assert.ok(executeIndex > chmodIndex, 'digest check must precede execution');
+  assert.ok(
+    scanJob.includes('Defender CLI SHA-256 mismatch; verify the new CLI through a trusted Microsoft channel before updating DEFENDER_CLI_SHA256.'),
+    'digest mismatch must produce a clear fail-closed diagnostic',
+  );
   const expectedDownloadUrlLine = '"https://cli.dfd.security.azure.com/public/v2/latest/Defender_linux-x64" ' + String.fromCharCode(92);
   assert.ok(scanJob.split('\n').some((line) => line.trim() === expectedDownloadUrlLine));
 });
@@ -78,16 +82,24 @@ test('an interrupted remote scan triggers a bounded cancellation attempt', () =>
 });
 
 test('MDASH is read-only and cannot fix, push, create PRs, deploy, or merge', () => {
-  assert.doesNotMatch(scanJob, /\bdefender\s+fix\b/);
+  assert.doesNotMatch(scanJob, /(?:\bdefender|\$defender["']?)\s+fix\b/i);
   assert.doesNotMatch(scanJob, /gh\s+pr\s+(create|merge)|git\s+push|deploy/i);
   assert.ok(workflow.includes('cancel-in-progress: false'));
 });
 
-test('SARIF validation precedes artifact retention and code-scanning publication', () => {
+test('SARIF retrieval and validation precede artifact retention and code-scanning publication', () => {
+  const retrievalIndex = scanJob.indexOf('"$defender" status wait "$job_id" -o "$sarif_file"');
   const validationIndex = scanJob.indexOf('name: Validate SARIF structure');
   const artifactIndex = scanJob.indexOf('uses: actions/upload-artifact@v7');
   const publicationIndex = scanJob.indexOf('github/codeql-action/upload-sarif@');
-  assert.ok(validationIndex >= 0, 'expected SARIF validation step');
+  const validationStep = scanJob.slice(validationIndex, artifactIndex);
+
+  assert.ok(retrievalIndex >= 0, 'expected completed MDASH scan to write SARIF output');
+  assert.ok(validationIndex > retrievalIndex, 'SARIF validation must follow completed scan retrieval');
+  assert.ok(validationStep.includes("jq -e '"), 'expected jq-based SARIF validation command');
+  assert.ok(validationStep.includes('.version == "2.1.0"'), 'expected SARIF 2.1.0 version validation');
+  assert.ok(validationStep.includes('(.runs | type == "array")'), 'expected SARIF runs array validation');
+  assert.ok(validationStep.includes('(.runs | length > 0)'), 'expected at least one SARIF run');
   assert.ok(artifactIndex > validationIndex, 'artifact retention must follow SARIF validation');
   assert.ok(publicationIndex > validationIndex, 'code-scanning upload must follow SARIF validation');
   assert.ok(scanJob.includes('retention-days: 7'));
