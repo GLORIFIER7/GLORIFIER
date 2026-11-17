@@ -1,8 +1,11 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { runCloudflareAutopilotCycle } from './autopilot-worker-orchestrator';
+import type { AutopilotMission } from './autopilot-mission-control';
 
 const freeEnvironment = {
+  GLORIFIER_PROVIDER: 'cloudflare_workers_ai',
+  GLORIFIER_WORKERS_AI_MODEL: '@cf/google/gemma-4-26b-a4b-it',
   GLORIFIER_WORKERS_PLAN: 'free',
   GLORIFIER_WORKERS_PLAN_VERIFIED: 'true',
   GLORIFIER_WORKERS_AI_FREE_ONLY: 'true',
@@ -14,7 +17,7 @@ const freeEnvironment = {
   GLORIFIER_NEURAL: { fetch: async (_request: Request) => new Response('{}') },
 };
 
-function missionFixture() {
+function missionFixture(): AutopilotMission {
   return {
     id: 'mission-001',
     requester: 'glorifier-internal-service',
@@ -33,8 +36,8 @@ function missionFixture() {
   };
 }
 
-function storeFixture(mission = missionFixture()) {
-  const state = { mission, initialized: 0, recovered: 0, claimed: 0, saved: [] as Array<{ mission: any; expectedVersion: number }> };
+function storeFixture(mission: AutopilotMission = missionFixture()) {
+  const state: { mission: AutopilotMission; initialized: number; recovered: number; claimed: number; saved: Array<{ mission: AutopilotMission; expectedVersion: number }> } = { mission, initialized: 0, recovered: 0, claimed: 0, saved: [] };
   return {
     state,
     store: {
@@ -243,7 +246,7 @@ test('Autopilot readiness Service Binding is bounded by an outer timeout', async
     pending,
     new Promise<'watchdog-expired'>(resolve => setTimeout(() => resolve('watchdog-expired'), 100)),
   ]);
-  assert.notEqual(outcome, 'watchdog-expired');
+  if (outcome === 'watchdog-expired') assert.fail('NEURAL readiness timeout did not settle.');
   assert.equal(outcome.status, 'blocked');
   assert.equal(outcome.reason, 'neural-readiness-probe-failed');
 });
@@ -253,7 +256,7 @@ test('Autopilot task Service Binding timeout saves terminal failure and releases
   const pending = runCloudflareAutopilotCycle(freeEnvironment as never, {
     createStore: () => fixture.store as never,
     taskTimeoutMs: 10,
-    fetchNeural: async (request) => request.method === 'GET'
+    fetchNeural: async (request: Request) => request.method === 'GET'
       ? Response.json({ eligible: true, provider: 'cloudflare_workers_ai', model: '@cf/google/gemma-4-26b-a4b-it', workersPlan: 'free', workersPlanVerified: true, freeOnly: true, inferenceEnabled: true, externalDataEgress: false, paidInferenceAuthorized: false })
       : new Promise<Response>(() => undefined),
   } as never);
@@ -261,7 +264,7 @@ test('Autopilot task Service Binding timeout saves terminal failure and releases
     pending,
     new Promise<'watchdog-expired'>(resolve => setTimeout(() => resolve('watchdog-expired'), 100)),
   ]);
-  assert.notEqual(outcome, 'watchdog-expired');
+  if (outcome === 'watchdog-expired') assert.fail('NEURAL task timeout did not settle.');
   assert.equal(outcome.status, 'blocked');
   assert.equal(outcome.reason, 'neural-task-unavailable');
   assert.equal(fixture.state.saved.length, 1);
