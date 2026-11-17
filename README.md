@@ -51,7 +51,9 @@ The repository includes a web application, API/server code, AI-provider integrat
 
 **NEURAL service:** The Python/FastAPI service is maintained in this repository at [`services/neural/`](services/neural/README.md). It retains its own Python dependency lock, tests, Docker build context and independently deployable Cloudflare Worker. GLORIFIER remains the governance/control plane; NEURAL remains a separately deployable execution service. See [the NEURAL integration contract](docs/architecture/neural-engine-integration.md).
 
-**Target deployment shape:** Cloudflare Workers serves the public frontend and all application/API/auth execution; Vercel and Railway are to be removed as production dependencies only after route-by-route migration and verified cutover. **Current migration status:** incomplete. On `main`, the Worker handles `GET /api/identity` natively in `src/worker.ts`; that route reads Cloudflare environment bindings and does not call an upstream backend. Other backend-dependent API/auth routes are not yet Worker-native and fail closed with `503` unless a separately reviewed HTTPS backend origin and exact-host allowlist are configured. The existing Worker build/test workflow can pass without proving a production deployment. See [Cloudflare Workers-only migration plan](docs/architecture/cloudflare-workers-only-migration.md) for evidence, route inventory, and release gates. Do not treat the target architecture as the current production state until the Cloudflare deployment and critical API/auth/data flows are verified.
+**GEAS MPHR target and current evidence boundary:** Cloudflare Pages/Workers is the primary source path; Vercel is configured as a React/Vite frontend standby; and `Dockerfile.frontend` defines a portable static React frontend container. Vercel forwards runtime requests to the Cloudflare Pages origin, and the legacy Vercel API functions that bypassed this routing by calling Railway have been removed. This does not establish independent backend failover.
+
+**Backend migration caveat:** the Cloudflare Worker has Worker-native `/api/health` (liveness only) and `/api/identity` handlers. Most backend-dependent API and authentication routes are not yet Worker-native; they fail closed with HTTP 503 unless a separately reviewed HTTPS backend origin and exact-host allowlist are configured. A successful build does not prove that those routes or the current production deployment are healthy. Automatic traffic failover is not enabled. Vercel project linking, independent Docker hosting, independent backend capacity, and external traffic/DNS control still require separate provisioning and verification. See [GEAS Multi-Provider Hosting Resilience](docs/architecture/geas-multi-provider-hosting-resilience.md) for the topology, evidence status, and release gates; the historical [Cloudflare Workers-only migration plan](docs/architecture/cloudflare-workers-only-migration.md) remains available for route-migration evidence.
 
 **Runtime requirement:** Node.js `24.12.0` or newer is required for the application runtime. The production images and application workflows use Node.js 24 to match the locked Firebase dependency engines.
 
@@ -107,11 +109,13 @@ Some scripts may require environment variables, credentials, external services, 
 
 - [Docker Hub image repository](https://hub.docker.com/r/glorifier/glorifier)
 - [Container build, health check, security scan, and release policy](docs/dockerhub-release.md)
+- [Portable React frontend container](Dockerfile.frontend) (static assets only; backend readiness is separate)
 
 The Docker publishing workflow is gated by successful `GLORIFIER CI` on a push to `main`, followed by a Trivy scan before Docker Hub login and publishing. Configure the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets before a release can publish. A successful build is not proof that a production deployment is running or healthy.
 
 ## Documentation
 
+- [GEAS — Multi-Provider Hosting Resilience (MPHR)](docs/architecture/geas-multi-provider-hosting-resilience.md)
 - [Universal AI Enterprise operating model](docs/architecture/universal-ai-enterprise-operating-model.md)
 - [Ruflo capability assessment and GLORIFIER adoption boundary](docs/architecture/ruflo-capability-adoption.md)
 - [Humanity-first universal enterprise charter](docs/architecture/humanity-first-universal-enterprise-charter.md)

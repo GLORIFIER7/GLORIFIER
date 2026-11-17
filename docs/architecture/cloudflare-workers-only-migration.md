@@ -1,8 +1,10 @@
 # Cloudflare Workers-only migration
 
-## Decision
+> **Hosting-strategy supersession:** **Superseded by GEAS MPHR** ([Multi-Provider Hosting Resilience](./geas-multi-provider-hosting-resilience.md)). This document remains the historical route-by-route Cloudflare Worker migration/evidence record. Its former Cloudflare-only hosting decision is no longer the approved long-term hosting strategy. Do not use the historical decision below to remove Vercel or Docker recovery targets; use the current MPHR release gates. The historical observations and remaining API migration requirements are retained as evidence and are not automatically refreshed by this notice.
 
-Cloudflare Workers is the only approved production hosting and application execution platform for GLORIFIER. Vercel and Railway must not remain production dependencies. This migration must be completed through reviewed pull requests and verified deployments; do not remove the existing upstream until its routes have working Worker-native implementations.
+## Decision (superseded by GEAS MPHR)
+
+Cloudflare Workers was previously treated as the only approved production hosting and application execution platform for GLORIFIER. Vercel and Railway must not remain production dependencies. This migration must be completed through reviewed pull requests and verified deployments; do not remove the existing upstream until its routes have working Worker-native implementations.
 
 ## Current production checkpoint — 2026-11-02T10:34:22Z
 

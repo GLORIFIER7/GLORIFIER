@@ -1,0 +1,158 @@
+import assert from 'node:assert/strict';
+import { existsSync, readFileSync } from 'node:fs';
+import test from 'node:test';
+
+const read = (file) => readFileSync(new URL('../' + file, import.meta.url), 'utf8');
+const vercel = JSON.parse(read('vercel.json'));
+const manifest = JSON.parse(read('package.json'));
+
+test('Vercel builds the original Vite React application into the canonical dist directory', () => {
+  assert.equal(vercel.framework, 'vite');
+  assert.equal(vercel.buildCommand, 'npm run build:frontend');
+  assert.equal(vercel.installCommand, 'npm ci --no-audit --no-fund');
+  assert.equal(vercel.outputDirectory, 'dist');
+  assert.equal(manifest.scripts?.['build:frontend'], 'vite build');
+});
+
+test('Vercel forwards documented runtime paths to the current Cloudflare Pages API front door', () => {
+  const rewrites = vercel.rewrites;
+  assert.ok(Array.isArray(rewrites));
+  const expected = [
+    ['/api', 'https://glorifier.pages.dev/api'],
+    ['/api/:path*', 'https://glorifier.pages.dev/api/:path*'],
+    ['/auth', 'https://glorifier.pages.dev/auth'],
+    ['/auth/:path*', 'https://glorifier.pages.dev/auth/:path*'],
+    ['/mcp', 'https://glorifier.pages.dev/mcp'],
+    ['/mcp/:path*', 'https://glorifier.pages.dev/mcp/:path*'],
+  ];
+  for (const [source, destination] of expected) {
+    assert.ok(rewrites.some((item) => item.source === source && item.destination === destination),
+      source + ' must retain the approved Cloudflare runtime route');
+  }
+  assert.deepEqual(rewrites, [
+    ...expected.map(([source, destination]) => ({ source, destination })),
+    { source: '/(.*)', destination: '/index.html' },
+  ], 'all explicit runtime rewrites must precede the final SPA fallback');
+  assert.equal(rewrites.some((item) => item.source.startsWith('/.well-known')), false,
+    'Vercel reserves .well-known routes; do not configure unsupported rewrites');
+  assert.equal(existsSync(new URL('../public/.well-known/agent-card.json', import.meta.url)), false,
+    'do not claim a Vercel Agent Card until a verified static card is provisioned');
+  assert.equal(existsSync(new URL('../api/health.js', import.meta.url)), false,
+    'Vercel must not discover the retired Railway-backed /api/health function');
+  assert.equal(existsSync(new URL('../api/provider-health.js', import.meta.url)), false,
+    'Vercel must not discover the retired Railway-backed /api/provider-health function');
+  assert.ok(!JSON.stringify(vercel).includes('railway.app'),
+    'the Vercel frontend standby must not restore the retired Railway API origin');
+});
+
+test('Cloudflare Pages, Vercel and Docker use the same restrictive CSP policy', () => {
+  const vercelHeaders = vercel.headers?.find((entry) => entry.source === '/(.*)')?.headers;
+  const vercelCsp = vercelHeaders?.find((entry) => entry.key === 'Content-Security-Policy')?.value;
+  const cloudflareHeaders = read('public/_headers');
+  const dockerServer = read('scripts/serve-frontend.mjs');
+  const dockerCsp = dockerServer.match(/const CONTENT_SECURITY_POLICY = "([^"]+)";/)?.[1];
+  assert.ok(vercelCsp, 'Vercel must set a CSP header on frontend routes');
+  assert.match(vercelCsp, /default-src 'self'/);
+  assert.match(vercelCsp, /script-src 'self'/);
+  assert.doesNotMatch(vercelCsp, /script-src[^;]*unsafe-inline/);
+  assert.match(vercelCsp, /object-src 'none'/);
+  assert.match(vercelCsp, /frame-ancestors 'none'/);
+  const connectSrc = vercelCsp.split(';').find((directive) => directive.trim().startsWith('connect-src ')) || '';
+  const connectSources = connectSrc.trim().split(' ').filter(Boolean);
+  assert.ok(connectSources.some((source) => source === 'https://api.openai.com'));
+  assert.ok(connectSources.some((source) => source === 'https://generativelanguage.googleapis.com'));
+  assert.equal(connectSources.includes('https:'), false,
+    'connect-src must not allow every HTTPS origin');
+  assert.equal(connectSources.includes('wss:'), false,
+    'connect-src must not allow every WebSocket origin');
+  assert.match(cloudflareHeaders, /Content-Security-Policy:/);
+  assert.ok(cloudflareHeaders.includes(vercelCsp),
+    'Cloudflare Pages and Vercel must use the same CSP policy');
+  assert.equal(dockerCsp, vercelCsp,
+    'Docker static server must use the same CSP policy as Cloudflare Pages and Vercel');
+  assert.match(read('index.html'), /startup-status\.js/);
+  assert.doesNotMatch(read('index.html'), /<script>\s*[\s\S]*?<\/script>/i,
+    'the application entry document must not reintroduce inline scripts');
+});
+test('frontend container Dockerfile declares a non-root runtime and truthful static-only health contract', () => {
+  const dockerfile = read('Dockerfile.frontend');
+  const server = read('scripts/serve-frontend.mjs');
+  const nodeImages = [...dockerfile.matchAll(/^FROM (node:24\.22\.3-trixie-slim@sha256:[a-f0-9]{64}) AS (build|runtime)$/gm)];
+  assert.equal(nodeImages.length, 2, 'build and runtime stages must both pin the Node base image');
+  assert.deepEqual(nodeImages.map(([, , stage]) => stage), ['build', 'runtime']);
+  assert.equal(nodeImages[0][1], nodeImages[1][1],
+    'build and runtime stages must use the same fully digest-pinned Node 24.22.3 image');
+  assert.match(dockerfile, /npm run build:frontend/);
+  assert.match(dockerfile, /USER node/);
+  assert.match(dockerfile, /EXPOSE 8080/);
+  assert.match(dockerfile, /\/healthz/);
+  assert.match(server, /BACKEND_NOT_CONFIGURED/);
+  assert.match(server, /backend:\s*'not-probed'/);
+  assert.match(server, /STATIC_ASSET_NOT_FOUND/);
+  assert.match(server, /process\.once\('SIGTERM'/);
+  assert.match(server, /function decodeRoutePath/);
+  assert.match(server, /export function isInsideRoot/);
+});
+
+
+test('the shared Docker build context excludes local secrets and unnecessary state', () => {
+  const dockerignore = read('.dockerignore');
+  for (const required of [
+    '.env',
+    '.env.*',
+    '.npmrc',
+    '**/.npmrc',
+    '*.pem',
+    '*.key',
+    '*.p12',
+    '*.pfx',
+    'secrets/',
+    'credentials/',
+    'node_modules',
+    '.git',
+  ]) {
+    assert.ok(dockerignore.split('\n').some((line) => line.trim() === required),
+      '.dockerignore must exclude ' + required);
+  }
+});
+
+test('the test and build commands are exposed through package.json', () => {
+  assert.equal(manifest.scripts?.['start:frontend'], 'node scripts/serve-frontend.mjs');
+  assert.equal(manifest.scripts?.['test:frontend-static-server'],
+    'node --test scripts/frontend-static-server.test.mjs');
+  assert.equal(manifest.scripts?.['test:mphr-hosting'],
+    'npm run test:frontend-static-server && node --test scripts/mphr-hosting-contract.test.mjs');
+});
+
+test('MPHR validation workflow verifies but never deploys or changes production traffic', () => {
+  const workflow = read('.github/workflows/mphr-hosting.yml');
+  assert.match(workflow, /pull_request:/);
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /npm run test:mphr-hosting/);
+  assert.match(workflow, /docker build .*Dockerfile\.frontend/s);
+  assert.match(workflow, /docker run .*glorifier\/frontend-mphr/s);
+  assert.doesNotMatch(workflow, /wrangler deploy(?! --dry-run)/);
+  assert.doesNotMatch(workflow, /vercel deploy|vercel --prebuilt|docker push|docker login/i);
+  assert.match(workflow, /permissions:\s*contents:\s*read/);
+});
+
+test('Cloudflare production promotion remains an explicit protected action', () => {
+  const workflow = read('.github/workflows/cloudflare-worker.yml');
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /deploy_production:/);
+  assert.match(workflow, /inputs\.deploy_production == true/);
+  assert.match(workflow, /vars\.CLOUDFLARE_DEPLOY_ENABLED == 'true'/);
+  assert.match(workflow, /environment: production/);
+});
+
+test('public documentation distinguishes the hosting design from live deployment evidence', () => {
+  const architecture = read('docs/architecture/geas-multi-provider-hosting-resilience.md');
+  const readme = read('README.md');
+  const legacy = read('docs/architecture/cloudflare-workers-only-migration.md');
+  assert.ok(readme.split('\n').some((line) => line.includes('GEAS') && line.includes('Multi-Provider Hosting Resilience')));
+  assert.ok(architecture.includes('Automatic traffic failover: **NOT ENABLED**'));
+  assert.ok(architecture.includes('Vercel project: **NOT LINKED**'));
+  assert.ok(architecture.includes('Docker frontend runtime: **NOT DEPLOYED**'));
+  assert.match(architecture, /backend.*Cloudflare/i);
+  assert.match(legacy, /Superseded by GEAS MPHR/i);
+});

@@ -1,0 +1,93 @@
+# GEAS — Multi-Provider Hosting Resilience (MPHR)
+
+**Capability status:** approved architecture; source implementation is in progress on a review branch. Approval does not establish a production deployment.
+
+## Purpose
+
+MPHR keeps the original GLORIFIER React/Vite application portable across Cloudflare Pages, Vercel, and a self-hosted Docker container. Hosting providers are replaceable; the approved source commit, frontend behavior, API contract, identity controls, and evidence policy must remain consistent.
+
+The capability is governed by GEAS. It must prefer the existing free/low-cost entitlements, avoid unnecessary paid infrastructure, and never bypass provider quotas, authentication, deployment protection, or human authorization.
+
+## Target topology
+
+| Target | Intended role | What it hosts |
+|---|---|---|
+| Cloudflare Pages + the existing `glorifier` Worker | Primary source path | React/Vite static assets and a partially Worker-native runtime; most backend-dependent API/auth routes remain unported |
+| Vercel | Frontend standby | The same React/Vite static build; runtime API/auth/MCP requests are rewritten to the current Cloudflare Pages origin after removing conflicting legacy Vercel API functions |
+| Docker frontend image | Portable self-hosted frontend fallback | The same static React/Vite build, served by a small non-root Node process |
+| Existing full-application Docker image | Separate backend/container option | The Node/Express application runtime; requires its own host, secrets, persistent database access, and verified readiness |
+
+All targets must build from the same reviewed Git commit. A successful build on one provider does not prove the others are deployed or healthy.
+
+## Implemented source contracts
+
+### Cloudflare
+
+The Cloudflare Pages/Workers path remains the primary source target. Its backend coverage is partial: `/api/health` is a Worker-liveness check only, and `/api/identity` has a Worker-native handler. Most backend-dependent API/auth routes are not yet Worker-native and fail closed with HTTP 503 unless a separately reviewed HTTPS backend origin and exact-host allowlist are configured. A green Worker build does not prove those routes or a production deployment are healthy. The protected `.github/workflows/cloudflare-worker.yml` workflow retains its explicit manual production dispatch, `deploy_production=true` input, `CLOUDFLARE_DEPLOY_ENABLED=true` repository variable, credentials checks, production environment, and post-deploy smoke tests. MPHR must not weaken or bypass those gates.
+
+### Vercel
+
+The Vercel project configuration builds the canonical Vite output directory (`dist`) using the locked repository dependencies. It serves the original React app and applies explicit rewrites for `/api`, `/auth`, `/mcp`, before the final SPA fallback. Vercel reserves `/.well-known` and does not support rewriting that path, so the Worker Agent Card is not yet available on the Vercel standby. The old auto-discovered `api/health.js` and `api/provider-health.js` Vercel functions were removed because filesystem functions take precedence over rewrites and those functions called a hard-coded Railway origin. With those route files absent, the explicit external rewrites own the backend paths.
+
+**Important boundary:** those runtime rewrites currently target `https://glorifier.pages.dev`. Therefore Vercel can preserve the frontend when Cloudflare's static frontend delivery fails, but it still depends on Cloudflare for Worker-native routes and any backend-origin proxying. Its reserved `/.well-known` path also prevents forwarding the dynamic Worker Agent Card; the Vercel standby does not yet serve that capability. It cannot independently recover a Cloudflare-wide outage or the unported backend routes when their configured origin is unavailable. It is not yet an independent full-stack failover destination.
+
+### Docker frontend
+
+`Dockerfile.frontend` builds the same React/Vite `dist/` output and runs the static server as the non-root `node` user on port 8080. The static server supports GET/HEAD, MIME types, SPA navigation, bounded cache policies, strict same-origin script CSP, path/symlink traversal protections, encoded-runtime-path rejection, and graceful SIGTERM/SIGINT shutdown.
+
+The `/healthz` endpoint reports static frontend availability only. Its `backend` field is `not-probed`. API, auth, MCP, and Agent Card paths return a no-store JSON HTTP 503 with `BACKEND_NOT_CONFIGURED`; they never fall through to the React SPA shell. This prevents a static frontend container from falsely claiming to be a healthy full application.
+
+The Cloudflare runtime has only partial backend route coverage as described above. Vercel and the static Docker frontend are frontend-only targets, not independent backend replicas.
+
+The existing root `Dockerfile` is the full Node/Express application image and is the candidate Docker full-stack fallback. It would require an independent container host, reviewed runtime secrets, external database connectivity, TLS, and health/readiness verification. Publishing that image to Docker Hub does not create a running host, database, TLS endpoint, or automatic route failover.
+
+## Evidence-based current status
+
+Observation: 2026-11-17. These are source/configuration observations, not live production probes.
+
+- Cloudflare production deployment: **NOT VERIFIED**. The source and protected deployment workflow exist; this MPHR change does not execute it or independently verify production commit parity or the backend-dependent routes.
+- Vercel project: **NOT LINKED**. The connected Vercel team inventory returned no Git-linked projects at the time of inspection.
+- Docker frontend runtime: **NOT DEPLOYED**. A portable container definition and validation workflow are source artifacts; no independent host or live container endpoint was configured or probed.
+- Automatic traffic failover: **NOT ENABLED**. No independently configured traffic controller/DNS failover and recovery policy was verified.
+- Backend redundancy: **NOT VERIFIED**. Vercel's runtime rewrites still use Cloudflare Pages/Workers; the static Docker frontend does not host the backend, and the full Node/Express Docker image has no independently provisioned host.
+- Cross-provider release parity: **NOT VERIFIED** until the exact same source commit is built and smoke-tested on each configured provider.
+
+## Failover and recovery design
+
+A future traffic controller may switch the public frontend only after it has independently verified both targets. It must:
+
+1. Probe the public HTTPS origin, static assets, application routes, and the relevant runtime/API contracts separately.
+2. Distinguish quota exhaustion, rate limiting, provider-side errors, deployment failure, DNS failure, and application/backend failure. Do not treat HTTP 429, Cloudflare quota errors, or a Worker 1027 response as a healthy origin.
+3. Require multiple consecutive failures and a cooldown/hysteresis window before switching; avoid flip-flopping on a transient probe failure.
+4. Confirm the standby uses the same approved source commit and compatible public runtime contracts.
+5. Preserve authentication/session behavior, API request methods and bodies, CORS, security headers, and cache semantics.
+6. Verify the selected origin after switching and record timestamped evidence, reason, source commit, and observed status.
+7. Test recovery before failback. Do not automatically return to a recovered provider until it passes the same health and contract checks for a stability window.
+8. Fail closed for backend-dependent functionality when the backend is unavailable. Never replace an API response with the SPA HTML shell or a fabricated success response.
+
+A Cloudflare-controlled DNS or Load Balancing configuration alone cannot guarantee recovery from a Cloudflare-wide outage. Full provider independence requires a traffic-control/DNS path that remains reachable when either application host is unavailable, plus independent backend capacity and tested data/identity dependencies.
+
+## Release and authorization gates
+
+- Pull requests validate the frontend tests, TypeScript, Vite build, static server, Vercel rewrite order, and container smoke tests.
+- The MPHR validation workflow is verification-only: it does not publish container images, deploy Vercel, deploy Cloudflare, write DNS records, or switch production traffic.
+- Vercel project linking and any production deployment require a separately approved Vercel team/project configuration and protected release path.
+- Docker production hosting requires an owner-selected independent host, least-privilege runtime secrets, persistent storage/database design, TLS, health checks, backups, and rollback evidence.
+- Automatic traffic failover must remain disabled until independent host readiness, provider-specific credentials, public domain ownership, external routing, and rollback behavior are all proven.
+- No PR is auto-merged. No unverified build is promoted. No plan/limit is represented as free unless the actual account entitlement has been confirmed.
+
+## Delivery phases
+
+1. **Portable frontend source and verification:** add provider-neutral static container contract, Vercel static project configuration, and CI validation without publishing or deploying.
+2. **Standby provisioning:** link/configure a Vercel project and independently host the Docker frontend only after owner-controlled access, domain, and deployment protections are established.
+3. **Independent backend readiness:** make API/auth/data execution available independently of the Cloudflare runtime, with parity and authentication evidence.
+4. **Independent traffic control:** configure a routing/DNS controller outside the two hosting providers, then exercise failover and failback using controlled tests before enabling any automatic production action.
+
+Until phases 2–4 are separately completed and evidenced, this architecture provides portability and a tested candidate frontend artifact—not automatic bidirectional hosting failover.
+
+
+### Browser CSP network-origin allowlist
+
+Cloudflare Pages, Vercel, and the Docker static frontend use the same source-controlled Content Security Policy. Its `connect-src` directive allows only the documented first-party runtime origins and built-in provider API origins (Google Gemini, OpenAI, Anthropic, xAI, Mistral, DeepSeek, NVIDIA, Groq, OpenRouter, Hugging Face, LLMsRelay, Together AI, Fireworks AI, and Alibaba DashScope), plus the explicit Firebase and Auth0 origins required by the app. It does not grant blanket access to every HTTPS or WebSocket host.
+
+Providers that use a custom `*_BASE_URL`, including self-hosted Ollama endpoints or custom-compatible Meta, Qwen, Together, and Fireworks endpoints, require the exact HTTPS origin to be added to the CSP in `vercel.json`, `public/_headers`, and `scripts/serve-frontend.mjs` together, with the contract tests kept synchronized. Do not restore scheme-wide `https:` or `wss:` sources to make an endpoint work; the origin must be explicitly reviewed and allowlisted.
