@@ -37,23 +37,30 @@ test("duplicateJsonKeys handles escaped quotes and backslashes in values", () =>
   assert.deepEqual(duplicateJsonKeys(source), ["value"]);
 });
 
-test("standalone build entry points run package manifest integrity first", () => {
+test("standalone build entry points run package integrity and relevant prebuild checks", () => {
   const manifest = JSON.parse(packageJsonText);
-  const commonPrebuild = "npm run test:package-manifest-integrity && npm run test:brand-assets";
+  const sharedPrebuild = "npm run test:package-manifest-integrity && npm run test:brand-assets";
+  for (const script of ["build:server", "build:android"]) {
+    assert.equal(
+      manifest.scripts?.["pre" + script],
+      sharedPrebuild,
+      script + " must run package manifest integrity and brand asset gates before building",
+    );
+  }
   assert.equal(
-    manifest.scripts?.["prebuild:server"],
-    commonPrebuild,
-    "build:server must run the package manifest integrity gate before building",
-  );
-  assert.equal(
-    manifest.scripts?.["prebuild:android"],
-    commonPrebuild,
-    "build:android must run the package manifest integrity gate before building",
+    manifest.scripts?.prebuildFrontend,
+    undefined,
+    "frontend prebuild must use the canonical npm lifecycle key",
   );
   assert.equal(
     manifest.scripts?.["prebuild:frontend"],
-    commonPrebuild + " && npm run test:public-static-status",
-    "build:frontend must run integrity, brand, and static public status checks before building",
+    sharedPrebuild + " && npm run test:service-worker-cache",
+    "frontend builds must also verify retired service-worker cache cleanup",
+  );
+  assert.equal(
+    manifest.scripts?.["test:service-worker-cache"],
+    "node --test scripts/service-worker-cache.test.mjs",
+    "the service-worker cache migration test must be runnable independently",
   );
 });
 
