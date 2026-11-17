@@ -74,8 +74,9 @@ test('Gemini workflows use bounded CLI approval without the prohibited YOLO flag
 
   for (const { name, source, mode } of workflows) {
     assert.ok(source.includes('"disableYoloMode": true'), name + ' must retain the administrator no-YOLO policy');
+    const commandPrefix = name === 'collaborator' ? 'gemini --skip-trust --model' : 'gemini --model';
     assert.ok(
-      source.includes('gemini --model "$GEMINI_MODEL" --approval-mode ' + mode + ' --prompt "$GEMINI_PROMPT" --output-format json'),
+      source.includes(commandPrefix + ' "$GEMINI_MODEL" --approval-mode ' + mode + ' --prompt "$GEMINI_PROMPT" --output-format json'),
       name + ' must use the explicit bounded approval mode',
     );
     assert.ok(
@@ -296,6 +297,7 @@ test('scheduled Gemini collaborator separates read-only model execution from PR 
   assert.match(publisherJob, /npm run lint/);
   assert.match(publisherJob, /npm run build/);
   assert.doesNotMatch(geminiWorkflow, /GEMINI_CLI_TRUST_WORKSPACE/);
+  assert.match(modelJob, /gemini --skip-trust --model "\$GEMINI_MODEL" --approval-mode auto_edit/);
 });
 
 test('Gemini coding workflows only enable workspace file tools and redact environment variables', () => {
