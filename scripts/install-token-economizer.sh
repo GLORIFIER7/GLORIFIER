@@ -4,7 +4,6 @@ set -euo pipefail
 # TokenEconomizer is installed for a person's local Codex sessions, not CI runners.
 readonly UPSTREAM_URL="https://github.com/microsoft/TokenEconomizer.git"
 readonly UPSTREAM_COMMIT="b57d03f81585a18b936a0eaecbd1eb51cdcecf71"
-readonly MARKETPLACE_NAME="tokeneconomizer"
 readonly DEFAULT_INSTALL_ROOT="${XDG_DATA_HOME:-$HOME/.local/share}/glorifier/integrations"
 readonly INSTALL_DIR="${TOKENECONOMIZER_INSTALL_DIR:-$DEFAULT_INSTALL_ROOT/TokenEconomizer}"
 readonly PLUGIN_DIR="$INSTALL_DIR/plugin"
@@ -96,7 +95,7 @@ fi
 "$PLUGIN_DIR/scripts/te" --host codex --cwd "$REPOSITORY_ROOT" config set microskills=envfacts toolprune=propose loopguard=off
 
 codex plugin marketplace add "$INSTALL_DIR"
-codex plugin add "$MARKETPLACE_NAME@$MARKETPLACE_NAME"
+codex plugin add tokeneconomizer@tokeneconomizer
 
 echo
 echo "TokenEconomizer checkout verified at: $INSTALL_DIR"
