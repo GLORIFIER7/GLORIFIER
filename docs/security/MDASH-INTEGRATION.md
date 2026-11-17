@@ -1,10 +1,10 @@
 # GLORIFIER MDASH integration (preview)
 
-## Status
+## Verification status
 
-This repository contains an **optional, manually invoked Defender CLI integration** for Microsoft Codename MDASH. Adding the workflow does not onboard a Microsoft tenant, provision Azure resources, grant Microsoft permissions, run a scan, or establish that MDASH access is available. Treat the capability as **NOT CONFIGURED** until a real tenant-backed scan completes.
+The repository contains an optional workflow for manually invoking Microsoft Defender CLI / Codename MDASH. The workflow definition alone does not establish Microsoft tenant access, preview eligibility, billing authorization, or a successful scan. The integration remains **NOT VERIFIED** until its protected environment is configured and a tenant-backed run produces reviewable SARIF evidence.
 
-Microsoft documents Codename MDASH and the Defender CLI as preview capabilities. Review the current Microsoft documentation and tenant eligibility before enabling this integration:
+Microsoft documents this capability as preview functionality. Check current requirements before provisioning or running it:
 
 - [Codename MDASH overview](https://learn.microsoft.com/en-us/security-exposure-management/ai-code-security-overview)
 - [Defender CLI installation and scan commands](https://learn.microsoft.com/en-us/security-exposure-management/defender-cli)
@@ -12,63 +12,81 @@ Microsoft documents Codename MDASH and the Defender CLI as preview capabilities.
 - [Microsoft's GitHub Actions CI/CD example](https://learn.microsoft.com/en-us/security-exposure-management/defender-cli-cicd)
 - [Microsoft Foundry setup for MDASH](https://learn.microsoft.com/en-us/security-exposure-management/mdash-foundry-integration)
 
-## Safety model
+## Workflow safety model
 
 The workflow `.github/workflows/mdash-agentic-security.yml`:
 
-1. Runs only through `workflow_dispatch`; it is not triggered by pushes, pull requests, or a schedule.
-2. Defaults the explicit `authorize_source_upload` input to `false`. A maintainer must deliberately enable it for each scan.
-3. Checks for the required Microsoft Entra secrets without printing their values.
-4. Uses Microsoft's Defender CLI to submit the baseline `gpt-general-profile` scan, waits for the job, and validates the returned SARIF structure.
-5. Retains SARIF as a seven-day GitHub Actions artifact and uploads findings to GitHub code scanning.
-6. Does not invoke `defender fix`, change repository files, create branches or pull requests, push commits, deploy, or merge.
+1. Runs only from `workflow_dispatch`, only on `main`, and only when the operator explicitly sets `authorize_source_upload=true` for that run.
+2. Uses the GitHub Actions environment `mdash-security`. Configure that environment to allow deployments from `main` only and require an authorized reviewer before approving access to its secrets.
+3. Grants only `contents: read` and `security-events: write`. It does not request the unused `id-token: write` permission.
+4. Reads Microsoft Entra credentials only from secrets in the protected environment.
+5. Downloads the Defender CLI from Microsoft's documented distribution endpoint and checks its SHA-256 digest against the separately configured `DEFENDER_CLI_SHA256` environment variable before making the binary executable or running it.
+6. Uses Microsoft's documented baseline `standard` model profile, waits for the scan job, validates SARIF 2.1.0, retains the SARIF file for seven days, and publishes findings to GitHub code scanning.
+7. Suppresses raw CLI output to avoid writing unexpected credential material to Actions logs. On interruption or scan failure after a job ID is known, it makes a bounded best-effort cancellation request.
+8. Does not invoke `defender fix`, write to repository files, create branches or pull requests, push commits, deploy, or merge.
 
-**Source and cost warning:** Defender CLI archives and submits repository source code to Microsoft's agentic scanning service. MDASH uses provisioned model capacity; model or Azure charges may apply. Microsoft notes that cancelling a running scan does not refund tokens already consumed. Review the files in the repository for secrets, customer data, or other restricted content before authorizing a scan. Do not use this integration until source transfer and cost have been approved.
+**Important integrity limitation:** Microsoft's public Defender CLI installation page documents a mutable `latest` download URL but does not publish a checksum or signature alongside that download. Do not calculate the expected digest from the same unauthenticated download and treat that as verification. Obtain the digest through a separately trusted Microsoft publishing or support channel. Until that is available and configured, the workflow deliberately fails closed and no binary is executed.
 
-A skipped job means no scan was submitted. A successful CLI scan is not proof that the repository is vulnerability-free. Review every finding and its evidence.
+## Source transfer and cost
+
+The scan submits repository source code to Microsoft's service. Source content can include secrets, customer data, or other restricted material; review and approve the exact repository contents before dispatching a scan. Model capacity or related Azure charges may apply. Microsoft notes that cancelling an in-progress scan does not refund tokens already consumed. A skipped or blocked job means no scan was submitted.
+
+A completed scan is not evidence that the repository is vulnerability-free. Review all findings and their supporting locations and evidence.
 
 ## Microsoft prerequisites
 
-Before configuring this workflow:
+Before enabling a run:
 
-- Confirm that Codename MDASH preview is enabled for the Microsoft Defender tenant and that the tenant's commercial-cloud region is supported.
-- Complete the Microsoft Defender Code enterprise-application and Entra app-registration steps in Microsoft's onboarding guide.
-- Grant the documented Microsoft Defender Code application permissions and admin consent. Microsoft documents `AIScan.enabled` for running AI scans and `AIScan.Upload` for uploading scan results.
-- Configure the Microsoft Foundry model deployments and capacity required by the MDASH onboarding guide, if required for the tenant.
-- Confirm that the organization approves sending this repository's source code to the Microsoft service.
+- Confirm that Codename MDASH preview is available and enabled for the relevant Microsoft Defender tenant and region.
+- Complete the Defender Code enterprise-application and Microsoft Entra app-registration steps in Microsoft's current onboarding documentation.
+- Grant the documented application permissions and admin consent required for Defender CLI scanning and result upload.
+- Configure any Microsoft Foundry model deployment and capacity required by the current MDASH onboarding documentation.
+- Obtain approval to transfer this repository's source and consume any model or Azure capacity.
 
-The Microsoft documentation's published region list is limited; it currently names US, EU, UK, Australia, India, Switzerland, and UAE (UAE CLI scans only). Confirm current availability with Microsoft before provisioning anything.
+Do not rely on a hard-coded region or eligibility list from this repository. Confirm current availability directly with Microsoft.
 
-## GitHub Actions configuration
+## GitHub environment configuration
 
-Add these repository or organization Actions secrets:
+Create the GitHub Actions environment named `mdash-security` in repository settings. Configure its deployment branch policy to allow `main` only and set required reviewers according to the repository's security policy.
 
-| Secret | Purpose |
+Add these **environment secrets** (not repository-level or broadly shared organization secrets):
+
+| Environment secret | Purpose |
 | --- | --- |
-| `DEFENDER_ASPM_TENANT_ID` | Microsoft Entra directory/tenant ID |
-| `DEFENDER_ASPM_CLIENT_ID` | Microsoft Entra application/client ID |
-| `DEFENDER_ASPM_CLIENT_SECRET` | Client secret for Defender CLI app-based CI authentication |
+| `DEFENDER_ASPM_TENANT_ID` | Microsoft Entra directory / tenant ID |
+| `DEFENDER_ASPM_CLIENT_ID` | Microsoft Entra application / client ID |
+| `DEFENDER_ASPM_CLIENT_SECRET` | App-based Defender CLI authentication secret |
 
-Never commit these values or place them in workflow variables, logs, or source files. Rotate the client secret according to the organization's credential policy.
+Add this **environment variable**:
 
-The Entra application must have the permissions and admin consent described in Microsoft's [Defender CLI authentication guide](https://learn.microsoft.com/en-us/security-exposure-management/defender-cli-authentication). If the secrets are absent, the workflow fails before downloading or running the scanner.
+| Environment variable | Purpose |
+| --- | --- |
+| `DEFENDER_CLI_SHA256` | 64-character hexadecimal SHA-256 digest obtained from a separately trusted Microsoft source for the exact CLI binary being downloaded |
+
+Never commit credentials, put them in source files, or print them in workflow logs. Rotate the client secret according to the organization's credential policy. Update the digest when Microsoft changes the distributed binary, using a separately authenticated and trusted digest source.
+
+If any required secret is absent, the digest is missing or malformed, or the digest does not match the downloaded binary, the job stops before executing the CLI.
 
 ## Running a scan
 
-1. Review the current Microsoft preview, tenant, region, licensing, and billing prerequisites.
-2. Review repository contents and confirm that uploading the source to Microsoft Defender is permitted.
-3. In GitHub Actions, open **GLORIFIER MDASH Agentic Code Security (Preview)** and select **Run workflow**.
-4. Enable `authorize_source_upload` only when you explicitly approve the source transfer and potential model/Azure charges.
-5. Review the workflow result, SARIF artifact, and GitHub code-scanning findings.
+1. Confirm current Microsoft preview eligibility, tenant permissions, model capacity, costs, and source-transfer approval.
+2. Review the repository contents and remove or protect restricted data before authorizing upload.
+3. Ensure the `mdash-security` environment, reviewer policy, secrets, and independently obtained digest are configured.
+4. In GitHub Actions, select **GLORIFIER MDASH Agentic Code Security (Preview)** and run it from `main`.
+5. Set `authorize_source_upload` to true only for the explicitly approved run.
+6. Review the run, seven-day SARIF artifact, and GitHub code-scanning findings.
 
-The workflow currently uses the documented baseline `gpt-general-profile`. The MAI-augmented profile is intentionally not enabled by default.
+The default model profile is `standard`. The MAI-augmented `mai-cyber` profile is not enabled by this workflow.
 
-## Verification states
+## Evidence labels
 
-- `NOT_CONFIGURED`: required tenant access or GitHub secrets are not established.
-- `NOT_RUN`: no explicitly authorized workflow run exists.
-- `FAILED`: authentication, scan submission, job completion, SARIF validation, or result publication failed.
-- `SUCCEEDED`: the CLI completed and the SARIF file passed structural validation and the publication steps completed. This does not mean no vulnerabilities were found.
-- `NOT_VERIFIED`: Microsoft tenant onboarding, billing, or actual service availability has not been independently confirmed.
+Use the repository's evidence vocabulary consistently:
 
-Do not represent the integration as active, tenant-connected, or successfully scanning until a real run provides evidence.
+- **NOT VERIFIED** — no tenant-backed scan evidence exists, or required onboarding and protected environment configuration have not been established.
+- **NOT OBSERVABLE** — a tenant, billing, eligibility, or external service state cannot be observed from repository CI evidence.
+- **DEGRADED** — an authorized run was attempted but authentication, integrity verification, scan completion, SARIF validation, artifact retention, or publication failed.
+- **PARTIALLY VERIFIED** — static workflow contract checks or syntax checks passed, but a real tenant-backed scan has not been independently completed.
+- **VERIFIED** — one identified run proves CLI completion, SARIF validation, artifact retention, and successful code-scanning publication. This label applies only to those pipeline steps and that run.
+- **FULLY VERIFIED** — do not use for this integration based solely on a successful scan workflow; it would require independent verification of the full tenant, security, billing, and operational claims.
+
+Do not report MDASH as active, tenant-connected, or successfully scanning without current evidence from a real authorized run. Do not equate scan completion with a clean vulnerability assessment.
