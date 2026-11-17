@@ -93,7 +93,7 @@ test('HTML responses use a same-origin script policy and restrict active content
   const html = await response.text();
   assert.ok(html.includes('<script defer src="/startup-status.js"></script>'));
   assert.ok(html.includes('<script type="module" src="/assets/app-12345678.js"></script>'));
-  assert.doesNotMatch(html, /<script(?![^>]*\\ssrc\\s*=)[^>]*>/i);
+  assert.doesNotMatch(html, /<script[^>]*>[^<]+<\\/script>/i);
 });
 
 test('serves the externalized startup status script as a same-origin asset', async (t) => {
