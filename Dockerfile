@@ -16,7 +16,8 @@ COPY . .
 # Bundle the TypeScript server while esbuild is still installed.
 RUN npm run build \
  && npm prune --omit=dev --no-audit --no-fund \
- && npm cache clean --force
+ && npm cache clean --force \
+ && rm -rf .github
 
 # Debian unstable currently carries the upstream zlib fix for both reported
 # gzwrite heap-buffer-overflow CVEs. Enforce the fixed package floor at build time.

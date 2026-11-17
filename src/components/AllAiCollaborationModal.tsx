@@ -279,8 +279,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
               </div>
               <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
                 <div 
-                  className="h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 transition-all duration-500" 
-                  style={{ width: `${(activeStep / 3) * 100}%` }}
+                  className={`h-full bg-gradient-to-r from-emerald-500 via-teal-400 to-cyan-400 transition-all duration-500 ${activeStep <= 0 ? 'w-0' : activeStep === 1 ? 'w-1/3' : activeStep === 2 ? 'w-2/3' : 'w-full'}`}
                 />
               </div>
               <p className="text-[11px] text-slate-400">

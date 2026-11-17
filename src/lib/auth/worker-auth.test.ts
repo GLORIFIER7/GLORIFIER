@@ -178,7 +178,7 @@ test('Cloudflare Worker Auth0 verification refreshes a fresh JWKS cache when a n
 });
 
 test('Cloudflare Worker Firebase verification checks account status and token revocation', async () => {
-  const projectId = 'gen-lang-client-0942094352';
+  const projectId = 'merchant-center-1660617751955';
   const apiKey = 'firebase-public-test-key';
   const env: WorkerAuthEnvironment = {
     FIREBASE_PROJECT_ID: projectId,

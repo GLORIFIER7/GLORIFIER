@@ -1,6 +1,10 @@
 # Version control and local tool state
 .git
-.github
+# Keep only the preflight workflow needed by the Firebase contract test.
+.github/*
+!.github/workflows/
+.github/workflows/*
+!.github/workflows/cloudflare-worker.yml
 .vscode
 .idea
 .vercel
