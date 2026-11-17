@@ -85,6 +85,46 @@ test('service-worker activation actually deletes retired dashboard caches', asyn
   assert.equal(claimed, true, 'service worker must claim clients after cache cleanup');
 });
 
+test('service-worker install pre-caches the static shell before activating', async () => {
+  const listeners = new Map();
+  const added = [];
+  let releaseAddAll;
+  let skippedWaiting = false;
+  const addAllGate = new Promise((resolve) => { releaseAddAll = resolve; });
+  const cache = {
+    addAll(paths) {
+      added.push(...paths);
+      return addAllGate;
+    }
+  };
+  const cachesMock = {
+    async open(name) {
+      assert.equal(name, 'glorifier-static-status-v3');
+      return cache;
+    }
+  };
+  const selfMock = {
+    addEventListener(type, listener) { listeners.set(type, listener); },
+    async skipWaiting() { skippedWaiting = true; }
+  };
+
+  runInNewContext(serviceWorker, { self: selfMock, caches: cachesMock });
+  const install = listeners.get('install');
+  assert.equal(typeof install, 'function', 'service worker must register an install handler');
+
+  let installation;
+  install({ waitUntil(promise) { installation = promise; } });
+  assert.ok(installation, 'install must keep the shell cache operation alive');
+  await Promise.resolve();
+
+  assert.deepEqual(added, ['./', './index.html', './manifest.webmanifest', './glorifier-services-official-logo-001.png']);
+  assert.equal(skippedWaiting, false, 'install must not skip waiting before the shell is cached');
+
+  releaseAddAll();
+  await installation;
+  assert.equal(skippedWaiting, true, 'install may skip waiting only after the shell cache succeeds');
+});
+
 test('the Cloudflare sitemap contains only URLs on its canonical Pages host', () => {
   const locations = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(([, url]) => url);
   assert.deepEqual(locations, ['https://glorifier.pages.dev/']);
