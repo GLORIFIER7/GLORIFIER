@@ -212,7 +212,7 @@ jobs:
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
           VERSION_HOME="$RUNNER_TEMP/agy-version-home"
           install -d -m 700 "$VERSION_HOME"
-          VERSION_OUTPUT="$(HOME="$VERSION_HOME" "$HOME/.local/bin/agy" --version 2>&1)"
+          VERSION_OUTPUT="$(env HOME="$VERSION_HOME" "$HOME/.local/bin/agy" --version 2>&1)"
           if [[ "$VERSION_OUTPUT" != *"$CLI_VERSION"* ]]; then
             echo "::error::Installed Antigravity CLI version did not match the pinned release."
             exit 1
