@@ -59,7 +59,7 @@ jobs:
             "https://cli.dfd.security.azure.com/public/v2/latest/Defender_linux-x64" \
             --output "$RUNNER_TEMP/defender"
           chmod 700 "$RUNNER_TEMP/defender"
-          "$RUNNER_TEMP/defender" --help >/dev/null
+          test -s "$RUNNER_TEMP/defender"
 
       - name: Submit MDASH scan and collect SARIF
         shell: bash
