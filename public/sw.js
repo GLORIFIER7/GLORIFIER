@@ -49,7 +49,7 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys()
       .then((keys) => Promise.all(
-        keys.filter((key) => key === 'glorifier-ai-v1')
+        keys.filter((key) => key === 'glorifier-ai-v1' || key === 'glorifier-static-status-v3')
           .map((key) => caches.delete(key))
       ))
       .then(() => self.clients.claim())
