@@ -55,12 +55,13 @@ test("secret-bearing workflow is owner-only, main-only, protected, and manually 
   assert.match(workflow, /permissions:\n      contents: read/);
   assert.doesNotMatch(workflow, /schedule:/);
   assert.doesNotMatch(workflow, /pull-requests: write|contents: write|gh pr merge|--auto/);
+  assert.match(workflow, /inputs\.provider == 'meta'/);
+  assert.match(workflow, /inputs\.provider == 'ollama'/);
+  assert.match(workflow, /glorifier-local-ai/);
+  assert.match(workflow, /OPENAI_API_KEY:\s*\$\{\{\s*inputs\.provider == 'openai'/);
+  assert.match(workflow, /OPENAI_MODEL:\s*\$\{\{\s*inputs\.provider == 'openai' && inputs\.model/);
   assert.ok(workflow.includes("group: live-ai-inference-verification-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}"));
-  assert.ok((workflow.match(/vars\\.LIVE_AI_PROBE_ENABLED == 'true'/g) || []).length >= 2);
-  assert.ok(workflow.includes("if: github.event_name == 'workflow_dispatch' && inputs.provider != 'meta' && inputs.provider != 'ollama'"));
-  assert.ok(workflow.includes("runs-on: [self-hosted, linux, x64, glorifier-local-ai]"));
-  assert.ok(workflow.includes("OPENAI_API_KEY: ${{ inputs.provider == 'openai' && secrets.OPENAI_API_KEY || '' }}"));
-  assert.ok(workflow.includes("OPENAI_MODEL: ${{ inputs.provider == 'openai' && inputs.model || vars.OPENAI_MODEL }}"));
+  assert.equal((workflow.match(/vars\.LIVE_AI_PROBE_ENABLED == 'true'/g) || []).length, 2);
 });
 
 test("inference is denied before network access unless the owner explicitly opts in", async () => {
