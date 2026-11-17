@@ -57,6 +57,9 @@ jobs:
       - name: GitHub Actions governance regression tests
         run: node --test scripts/github-actions-governance.test.mjs
 
+      - name: MDASH agentic security workflow contract regression tests
+        run: node --test scripts/mdash-agentic-security-workflow.test.mjs
+
       - name: Provider collaboration UI truthfulness regression tests
         run: node --test scripts/provider-collaboration-truthfulness.test.mjs
 
