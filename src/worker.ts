@@ -47,6 +47,7 @@ export type CloudflareEnv = WorkerAppStateRouteEnvironment & {
   GLORIFIER_PAID_INFERENCE_AUTHORIZED?: string;
   // Cloudflare AI is eligible only after the account's Workers Free plan is independently confirmed.
   GLORIFIER_WORKERS_PLAN?: string;
+  GLORIFIER_WORKERS_PLAN_VERIFIED?: string;
   GLORIFIER_WORKERS_AI_FREE_ONLY?: string;
   // Separate downstream API credential accepted by NEURAL /v1/tasks; never reuse the ingress service token.
   GLORIFIER_API_TOKEN?: string;
