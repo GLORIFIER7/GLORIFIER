@@ -3,149 +3,20 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#07110f">
-  <meta name="description" content="GLORIFIER is building an AI-first autonomous enterprise: specialist agents coordinate bounded operations, with humans retaining final authority over consequential actions.">
-  <meta property="og:title" content="GLORIFIER — Autonomous AI Enterprise">
-  <meta property="og:description" content="An AI-first autonomous enterprise with governed agent operations and evidence-backed outcomes.">
-  <meta property="og:type" content="website">
+  <meta name="robots" content="noindex,follow">
+  <meta http-equiv="refresh" content="0; url=./">
+  <meta name="description" content="The GLORIFIER project overview has moved to the public evidence status page.">
+  <meta property="og:title" content="GLORIFIER — Public Status">
+  <meta property="og:description" content="A static evidence snapshot for GLORIFIER.">
   <meta property="og:image" content="https://ipfs.io/ipfs/bafkreidnoy2bugujfuc5prawef3onhrxihyo3inoi5s73dhlrm2f5bnxsa">
-  <meta property="og:url" content="https://glorifier7.github.io/GLORIFIER/project.html">
-  <title>GLORIFIER — Autonomous AI Enterprise</title>
-  <style>
-    :root{color-scheme:dark;--bg:#07110f;--panel:#0d1c19;--line:#213b33;--text:#f1f7f3;--muted:#a9beb4;--green:#a6f4c5;--lime:#d7ff7f;--max:1120px}
-    *{box-sizing:border-box}
-    html{scroll-behavior:smooth}
-    body{margin:0;background:radial-gradient(ellipse at 80% 0%,#15382b 0,transparent 34%),var(--bg);color:var(--text);font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;line-height:1.6}
-    a{color:inherit}
-    a:focus-visible{outline:3px solid var(--lime);outline-offset:4px;border-radius:6px}
-    .wrap{width:min(var(--max),calc(100% - 40px));margin-inline:auto}
-    header{border-bottom:1px solid #ffffff16}
-    nav{min-height:76px;display:flex;align-items:center;justify-content:space-between;gap:20px}
-    .brand{display:flex;align-items:center;gap:12px;text-decoration:none;font-weight:800;letter-spacing:.13em}
-    .mark{width:38px;height:38px;flex:0 0 38px;display:block;object-fit:contain;border-radius:50%;background:transparent}
-    .navlinks{display:flex;gap:22px;align-items:center;font-size:.92rem;color:var(--muted)}
-    .navlinks a{text-decoration:none}.navlinks a:hover{color:var(--text)}
-    .button{display:inline-flex;align-items:center;justify-content:center;gap:9px;padding:12px 17px;border-radius:12px;background:var(--green);color:#07150e;text-decoration:none;font-weight:700;border:1px solid transparent}
-    .button:hover{background:var(--lime)}
-    .button.secondary{background:transparent;color:var(--text);border-color:var(--line)}
-    .hero{padding:90px 0 72px;display:grid;grid-template-columns:1.15fr .85fr;gap:55px;align-items:center}
-    .eyebrow{display:inline-flex;align-items:center;gap:9px;padding:6px 11px;border:1px solid #6c9b7c66;border-radius:999px;color:var(--green);font-size:.78rem;font-weight:700;letter-spacing:.12em;text-transform:uppercase}
-    .dot{width:7px;height:7px;border-radius:50%;background:var(--green);box-shadow:0 0 12px #a6f4c5}
-    h1{font-size:clamp(2.8rem,6.2vw,5.35rem);line-height:1.02;letter-spacing:-.065em;margin:23px 0}
-    h1 span{color:var(--green)}
-    .lead{max-width:650px;color:var(--muted);font-size:clamp(1.05rem,1.6vw,1.2rem)}
-    .actions{display:flex;flex-wrap:wrap;gap:12px;margin-top:30px}
-    .fine{font-size:.83rem;color:#8fa99b;margin-top:16px}
-    .visual{position:relative;min-height:360px;border:1px solid #47705b80;border-radius:28px;padding:26px;overflow:hidden;background:linear-gradient(150deg,#132c22e8,#0a1714f5);box-shadow:0 25px 100px #0005}
-    .visual:before,.visual:after{content:"";position:absolute;border:1px solid #7abf8b30;border-radius:50%;width:300px;height:300px;right:-100px;top:-120px}
-    .visual:after{width:210px;height:210px;right:-55px;top:-75px}
-    .visual-top{display:flex;justify-content:space-between;align-items:center;color:var(--muted);font-size:.8rem;letter-spacing:.1em;text-transform:uppercase}
-    .core{position:relative;z-index:1;margin:45px auto 28px;width:142px;height:142px;border-radius:50%;display:grid;place-items:center;text-align:center;background:radial-gradient(circle at 35% 25%,#d8ffe6,#5fbf8a 42%,#174b34 76%);color:#062012;font-weight:900;font-size:1.15rem;box-shadow:0 0 70px #65d89a35}
-    .orbit{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:9px}.orbit div{min-width:0;overflow-wrap:anywhere}
-    .orbit div{padding:12px 8px;border:1px solid #355544;border-radius:12px;text-align:center;color:#d2e5d8;font-size:.78rem;background:#0b1b15}
-    .orbit strong{display:block;color:var(--green);font-size:.85rem;margin-bottom:3px}
-    section{padding:70px 0}
-    .section-head{max-width:720px;margin-bottom:30px}
-    .kicker{font-size:.76rem;text-transform:uppercase;letter-spacing:.16em;color:var(--green);font-weight:800}
-    h2{font-size:clamp(2rem,4vw,3rem);letter-spacing:-.045em;line-height:1.12;margin:10px 0 15px}
-    .section-head p,.card p{color:var(--muted);margin:0}
-    .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:15px}
-    .card{padding:23px;border:1px solid var(--line);border-radius:18px;background:linear-gradient(145deg,#11241d,#0a1713)}
-    .num{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#193b2a;color:var(--green);font-weight:800;margin-bottom:20px}
-    h3{margin:0 0 8px;font-size:1.08rem}
-    .band{border-block:1px solid #ffffff16;background:#0a1713a8}
-    .principles{display:grid;grid-template-columns:1fr 1fr;gap:36px;align-items:start}
-    .principle-list{display:grid;gap:12px}
-    .principle{display:flex;gap:13px;padding:15px 0;border-bottom:1px solid #ffffff16}
-    .check{color:var(--green);font-weight:900}
-    .principle p{margin:2px 0 0;color:var(--muted);font-size:.93rem}
-    .chain-note{font-size:.88rem;color:var(--muted);border-left:2px solid #8dd6a4;padding-left:14px;margin-top:20px}
-    .cta{padding:32px;border:1px solid #416b52;border-radius:22px;background:linear-gradient(110deg,#123222,#0b1a14);display:flex;justify-content:space-between;align-items:center;gap:24px}
-    .cta h2{font-size:clamp(1.7rem,3vw,2.4rem);margin:0 0 8px}
-    .cta p{color:var(--muted);margin:0}
-    footer{padding:28px 0 40px;border-top:1px solid #ffffff16;color:#8fa99b;font-size:.85rem}
-    .foot{display:flex;justify-content:space-between;gap:18px;flex-wrap:wrap}
-    .footlinks{display:flex;gap:18px;flex-wrap:wrap}.footlinks a{color:#c7d9ce;text-decoration:none}
-    @media(max-width:420px){.visual{padding:16px}.orbit{grid-template-columns:1fr}.orbit div{display:flex;align-items:center;gap:10px;text-align:left}.orbit strong{margin:0;min-width:24px}}
-    @media(max-width:800px){nav.wrap{align-items:flex-start;flex-direction:column;padding:16px 0}.navlinks{width:100%;display:flex;flex-wrap:wrap;gap:10px 16px}.navlinks a:not(.button){display:inline-flex}.navlinks .button{padding:8px 12px}.hero{grid-template-columns:1fr;padding:62px 0 50px;gap:34px}.visual{min-height:330px}.grid{grid-template-columns:1fr}.principles{grid-template-columns:1fr}.cta{align-items:flex-start;flex-direction:column}section{padding:54px 0}}
-    @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{animation:none!important;transition:none!important}}
-  </style>
+  <link rel="canonical" href="https://glorifier.pages.dev/">
+  <link rel="icon" type="image/png" href="./glorifier-services-official-logo-001.png">
+  <title>GLORIFIER — Public Status</title>
 </head>
-<body id="top">
-  <header>
-    <nav class="wrap" aria-label="Main navigation">
-      <a class="brand" href="#top" aria-label="GLORIFIER home"><img class="mark" src="./glorifier-services-official-logo-001.png" alt="" width="500" height="500"><span>GLORIFIER</span></a>
-      <div class="navlinks">
-        <a href="#approach">Approach</a><a href="#governance">Governance</a><a href="#glr">GLR concept</a>
-        <a class="button secondary" href="https://github.com/GLORIFIER7/GLORIFIER" target="_blank" rel="noopener noreferrer">View source ↗</a>
-      </div>
-    </nav>
-  </header>
+<body>
   <main>
-    <div class="wrap hero">
-      <div>
-        <div class="eyebrow"><span class="dot" aria-hidden="true"></span> Project overview</div>
-        <h1>An autonomous AI enterprise.<br><span>Governed by evidence.</span></h1>
-        <p class="lead">GLORIFIER is building an AI-first autonomous enterprise. Specialist agents monitor, coordinate, and execute bounded work; humans retain final authority over consequential actions. The platform connects provider-neutral intelligence, governed tools, and evidence-backed outcomes.</p>
-        <div class="actions">
-          <a class="button" href="#approach">Explore the project <span aria-hidden="true">↓</span></a>
-          <a class="button secondary" href="https://github.com/GLORIFIER7/GLORIFIER" target="_blank" rel="noopener noreferrer">Explore on GitHub ↗</a>
-        </div>
-        <p class="fine">Committed to Glorify, Passion to Evangelize.</p>
-      </div>
-      <aside class="visual" aria-label="Conceptual illustration of the GLORIFIER orchestration model">
-        <div class="visual-top"><span>Target operating model</span><span>AI-operated · Human-governed</span></div>
-        <div class="core">GLORIFIER<br><small style="font-size:.66rem;font-weight:700">ORCHESTRATION</small></div>
-        <div class="orbit">
-          <div><strong>01</strong>Intelligence</div><div><strong>02</strong>Governance</div><div><strong>03</strong>Execution</div>
-        </div>
-      </aside>
-    </div>
-    <section id="approach">
-      <div class="wrap">
-        <div class="section-head"><div class="kicker">The approach</div><h2>One autonomous operating loop. Multiple specialist agents.</h2><p>Rather than treating any single AI provider as the whole product, GLORIFIER aims to coordinate intelligence and business actions through a consistent layer of policies, evidence, and review.</p></div>
-        <div class="grid">
-          <article class="card"><div class="num">01</div><h3>Provider-neutral intelligence</h3><p>Design workflows that can work with different AI models and services, with provider-specific capabilities and limitations made explicit.</p></article>
-          <article class="card"><div class="num">02</div><h3>Governed tool use</h3><p>Connect agents, APIs, and business systems with scoped permissions, clear boundaries, and review before consequential actions.</p></article>
-          <article class="card"><div class="num">03</div><h3>Evidence-first operations</h3><p>Separate intended behavior from verified outcomes. Make system status, test results, and remaining gaps visible instead of assumed.</p></article>
-        </div>
-      </div>
-    </section>
-    <div class="band" id="governance">
-      <section class="wrap">
-        <div class="principles">
-          <div class="section-head"><div class="kicker">Governance by design</div><h2>Human authority comes first.</h2><p>Automation should make work clearer and more dependable—not hide decisions or quietly expand its own authority.</p><p class="chain-note">Project principle: no autonomous trading, fund movement, or irreversible production change without explicit authorization and appropriate safeguards.</p></div>
-          <div class="principle-list">
-            <div class="principle"><span class="check">✓</span><div><strong>Human owner oversight</strong><p>People retain final authority over consequential decisions and permissions.</p></div></div>
-            <div class="principle"><span class="check">✓</span><div><strong>Least-privilege access</strong><p>Tools and services should receive only the access required for their assigned task.</p></div></div>
-            <div class="principle"><span class="check">✓</span><div><strong>Auditable outcomes</strong><p>Record decisions and evidence so actions can be reviewed and understood.</p></div></div>
-            <div class="principle"><span class="check">✓</span><div><strong>Honest status labels</strong><p>Distinguish verified, partially verified, degraded, and not-yet-observable capabilities.</p></div></div>
-          </div>
-        </div>
-      </section>
-    </div>
-    <section id="glr">
-      <div class="wrap">
-        <div class="section-head"><div class="kicker">The GLR concept</div><h2>A utility layer for governed agent commerce.</h2><p>GLORIFIER (GLR) is part of the project's vision for a native economic unit that may support AI-agent services and governed interactions across supported networks.</p></div>
-        <div class="grid">
-          <article class="card"><div class="num">A</div><h3>Service utility</h3><p>Explore how digital services could be priced and accounted for through transparent, application-defined rules.</p></article>
-          <article class="card"><div class="num">B</div><h3>Cross-system coordination</h3><p>Work toward consistent governance across AI services, APIs, smart contracts, and supported blockchain networks.</p></article>
-          <article class="card"><div class="num">C</div><h3>No investment promises</h3><p>GLR is not presented here as a stablecoin, a guaranteed-return product, or a promise of future token value.</p></article>
-        </div>
-        <p class="chain-note">This page describes project direction, not a guarantee that every capability is live. Network state, integrations, audits, service availability, and transaction support should be independently checked before use.</p>
-      </div>
-    </section>
-    <section>
-      <div class="wrap">
-        <div class="cta">
-          <div><h2>Follow the work. Inspect the evidence.</h2><p>Read the code, review project documentation, or follow development in the public repository.</p></div>
-          <a class="button" href="https://github.com/GLORIFIER7/GLORIFIER" target="_blank" rel="noopener noreferrer">Open GitHub repository ↗</a>
-        </div>
-      </div>
-    </section>
+    <h1>GLORIFIER — Public Status</h1>
+    <p>The project page has moved. Continue to the <a href="./">public evidence status page</a>.</p>
   </main>
-  <footer>
-    <div class="wrap foot"><div><strong style="color:#e5f3e9">GLORIFIER Services Advertising Company</strong><br>Committed to Glorify, Passion to Evangelize<br>Purpose • Stewardship • Service • Integrity</div><div class="footlinks"><a href="https://github.com/GLORIFIER7/GLORIFIER" target="_blank" rel="noopener noreferrer">Source repository</a><a href="https://github.com/GLORIFIER7/GLORIFIER/issues" target="_blank" rel="noopener noreferrer">Issues & discussion</a></div><div>© 2026 GLORIFIER Services Advertising Company</div></div>
-  </footer>
 </body>
 </html>
