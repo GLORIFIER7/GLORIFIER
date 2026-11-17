@@ -13,9 +13,9 @@ const projectPage = read('../public/project.html');
 test('public production entry is a single static evidence page', () => {
   assert.match(html, /GLORIFIER — Public Status/);
   assert.match(html, /PUBLIC EVIDENCE SNAPSHOT/);
-  assert.match(html, /744dee7508fc7ca1e1370e2c56049b51770daf5b/);
+  assert.match(html, /5e0078ff2202f79eebd4b5127ae283c2d9c6f834/);
   assert.match(html, /394b99f66cf5f6380fee801fc203559252c9a8d1/);
-  assert.match(html, /16 commits ahead/);
+  assert.match(html, /17 commits ahead/);
   assert.match(html, /AI inference/i);
   assert.match(html, /not verified/i);
   assert.match(html, /does not make API requests/i);
