@@ -449,3 +449,22 @@ A comment-only Amazon Q review on PR #882 identified that the new `isMatchingSou
 - **Branch:** `geas/nist-ir-8621-si-incident-evidence-20261117`.
 - **Implementation commits:** Registry `263090e203f8134dc099668572fd31461f1139f2`; scanner/pattern `9fda0aec9e473326c2db7ea52c1c8e6e64cc6375`; regression tests `6103dc4bc6357d06e67f37bffa4f6d9c789fb08d`.
 - **Governance:** Auto-approval covers engineering refinement only. No PR review approval, merge, deployment, or production change is authorized.
+
+
+## 2026-11-17 — Evidence excerpt word-boundary integrity
+
+### Observed fact
+- The exact-head scan artifact for NIST IR 8621 contained a content-matched excerpt whose leading character window began mid-word (`resentations`). The source URL, full-source SHA-256, and content-matched classification remained intact.
+
+### Analysis
+- The existing fixed-character excerpt window could split the first or last word when a keyword occurred near a character boundary.
+- This is an evidence-presentation defect, not a source-integrity or claim-verification failure. It must not change the source digest, evidence class, or claim-support admission.
+
+### Auto-approval record
+- **Classification:** LOW risk; pre-authorized for engineering refinement.
+- **Rationale:** Deterministic excerpt formatting only. No source trust, claim authorization, evidence classification, production behavior, data, security posture, permissions, or budget changes.
+- **Affected files:** `src/lib/governance/geas-architecture-scientist.ts`, `src/lib/governance/geas-architecture-scientist.test.ts`, and this backlog.
+- **Implementation:** Add `trimEvidenceExcerptToWordBoundaries` and use it for source evidence excerpts.
+- **Regression tests:** Leading and trailing mid-word offsets are expanded to whole-word boundaries; out-of-range offsets are clamped to source length.
+- **Commits:** `65ac91bb9f95cd892146fc56eb1c3af1b1081dd6` (helper); `f71ba7acae5c8351366e0f002ba4fcddcd594df6` (tests).
+- **Governance:** Excerpt formatting only. No claim promotion, PR review approval, merge, deployment, or production mutation.
