@@ -34,6 +34,7 @@ def _free_environment():
         "GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS": "false",
         "GLORIFIER_PAID_INFERENCE_AUTHORIZED": "false",
         "GLORIFIER_WORKERS_PLAN": "free",
+        "GLORIFIER_WORKERS_PLAN_VERIFIED": "true",
         "GLORIFIER_WORKERS_AI_FREE_ONLY": "true",
         "GLORIFIER_WORKERS_AI_MODEL": "@cf/google/gemma-4-26b-a4b-it",
         "AI": _FakeAI(),
@@ -83,9 +84,25 @@ def test_autopilot_readiness_accepts_only_the_pinned_free_workers_ai_path():
         "provider": "cloudflare_workers_ai",
         "model": "@cf/google/gemma-4-26b-a4b-it",
         "workersPlan": "free",
+        "workersPlanVerified": True,
         "freeOnly": True,
         "inferenceEnabled": True,
         "externalDataEgress": False,
         "paidInferenceAuthorized": False,
         "factualVerification": False,
     }
+
+
+def test_autopilot_readiness_does_not_trust_the_free_plan_label_without_verification():
+    environment = _free_environment()
+    environment.pop("GLORIFIER_WORKERS_PLAN_VERIFIED")
+    response = asyncio.run(
+        autopilot_workers_ai_readiness(_request(environment), "Bearer test-api-token")
+    )
+
+    import json
+    body = json.loads(response.body)
+    assert response.status_code == 200
+    assert body["eligible"] is False
+    assert body["workersPlan"] == "unverified"
+    assert body["workersPlanVerified"] is False
