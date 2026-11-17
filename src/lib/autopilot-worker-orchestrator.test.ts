@@ -145,7 +145,7 @@ test('Autopilot executes one bounded read-only analysis and persists it as pendi
   assert.equal(requests[0].method, 'GET');
   assert.equal(requests[1].method, 'POST');
   assert.equal(requests[1].headers.get('authorization'), 'Bearer test-neural-api-token');
-  assert.equal(requests[1].headers.get('cf-connecting-ip'), '127.0.0.1');
+  assert.equal(requests[1].headers.get('cf-connecting-ip'), null);
   const task = await requests[1].json() as Record<string, unknown>;
   assert.equal(task.action_class, 'read_only');
   assert.equal(task.require_approval, false);
