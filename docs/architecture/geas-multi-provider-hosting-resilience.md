@@ -44,9 +44,9 @@ The existing root `Dockerfile` is the distinct Node/Express application image. P
 Observation: 2026-11-17. These are source/configuration observations, not live production probes.
 
 - Cloudflare source path: **CONFIGURED IN REPOSITORY**. The protected deployment workflow exists; this MPHR change does not execute it or independently verify a newly deployed release.
-- Vercel project: **NOT LINKED**. The connected Vercel team inventory returned no Git-linked projects at the time of inspection.
-- Docker frontend runtime: **NOT DEPLOYED**. A portable container definition and validation workflow are source artifacts; no independent host or live container endpoint was configured or probed.
-- Automatic traffic failover: **NOT ENABLED**. No independently configured traffic controller/DNS failover and recovery policy was verified.
+- Vercel project: NOT LINKED. The connected Vercel team inventory returned no Git-linked projects at the time of inspection.
+- Docker frontend runtime: NOT DEPLOYED. A portable container definition and validation workflow are source artifacts; no independent host or live container endpoint was configured or probed.
+- Automatic traffic failover: NOT ENABLED. No independently configured traffic controller/DNS failover and recovery policy was verified.
 - Backend redundancy: **NOT VERIFIED**. Vercel's runtime rewrites still use Cloudflare Pages/Workers. Docker's static frontend image deliberately does not host the backend.
 - Cross-provider release parity: **NOT VERIFIED** until the exact same source commit is built and smoke-tested on each configured provider.
 
