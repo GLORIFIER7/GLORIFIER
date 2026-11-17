@@ -109,10 +109,6 @@ test('Autopilot executes one bounded read-only analysis and persists it as pendi
           inferenceEnabled: true,
           externalDataEgress: false,
           paidInferenceAuthorized: false,
-          freeOnly: true,
-          inferenceEnabled: true,
-          externalDataEgress: false,
-          paidInferenceAuthorized: false,
         });
       }
       return Response.json({
@@ -183,7 +179,7 @@ test('Autopilot rejects provider responses that do not match the verified free p
   const result = await runCloudflareAutopilotCycle(freeEnvironment as never, {
     createStore: () => fixture.store as never,
     fetchNeural: async (request) => request.method === 'GET'
-      ? Response.json({ eligible: true, provider: 'cloudflare_workers_ai', model: '@cf/google/gemma-4-26b-a4b-it', workersPlan: 'free', workersPlanVerified: true })
+      ? Response.json({ eligible: true, provider: 'cloudflare_workers_ai', model: '@cf/google/gemma-4-26b-a4b-it', workersPlan: 'free', workersPlanVerified: true, freeOnly: true, inferenceEnabled: true, externalDataEgress: false, paidInferenceAuthorized: false })
       : Response.json({ status: 'VERIFIED', provider: 'openai', result: 'Unexpected provider result.', evidence: ['execution:inference'] }),
   });
 
