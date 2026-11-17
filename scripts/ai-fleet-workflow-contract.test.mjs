@@ -422,6 +422,7 @@ test('Gemini engineering collaborator uses the owner-confirmed free-tier API thr
   assert.ok(geminiCollaboratorWorkflow.includes('get("digest")'));
   assert.ok(geminiCollaboratorWorkflow.includes('EXPECTED_SHA256="8b1f5e56779f2434a0af36f1b715a8392a084de550f8c68bc79821f95fabf3fa"'));
   assert.ok(geminiCollaboratorWorkflow.includes('digest != "sha256:" + expected_sha256'));
+  assert.ok(geminiCollaboratorWorkflow.includes('PUBLISHED_DIGEST" != "sha256:$EXPECTED_SHA256'));
   assert.ok(geminiCollaboratorWorkflow.includes('sha256sum --check --strict'));
   assert.ok(geminiCollaboratorWorkflow.includes('grep -Eiwq'));
   assert.ok(geminiCollaboratorWorkflow.includes(String.raw`\b(?:429|503|RESOURCE_EXHAUSTED|UNAVAILABLE)\b`));
@@ -742,7 +743,7 @@ test('Gemini collaborator pins Antigravity CLI and independently verifies its ar
   assert.ok(geminiCollaboratorWorkflow.indexOf(verify) < geminiCollaboratorWorkflow.indexOf(extract),
     'archive integrity must be checked before extraction');
   assert.ok(geminiCollaboratorWorkflow.includes('grep -Eq'));
-  assert.ok(geminiCollaboratorWorkflow.includes('CLI_VERSION//.'));
+  assert.ok(geminiCollaboratorWorkflow.includes('grep -Eq "(^|[^0-9.])${CLI_VERSION//./\\\\.}([^0-9.]|$)"'));
   assert.ok(geminiCollaboratorWorkflow.includes('grep -Eiwq'));
   assert.ok(geminiCollaboratorWorkflow.includes('\\b(?:429|503|RESOURCE_EXHAUSTED|UNAVAILABLE)\\b'));
   assert.ok(geminiCollaboratorWorkflow.includes('last 40 lines; API key redacted'));
