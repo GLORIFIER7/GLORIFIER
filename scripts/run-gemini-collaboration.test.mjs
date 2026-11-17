@@ -4,6 +4,7 @@ import {
   mkdtempSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   rmSync,
   writeFileSync,
 } from 'node:fs';
@@ -68,6 +69,7 @@ esac
     result,
     output: readFileSync(outputPath, 'utf8'),
     args: readFileSync(argsPath, 'utf8'),
+    remainingTempFiles: readdirSync(runnerTemp),
     cleanup: () => rmSync(root, { recursive: true, force: true }),
   };
 }
@@ -76,6 +78,7 @@ test('Gemini collaboration writes the response summary after a successful model 
   const fixture = runFixture('success');
   try {
     assert.equal(fixture.result.status, 0, fixture.result.stderr);
+    assert.deepEqual(fixture.remainingTempFiles, [], 'the runner must remove temporary response and error files');
     assert.match(fixture.output, /summary<<GEMINI_/);
     assert.match(fixture.output, /one bounded test-backed improvement/);
     assert.doesNotMatch(fixture.output, /provider_unavailable=true/);
@@ -89,6 +92,7 @@ test('Gemini HTTP 503 overload is reported as unavailable without failing or pub
   const fixture = runFixture('unavailable');
   try {
     assert.equal(fixture.result.status, 0, fixture.result.stderr);
+    assert.deepEqual(fixture.remainingTempFiles, [], 'the runner must remove temporary response and error files');
     assert.match(fixture.output, /^provider_unavailable=true$/m);
     assert.doesNotMatch(fixture.output, /summary<</);
     assert.match(fixture.result.stdout, /::warning::Gemini API returned HTTP 503/);
@@ -102,6 +106,7 @@ test('Gemini authentication failures remain hard failures', () => {
   const fixture = runFixture('auth_failure');
   try {
     assert.equal(fixture.result.status, 42);
+    assert.deepEqual(fixture.remainingTempFiles, [], 'the runner must remove temporary response and error files');
     assert.match(fixture.result.stderr, /authentication failed/);
     assert.doesNotMatch(fixture.output, /provider_unavailable=true/);
   } finally {
@@ -113,6 +118,7 @@ test('Gemini quota errors are not misclassified as transient HTTP 503 overload',
   const fixture = runFixture('quota_failure');
   try {
     assert.equal(fixture.result.status, 9);
+    assert.deepEqual(fixture.remainingTempFiles, [], 'the runner must remove temporary response and error files');
     assert.match(fixture.result.stderr, /quota exceeded/);
     assert.doesNotMatch(fixture.output, /provider_unavailable=true/);
   } finally {
