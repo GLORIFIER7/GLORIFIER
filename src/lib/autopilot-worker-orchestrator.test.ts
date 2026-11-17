@@ -220,6 +220,20 @@ test('Autopilot does not treat the Workers Free plan label as proof without a se
   assert.equal(storeCreated, false);
 });
 
+test('Autopilot does not send a credential-like mission title to NEURAL', async () => {
+  const fixture = storeFixture({ ...missionFixture(), title: 'OPENAI_API_KEY=sk-test-secret-value' });
+  let taskRequests = 0;
+  const result = await runCloudflareAutopilotCycle(freeEnvironment as never, {
+    createStore: () => fixture.store as never,
+    fetchNeural: async (request) => request.method === 'GET'
+      ? Response.json({ eligible: true, provider: 'cloudflare_workers_ai', model: '@cf/google/gemma-4-26b-a4b-it', workersPlan: 'free', workersPlanVerified: true, freeOnly: true, inferenceEnabled: true, externalDataEgress: false, paidInferenceAuthorized: false })
+      : (taskRequests += 1, Response.json({ status: 'VERIFIED', provider: 'cloudflare_workers_ai', result: 'Read-only result.', evidence: ['provider:cloudflare_workers_ai:response-received', 'execution:inference'] })),
+  });
+  assert.equal(result.status, 'blocked');
+  assert.equal(result.reason, 'mission-content-sensitive');
+  assert.equal(taskRequests, 0);
+  assert.equal(fixture.state.saved.length, 1);
+});
 test('Autopilot scheduler uses requester-scoped internal-service access, never cross-requester access', async () => {
   let receivedAccess: { requester: string; allowAll?: boolean; source?: string } | null = null;
   const fixture = storeFixture();
