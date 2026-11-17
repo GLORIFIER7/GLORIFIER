@@ -66,7 +66,7 @@ test('Autopilot scheduler stays fail-closed and does not touch Neon while Worker
   });
 
   assert.equal(result.status, 'blocked');
-  assert.equal(result.reason, 'workers-free-plan-attestation-not-verified');
+  assert.equal(result.reason, 'workers-free-plan-not-verified');
   assert.equal(storeCreated, false);
   assert.equal(neuralCalls, 0);
 });
@@ -155,7 +155,7 @@ test('Autopilot does not send mission content containing credential-like values 
     createStore: () => fixture.store as never,
     fetchNeural: async (request) => {
       if (request.method === 'GET') {
-        return Response.json({ eligible: true, provider: 'cloudflare_workers_ai', model: '@cf/google/gemma-4-26b-a4b-it', workersPlan: 'free' });
+        return Response.json({ eligible: true, provider: 'cloudflare_workers_ai', model: '@cf/google/gemma-4-26b-a4b-it', workersPlan: 'free', workersPlanVerified: true });
       }
       taskRequests += 1;
       return Response.json({});
@@ -184,4 +184,19 @@ test('Autopilot rejects provider responses that do not match the verified free p
   assert.equal(fixture.state.saved.length, 1);
   assert.equal(fixture.state.saved[0].mission.status, 'failed');
   assert.equal(fixture.state.saved[0].mission.verificationState, 'not-started');
+});
+
+test('Autopilot does not treat the Workers Free plan label as proof without a separate attestation', async () => {
+  let storeCreated = false;
+  const result = await runCloudflareAutopilotCycle({
+    ...freeEnvironment,
+    GLORIFIER_WORKERS_PLAN_VERIFIED: 'false',
+  } as never, {
+    createStore: () => { storeCreated = true; throw new Error('must not be called'); },
+    fetchNeural: async () => new Response('{}'),
+  });
+
+  assert.equal(result.status, 'blocked');
+  assert.equal(result.reason, 'workers-free-plan-attestation-not-verified');
+  assert.equal(storeCreated, false);
 });
