@@ -117,6 +117,25 @@ export function createFrontendServer(options = {}) {
 
   return createServer(async (request, response) => {
     try {
+      let requestUrl;
+      try {
+        requestUrl = new URL(request.url || '/', 'http://localhost');
+      } catch {
+        sendJson(response, 400, { ok: false, code: 'INVALID_REQUEST_URL' });
+        return;
+      }
+
+      const pathname = requestUrl.pathname;
+      if (RESERVED_RUNTIME_PATH.test(pathname)) {
+        sendJson(response, 503, {
+          ok: false,
+          status: 'unavailable',
+          code: 'BACKEND_NOT_CONFIGURED',
+          error: 'This static frontend container does not host the GLORIFIER API or authentication runtime.',
+        });
+        return;
+      }
+
       if (request.method !== 'GET' && request.method !== 'HEAD') {
         response.writeHead(405, securityHeaders({
           Allow: 'GET, HEAD',
@@ -165,16 +184,6 @@ export function createFrontendServer(options = {}) {
           service: 'glorifier-static-frontend',
           status: 'static-assets-ready',
           backend: 'not-probed',
-        });
-        return;
-      }
-
-      if (RESERVED_RUNTIME_PATH.test(pathname)) {
-        sendJson(response, 503, {
-          ok: false,
-          status: 'unavailable',
-          code: 'BACKEND_NOT_CONFIGURED',
-          error: 'This static frontend container does not host the GLORIFIER API or authentication runtime.',
         });
         return;
       }
