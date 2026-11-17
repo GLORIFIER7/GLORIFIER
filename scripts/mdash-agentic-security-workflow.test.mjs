@@ -44,7 +44,7 @@ test('Microsoft credentials and CLI digest come only from the protected environm
     assert.ok(scanJob.includes(name + ': $' + '{{ secrets.' + name + ' }}'));
   }
   assert.ok(scanJob.includes('DEFENDER_CLI_SHA256: $' + '{{ vars.DEFENDER_CLI_SHA256 }}'));
-  assert.ok(scanJob.includes('[[ "$DEFENDER_CLI_SHA256" =~ ^[[:xdigit:]]{64}$ ]]'));
+  assert.ok(scanJob.includes('[[ ! "$DEFENDER_CLI_SHA256" =~ ^[[:xdigit:]]{64}$ ]]'));
   assert.doesNotMatch(scanJob, /set -x|echo\s+.*DEFENDER_ASPM_CLIENT_SECRET|printf\s+.*DEFENDER_ASPM_CLIENT_SECRET/);
 });
 
