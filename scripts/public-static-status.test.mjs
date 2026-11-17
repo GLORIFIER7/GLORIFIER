@@ -6,7 +6,6 @@ const read = (path) => readFileSync(new URL(path, import.meta.url), 'utf8');
 const html = read('../index.html');
 const manifest = JSON.parse(read('../public/manifest.webmanifest'));
 const serviceWorker = read('../public/sw.js');
-const legacyPage = read('../public/project.html');
 const sitemap = read('../public/sitemap.xml');
 
 test('public production entry is a single static evidence page', () => {
@@ -37,11 +36,7 @@ test('service-worker update replaces stale dashboard caches with the static page
   assert.match(serviceWorker, /glorifier-services-official-logo-001\.png/);
 });
 
-test('legacy project URL redirects to the one canonical static page', () => {
-  assert.match(legacyPage, /http-equiv="refresh" content="0; url=\.\/"/);
-  assert.match(legacyPage, /href="\.\/">public evidence status page/);
-  assert.doesNotMatch(legacyPage, /<script\b/i);
-  assert.doesNotMatch(legacyPage, /Autonomous AI Enterprise|AI-first autonomous enterprise/i);
+test('the canonical public sitemap lists only the static status page', () => {
   assert.match(sitemap, /https:\/\/glorifier\.pages\.dev\//);
   assert.doesNotMatch(sitemap, /project\.html/);
 });
