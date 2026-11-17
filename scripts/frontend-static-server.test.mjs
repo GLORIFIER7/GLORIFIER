@@ -137,6 +137,7 @@ test('supports HEAD without returning a response body and rejects unsupported me
   const { origin } = await startFixture(t);
   const head = await fetch(origin + '/', { method: 'HEAD' });
   assert.equal(head.status, 200);
+  assert.match(head.headers.get('content-security-policy') || '', /script-src 'self'/);
   assert.equal(await head.text(), '');
 
   const post = await fetch(origin + '/', { method: 'POST' });
