@@ -15,7 +15,7 @@ test('pins the official upstream source to an immutable reviewed commit', () => 
 });
 
 test('requires Python 3.10+ and installs the Codex plugin from the pinned checkout', () => {
-  assert.match(installer, /sys\\.version_info\\s*>=\\s*\\(3,\\s*10\\)/);
+  assert.match(installer, /sys\.version_info\s*>=\s*\(3,\s*10\)/);
   assert.match(installer, /codex plugin marketplace add "\$INSTALL_DIR"/);
   assert.match(installer, /codex plugin add tokeneconomizer@tokeneconomizer/);
   assert.match(installer, /config set microskills=envfacts toolprune=propose loopguard=off/);
