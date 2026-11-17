@@ -59,8 +59,8 @@ test('Cloudflare Pages, Vercel and Docker use the same restrictive CSP policy', 
   assert.match(vercelCsp, /frame-ancestors 'none'/);
   const connectSrc = vercelCsp.split(';').find((directive) => directive.trim().startsWith('connect-src ')) || '';
   const connectSources = connectSrc.trim().split(' ').filter(Boolean);
-  assert.ok(connectSources.includes('https://api.openai.com'));
-  assert.ok(connectSources.includes('https://generativelanguage.googleapis.com'));
+  assert.ok(connectSources.some((source) => source === 'https://api.openai.com'));
+  assert.ok(connectSources.some((source) => source === 'https://generativelanguage.googleapis.com'));
   assert.equal(connectSources.includes('https:'), false,
     'connect-src must not allow every HTTPS origin');
   assert.equal(connectSources.includes('wss:'), false,
@@ -71,7 +71,7 @@ test('Cloudflare Pages, Vercel and Docker use the same restrictive CSP policy', 
   assert.equal(dockerCsp, vercelCsp,
     'Docker static server must use the same CSP policy as Cloudflare Pages and Vercel');
   assert.match(read('index.html'), /startup-status\.js/);
-  assert.doesNotMatch(read('index.html'), /<script>\s*[\s\S]*?<\/script>/,
+  assert.doesNotMatch(read('index.html'), /<script>\s*[\s\S]*?<\/script>/i,
     'the application entry document must not reintroduce inline scripts');
 });
 test('frontend container Dockerfile declares a non-root runtime and truthful static-only health contract', () => {
