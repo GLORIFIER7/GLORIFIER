@@ -61,7 +61,8 @@
     "GLORIFIER_WORKERS_AI_FREE_ONLY": "false",
     "GEMINI_MODEL": "gemini-3.8-flash",
     "ANTHROPIC_MODEL": "claude-sonnet-5",
-    "GLORIFIER_WORKERS_AI_MODEL": "@cf/google/gemma-4-26b-a4b-it"
+    "GLORIFIER_WORKERS_AI_MODEL": "@cf/google/gemma-4-26b-a4b-it",
+    "GLORIFIER_WORKERS_PLAN_VERIFIED": "false"
   },
   "hyperdrive": [
     {
