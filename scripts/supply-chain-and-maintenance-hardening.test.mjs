@@ -76,7 +76,9 @@ test('Gemini collaborator uses the pinned Antigravity binary and exact Gemini mo
   assert.ok(geminiWorkflow.includes('"read_url(*)"'));
   assert.ok(geminiWorkflow.includes('"execute_url(*)"'));
   assert.ok(geminiWorkflow.includes('"mcp(*)"'));
-  assert.match(geminiWorkflow, /releases\/download\/1\.5\.5\/agy_cli_linux_x64\.tar\.gz/);
+  assert.ok(geminiWorkflow.includes('CLI_VERSION="1.5.5"'));
+  assert.ok(geminiWorkflow.includes('agy_cli_linux_x64.tar.gz'));
+  assert.ok(geminiWorkflow.includes('releases/download/$CLI_VERSION/$ASSET'));
   assert.match(geminiWorkflow, /api\.github\.com\/repos\/google-antigravity\/antigravity-cli\/releases\/tags\/1\.5\.5/);
   assert.match(geminiWorkflow, /get\("digest"\)/);
   assert.match(geminiWorkflow, /tar -xzf "\$ARCHIVE" -C "\$INSTALL_DIR" antigravity/);
@@ -368,7 +370,8 @@ test('Gemini collaborator treats provider throttling and overload as a no-patch 
   assert.ok(modelJob.includes("steps.gemini.outputs.provider_unavailable != 'true'"));
   assert.ok(geminiWorkflow.includes("provider_unavailable: ${{ steps.gemini.outputs.provider_unavailable || 'false' }}"));
   assert.ok(geminiWorkflow.includes("has_changes: ${{ steps.patch.outputs.has_changes || 'false' }}"));
-  assert.doesNotMatch(modelJob, /switch providers|paid fallback|auto-merge/i);
+  assert.ok(modelJob.includes('never retry on a paid tier, change models, or switch providers'));
+  assert.doesNotMatch(modelJob, /gh pr merge|enable-pull-request-auto-merge|--auto/);
 });
 
 test('Gemini development workflow only enables workspace file tools and redacts environment variables', () => {
