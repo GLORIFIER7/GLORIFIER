@@ -12,6 +12,7 @@
     <link rel="icon" type="image/png" href="%BASE_URL%glorifier-services-official-logo-001.png" />
     <link rel="apple-touch-icon" href="%BASE_URL%glorifier-services-official-logo-001.png" />
     <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
+    <link rel="stylesheet" href="/boot.css" />
 
     <meta property="og:title" content="GLORIFIER — Autonomous AI Enterprise" />
     <meta property="og:description" content="An AI-first autonomous enterprise with governed agent operations, human authority, and evidence-backed outcomes. Current capability status is shown in the app." />
@@ -26,44 +27,13 @@
   </head>
   <body class="bg-slate-950 text-slate-100 antialiased selection:bg-emerald-500/30 selection:text-emerald-200">
     <div id="root">
-      <main id="boot-status" role="status" aria-live="polite" style="max-width:42rem;margin:12vh auto;padding:2rem;font-family:system-ui,sans-serif;color:#e2e8f0;background:#020617">
-        <h1 style="font-size:1.5rem;font-weight:700">GLORIFIER</h1>
-        <p id="boot-message" style="margin-top:1rem">Starting the application…</p>
-        <p style="margin-top:.75rem;color:#94a3b8">Live services are not verified by this loading screen.</p>
+      <main id="boot-status" class="boot-status" role="status" aria-live="polite">
+        <h1 class="boot-status__title">GLORIFIER</h1>
+        <p id="boot-message" class="boot-status__message">Starting the application…</p>
+        <p class="boot-status__notice">Live services are not verified by this loading screen.</p>
       </main>
     </div>
-    <script>
-      window.setTimeout(function () {
-        var status = document.getElementById('boot-status');
-        var message = document.getElementById('boot-message');
-        if (status && message) {
-          message.textContent = 'The application did not start. Check your connection, then reload. Backend and account status have not been verified.';
-        }
-      }, 12000);
-    </script>
-    <script>
-      // Surface startup failures instead of leaving a permanent loading screen.
-      function showStartupFailure(message) {
-        var status = document.getElementById('boot-status');
-        var bootMessage = document.getElementById('boot-message');
-        if (!status || !bootMessage) return;
-        bootMessage.textContent = message;
-        status.setAttribute('data-startup-state', 'failed');
-      }
-      window.addEventListener('error', function (event) {
-        var target = event.target;
-        if (target && target.tagName === 'SCRIPT' && target.type === 'module') {
-          showStartupFailure('The frontend entry module failed to load. Check the deployed asset path and Worker build. Live services remain unverified.');
-          return;
-        }
-        if (event instanceof ErrorEvent && event.message) {
-          showStartupFailure('Frontend startup encountered a JavaScript error. Reload once; if it persists, inspect browser console and deployment logs. Live services remain unverified.');
-        }
-      }, true);
-      window.addEventListener('unhandledrejection', function () {
-        showStartupFailure('Frontend startup encountered an unhandled asynchronous error. Inspect browser console and deployment logs. Live services remain unverified.');
-      });
-    </script>
+    <script src="/startup-watchdog.js" defer></script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
