@@ -4,6 +4,7 @@ import { runCloudflareAutopilotCycle } from './autopilot-worker-orchestrator';
 
 const freeEnvironment = {
   GLORIFIER_WORKERS_PLAN: 'free',
+  GLORIFIER_WORKERS_PLAN_VERIFIED: 'true',
   GLORIFIER_WORKERS_AI_FREE_ONLY: 'true',
   GLORIFIER_ENABLE_INFERENCE: 'true',
   GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS: 'false',
@@ -65,7 +66,7 @@ test('Autopilot scheduler stays fail-closed and does not touch Neon while Worker
   });
 
   assert.equal(result.status, 'blocked');
-  assert.equal(result.reason, 'workers-free-plan-not-verified');
+  assert.equal(result.reason, 'workers-free-plan-attestation-not-verified');
   assert.equal(storeCreated, false);
   assert.equal(neuralCalls, 0);
 });
@@ -103,6 +104,7 @@ test('Autopilot executes one bounded read-only analysis and persists it as pendi
           provider: 'cloudflare_workers_ai',
           model: '@cf/google/gemma-4-26b-a4b-it',
           workersPlan: 'free',
+          workersPlanVerified: true,
         });
       }
       return Response.json({
@@ -173,7 +175,7 @@ test('Autopilot rejects provider responses that do not match the verified free p
   const result = await runCloudflareAutopilotCycle(freeEnvironment as never, {
     createStore: () => fixture.store as never,
     fetchNeural: async (request) => request.method === 'GET'
-      ? Response.json({ eligible: true, provider: 'cloudflare_workers_ai', model: '@cf/google/gemma-4-26b-a4b-it', workersPlan: 'free' })
+      ? Response.json({ eligible: true, provider: 'cloudflare_workers_ai', model: '@cf/google/gemma-4-26b-a4b-it', workersPlan: 'free', workersPlanVerified: true })
       : Response.json({ status: 'VERIFIED', provider: 'openai', result: 'Unexpected provider result.', evidence: ['execution:inference'] }),
   });
 
