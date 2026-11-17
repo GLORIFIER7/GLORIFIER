@@ -97,8 +97,8 @@ test('Hosting publishes clickjacking, content-loading, and cache-control protect
   assert.equal(directives['style-src'], "'self' https://fonts.googleapis.com");
   assert.equal(directives['font-src'], "'self' https://fonts.gstatic.com data:");
   assert.equal(directives['img-src'], "'self' data: blob: https:");
-  assert.match(directives['connect-src'], /https:\/\/\*\.auth0\.com/);
-  assert.match(directives['frame-src'], /https:\/\/\*\.auth0\.com/);
+  assert.ok(directives['connect-src'].includes('https://*.auth0.com'));
+  assert.ok(directives['frame-src'].includes('https://*.auth0.com'));
   assert.equal(directives['form-action'], "'self' https://accounts.google.com");
   assert.doesNotMatch(csp, /unsafe-inline/);
   const indexHeaders = hosting.hosting.headers.find((entry) => entry.source === '/index.html');
