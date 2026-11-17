@@ -9,6 +9,7 @@ const readSource = (relativePath: string): string =>
 test('global collaboration claims match the scheduled workflow and observed execution scope', () => {
   const workflow = readSource('../../.github/workflows/global-collaboration.yml');
   const documentation = readSource('../../docs/GLORIFIER-GLOBAL-COLLABORATION.md');
+  const scanWorkflow = readSource('../../.github/workflows/geas-architecture-scan.yml');
   const policy = getGlobalCollaborationPolicy();
 
   assert.equal(policy.continuous, false);
@@ -30,6 +31,17 @@ test('global collaboration claims match the scheduled workflow and observed exec
   assert.match(documentation, /every six hours/i);
   assert.doesNotMatch(documentation, /every 15 minutes/i);
   assert.match(documentation, /persistent daemon status is \*\*NOT VERIFIED\*\*/i);
+
+  for (const path of [
+    'src/lib/global-collaboration-runtime-evidence.test.ts',
+    'src/lib/global-collaboration-orchestrator.ts',
+    'scripts/run-global-collaboration.ts',
+    '.github/workflows/global-collaboration.yml',
+    'docs/GLORIFIER-GLOBAL-COLLABORATION.md',
+    'docs/architecture/GEAS-REFINEMENT-BACKLOG.md',
+  ]) {
+    assert.ok(scanWorkflow.includes("'" + path + "'"), 'GEAS scan pull_request paths must include ' + path);
+  }
 });
 
 test('scheduled collaboration entrypoint remains limited to discovery and resolution', () => {
