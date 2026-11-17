@@ -84,3 +84,10 @@ A Cloudflare-controlled DNS or Load Balancing configuration alone cannot guarant
 4. **Independent traffic control:** configure a routing/DNS controller outside the two hosting providers, then exercise failover and failback using controlled tests before enabling any automatic production action.
 
 Until phases 2–4 are separately completed and evidenced, this architecture provides portability and a tested candidate frontend artifact—not automatic bidirectional hosting failover.
+
+
+### Browser CSP network-origin allowlist
+
+Cloudflare Pages, Vercel, and the Docker static frontend use the same source-controlled Content Security Policy. Its `connect-src` directive allows only the documented first-party runtime origins and built-in provider API origins (Google Gemini, OpenAI, Anthropic, xAI, Mistral, DeepSeek, NVIDIA, Groq, OpenRouter, Hugging Face, LLMsRelay, Together AI, Fireworks AI, and Alibaba DashScope), plus the explicit Firebase and Auth0 origins required by the app. It does not grant blanket access to every HTTPS or WebSocket host.
+
+Providers that use a custom `*_BASE_URL`, including self-hosted Ollama endpoints or custom-compatible Meta, Qwen, Together, and Fireworks endpoints, require the exact HTTPS origin to be added to the CSP in `vercel.json`, `public/_headers`, and `scripts/serve-frontend.mjs` together, with the contract tests kept synchronized. Do not restore scheme-wide `https:` or `wss:` sources to make an endpoint work; the origin must be explicitly reviewed and allowlisted.
