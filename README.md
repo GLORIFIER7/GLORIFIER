@@ -51,7 +51,7 @@ The repository includes a web application, API/server code, AI-provider integrat
 
 **NEURAL service:** The Python/FastAPI service is maintained in this repository at [`services/neural/`](services/neural/README.md). It retains its own Python dependency lock, tests, Docker build context and independently deployable Cloudflare Worker. GLORIFIER remains the governance/control plane; NEURAL remains a separately deployable execution service. See [the NEURAL integration contract](docs/architecture/neural-engine-integration.md).
 
-**Target deployment shape:** Cloudflare Workers serves the public frontend and all application/API/auth execution; Vercel and Railway are to be removed as production dependencies only after route-by-route migration and verified cutover. **Current migration status:** incomplete. On `main`, the Worker handles `GET /api/identity` natively in `src/worker.ts`; that route reads Cloudflare environment bindings and does not call an upstream backend. Other backend-dependent API/auth routes are not yet Worker-native and fail closed with `503` unless a separately reviewed HTTPS backend origin and exact-host allowlist are configured. The existing Worker build/test workflow can pass without proving a production deployment. See [Cloudflare Workers-only migration plan](docs/architecture/cloudflare-workers-only-migration.md) for evidence, route inventory, and release gates. Do not treat the target architecture as the current production state until the Cloudflare deployment and critical API/auth/data flows are verified.
+**Target deployment shape (GEAS MPHR):** Cloudflare Pages/Workers remains the current primary path; Vercel is configured in source as a React/Vite frontend standby; and `Dockerfile.frontend` defines a portable static React frontend container. Vercel runtime routes currently rewrite to the Cloudflare Pages API front door, so Vercel does not independently recover a Cloudflare Worker/API outage. The static Docker frontend deliberately returns `503 BACKEND_NOT_CONFIGURED` for API/auth/MCP paths and must not be mistaken for a full backend host. **Automatic traffic failover is not enabled.** Vercel project linking, independent Docker hosting, and an external traffic/DNS controller still require separate provisioning and verification. See [GEAS Multi-Provider Hosting Resilience](docs/architecture/geas-multi-provider-hosting-resilience.md) for the topology, evidence status, and release gates. The historical [Cloudflare Workers-only migration plan](docs/architecture/cloudflare-workers-only-migration.md) remains available for route-migration evidence but is superseded as the hosting strategy by GEAS MPHR.
 
 **Runtime requirement:** Node.js `24.12.0` or newer is required for the application runtime. The production images and application workflows use Node.js 24 to match the locked Firebase dependency engines.
 
@@ -107,10 +107,13 @@ Some scripts may require environment variables, credentials, external services, 
 
 - [Docker Hub image repository](https://hub.docker.com/r/glorifier/glorifier)
 - [Container build, health check, security scan, and release policy](docs/dockerhub-release.md)
+- [Portable React frontend container](Dockerfile.frontend) (static assets only; backend readiness is separate)
 
 The Docker publishing workflow is gated by successful `GLORIFIER CI` on a push to `main`, followed by a Trivy scan before Docker Hub login and publishing. Configure the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets before a release can publish. A successful build is not proof that a production deployment is running or healthy.
 
 ## Documentation
+
+- [GEAS — Multi-Provider Hosting Resilience (MPHR)](docs/architecture/geas-multi-provider-hosting-resilience.md)
 
 - [Universal AI Enterprise operating model](docs/architecture/universal-ai-enterprise-operating-model.md)
 - [Ruflo capability assessment and GLORIFIER adoption boundary](docs/architecture/ruflo-capability-adoption.md)
