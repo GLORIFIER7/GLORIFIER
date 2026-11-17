@@ -5,6 +5,9 @@ on:
     branches: [main]
     paths:
       - "Dockerfile.frontend"
+      - "index.html"
+      - "public/_headers"
+      - "public/startup-status.js"
       - "vercel.json"
       - "scripts/serve-frontend.mjs"
       - "scripts/frontend-static-server.test.mjs"
@@ -17,6 +20,9 @@ on:
     branches: [main]
     paths:
       - "Dockerfile.frontend"
+      - "index.html"
+      - "public/_headers"
+      - "public/startup-status.js"
       - "vercel.json"
       - "scripts/serve-frontend.mjs"
       - "scripts/frontend-static-server.test.mjs"
@@ -69,6 +75,10 @@ jobs:
           test -s dist/index.html
           test -s dist/_routes.json
           cmp public/_routes.json dist/_routes.json
+          test -s dist/_headers
+          cmp public/_headers dist/_headers
+          test -s dist/startup-status.js
+          cmp public/startup-status.js dist/startup-status.js
 
       - name: Build portable static frontend container
         run: docker build --pull --file Dockerfile.frontend --tag "glorifier/frontend-mphr:${GITHUB_SHA}" .
@@ -111,7 +121,16 @@ jobs:
           }
           NODE
 
-          curl --fail --silent --show-error http://127.0.0.1:18080/ | grep -q 'id="root"'
+          curl --silent --show-error --dump-header "$RUNNER_TEMP/frontend.headers" --output "$RUNNER_TEMP/frontend.html" http://127.0.0.1:18080/
+          grep -q 'id="root"' "$RUNNER_TEMP/frontend.html"
+          node - "$RUNNER_TEMP/frontend.headers" <<'NODE'
+          const fs = require("node:fs");
+          const raw = fs.readFileSync(process.argv[2], "utf8");
+          const csp = raw.split(/\r?\n/).find((line) => /^content-security-policy:/i.test(line));
+          if (!csp || !csp.includes("script-src 'self'") || /script-src[^;]*unsafe-inline/i.test(csp)) {
+            throw new Error("Docker frontend must emit the restrictive same-origin script CSP.");
+          }
+          NODE
 
           api_status="$(curl --silent --show-error --output "$output" --write-out '%{http_code}' http://127.0.0.1:18080/api/health)"
           test "$api_status" = "503"
