@@ -3,7 +3,7 @@ const { readFileSync } = require('node:fs');
 const { join } = require('node:path');
 const { test } = require('node:test');
 
-test('secondary deployment paths are gated and existing Pages content is preserved', () => {
+test('secondary deployment paths are gated and legacy Pages URLs redirect to canonical status', () => {
   assert.throws(
     () => readFileSync(join(__dirname, '../.github/workflows/pages.yml'), 'utf8'),
     { code: 'ENOENT' },
@@ -41,18 +41,22 @@ test('secondary deployment paths are gated and existing Pages content is preserv
   assert.doesNotMatch(aiCeoWorkflow, /^\s{2}pull_request\s*:/m, 'pull requests must not trigger AI CEO Pages publishing');
 
   const projectPage = readFileSync(join(__dirname, '../public/project.html'), 'utf8');
-  const sitemap = readFileSync(join(__dirname, '../public/github-pages-sitemap.xml'), 'utf8');
   const cloudflareSitemap = readFileSync(join(__dirname, '../public/sitemap.xml'), 'utf8');
-  
+
   assert.match(
     projectPage,
-    /GLORIFIER — Autonomous AI Enterprise/u,
-    'the existing GitHub Pages project source must remain in the repository',
+    /<meta http-equiv=["']refresh["'] content=["']0;\s*url=https:\/\/glorifier\.pages\.dev\//i,
+    'the legacy GitHub Pages project path must redirect to the canonical status page',
   );
   assert.match(
-    sitemap,
-    /https:\/\/glorifier7\.github\.io\/GLORIFIER\/project\.html/,
-    'the existing public GitHub Pages project URL must remain listed in its origin-specific sitemap',
+    projectPage,
+    /<link rel=["']canonical["'] href=["']https:\/\/glorifier\.pages\.dev\//i,
+    'the legacy project route must identify the canonical status URL',
+  );
+  assert.doesNotMatch(
+    projectPage,
+    /Autonomous AI Enterprise|AI-first autonomous enterprise|<script\b/i,
+    'the legacy project route must not expose stale capability claims or application scripts',
   );
   assert.doesNotMatch(
     cloudflareSitemap,
