@@ -21,15 +21,15 @@ function missionFixture() {
     idempotencyKey: 'request-001',
     title: 'Inspect release readiness',
     objective: 'Inspect the current release readiness using read-only evidence.',
-    status: 'planning' as const,
+    status: 'queued' as const,
     verificationState: 'not-started' as const,
-    version: 2,
+    version: 1,
     steps: [],
     evidenceRefs: [],
     createdAt: '2026-11-17T00:00:00.000Z',
     updatedAt: '2026-11-17T00:01:00.000Z',
-    leaseOwner: 'glorifier-cloudflare-autopilot',
-    leaseExpiresAt: '2026-11-17T00:11:00.000Z',
+    leaseOwner: undefined,
+    leaseExpiresAt: undefined,
   };
 }
 
@@ -47,7 +47,22 @@ function storeFixture(mission = missionFixture()) {
         state.mission = { ...next, version: expectedVersion + 1 };
         return state.mission;
       },
-      async claimNext() { state.claimed += 1; return state.mission; },
+      async claimNext(workerId: string, leaseMs: number, observedAt: string) {
+        state.claimed += 1;
+        assert.equal(workerId, 'glorifier-cloudflare-autopilot');
+        assert.equal(leaseMs, 10 * 60_000);
+        assert.ok(Number.isFinite(Date.parse(observedAt)));
+        if (state.mission.status !== 'queued') return null;
+        state.mission = {
+          ...state.mission,
+          status: state.mission.steps.length > 0 ? 'executing' : 'planning',
+          version: state.mission.version + 1,
+          leaseOwner: workerId,
+          leaseExpiresAt: new Date(Date.parse(observedAt) + leaseMs).toISOString(),
+          updatedAt: observedAt,
+        };
+        return state.mission;
+      },
       async renewLease() { return state.mission; },
       async recoverExpired() { state.recovered += 1; return 0; },
     },
