@@ -680,9 +680,17 @@ async def autopilot_workers_ai_readiness(
     ):
         raise HTTPException(status_code=401, detail="Unauthorized")
 
-    workers_plan = (
+    workers_plan_assertion = (
         _request_environment_value(request, "GLORIFIER_WORKERS_PLAN") or "unverified"
     ).strip().casefold()
+    workers_plan_verified = (
+        (_request_environment_value(request, "GLORIFIER_WORKERS_PLAN_VERIFIED") or "")
+        .strip().casefold() == "true"
+    )
+    workers_plan = (
+        "free" if workers_plan_assertion == "free" and workers_plan_verified
+        else "unverified"
+    )
     free_only = (
         _request_environment_value(request, "GLORIFIER_WORKERS_AI_FREE_ONLY") or ""
     ).strip().casefold() == "true"
@@ -708,6 +716,7 @@ async def autopilot_workers_ai_readiness(
     provider = runtime._providers.get("cloudflare_workers_ai")
     eligible = (
         workers_plan == "free"
+        and workers_plan_verified
         and free_only
         and inference_enabled
         and not external_egress
@@ -729,6 +738,7 @@ async def autopilot_workers_ai_readiness(
             "provider": "cloudflare_workers_ai",
             "model": model or None,
             "workersPlan": "free" if workers_plan == "free" else "unverified",
+            "workersPlanVerified": workers_plan_verified,
             "freeOnly": free_only,
             "inferenceEnabled": inference_enabled,
             "externalDataEgress": external_egress,
