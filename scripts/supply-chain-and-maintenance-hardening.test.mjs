@@ -616,12 +616,6 @@ test('Gemini CLI installation is isolated from every provider-credential-bearing
       workflow.name + ' must scope the provider credential to the inference step');
   }
 });test('Gemini workflow summaries use collision-checked multiline GITHUB_OUTPUT delimiters', () => {
-  const workflows = [
-    { name: 'collaborator', source: geminiWorkflow, step: 'Run Gemini engineering collaboration' },
-    { name: 'development', source: geminiDevelopmentWorkflow, step: 'Run Gemini CLI' },
-    { name: 'PR review', source: geminiPrReviewWorkflow, step: 'Run Gemini free-tier advisory review' },
-  ];
-
   const collaborator = geminiWorkflowStep(geminiWorkflow, 'Run Gemini engineering collaboration');
   assert.match(collaborator, /import secrets/);
   assert.match(collaborator, /delimiter = "GEMINI_" \+ secrets\.token_hex\(16\)/);
