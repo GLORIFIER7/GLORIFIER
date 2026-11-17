@@ -379,29 +379,25 @@ test('Gemini engineering collaborator uses the owner-confirmed free-tier API thr
   assert.ok(geminiCollaboratorWorkflow.includes("github.event_name == 'schedule'"));
   assert.ok(geminiCollaboratorWorkflow.includes('inputs.run_free_tier_gemini == true'));
   assert.ok(geminiCollaboratorWorkflow.includes('glorifier_gemini_free_tier_authorized'));
-  assert.ok(geminiCollaboratorWorkflow.includes('FREE_TIER_CONFIRMED: ${{ vars.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED }}'));
+  assert.ok(geminiCollaboratorWorkflow.includes('FREE_TIER_CONFIRMED: \${{ vars.GLORIFIER_GEMINI_FREE_TIER_CONFIRMED }}'));
   assert.ok(geminiCollaboratorWorkflow.includes('"modelProvider": "gemini"'));
   assert.ok(geminiCollaboratorWorkflow.includes('"agentMode": "accept-edits"'));
-  assert.ok(geminiCollaboratorWorkflow.includes('"command(*)"'));
-  assert.ok(geminiCollaboratorWorkflow.includes('"unsandboxed(*)"'));
-  assert.ok(geminiCollaboratorWorkflow.includes('"read_url(*)"'));
-  assert.ok(geminiCollaboratorWorkflow.includes('"mcp(*)"'));
-  assert.ok(geminiCollaboratorWorkflow.includes('AGY_MODEL: gemini-3.8-flash-medium'));
-  assert.ok(geminiCollaboratorWorkflow.includes('agy -p "$GEMINI_PROMPT" --model "$AGY_MODEL"'));
+  for (const denied of ['command(*)', 'unsandboxed(*)', 'read_url(*)', 'execute_url(*)', 'mcp(*)']) {
+    assert.ok(geminiCollaboratorWorkflow.includes('"' + denied + '"'));
+  }
+  assert.ok(geminiCollaboratorWorkflow.includes('AGY_MODEL: gemini-3.8-flash'));
+  assert.ok(geminiCollaboratorWorkflow.includes('AGY_EFFORT: medium'));
+  assert.ok(geminiCollaboratorWorkflow.includes('agy -p "$GEMINI_PROMPT" --model "$AGY_MODEL" --effort "$AGY_EFFORT"'));
   assert.ok(geminiCollaboratorWorkflow.includes('--mode accept-edits'));
   assert.ok(geminiCollaboratorWorkflow.includes('--output-format json'));
   assert.ok(geminiCollaboratorWorkflow.includes('--print-timeout 35m'));
   assert.ok(geminiCollaboratorWorkflow.includes('payload.get("status") != "SUCCESS"'));
+  assert.ok(geminiCollaboratorWorkflow.includes('/releases/download/1.5.5/agy_cli_linux_x64.tar.gz'));
+  assert.ok(geminiCollaboratorWorkflow.includes('api.github.com/repos/google-antigravity/antigravity-cli/releases/tags/1.5.5'));
+  assert.ok(geminiCollaboratorWorkflow.includes('get("digest")'));
   assert.ok(geminiCollaboratorWorkflow.includes('sha256sum --check --strict'));
+  assert.ok(geminiCollaboratorWorkflow.includes('tar -xzf "$ARCHIVE" -C "$INSTALL_DIR" antigravity'));
   assert.ok(geminiCollaboratorWorkflow.includes('never retry on a paid tier, change models, or switch providers'));
-  assert.ok(geminiCollaboratorWorkflow.includes('GEMINI_MODEL: gemini-3.8-flash'));
-  assert.ok(geminiCollaboratorWorkflow.includes('bash scripts/run-gemini-collaboration.sh'));
-  assert.ok(geminiCollaboratorRunner.includes('--approval-mode auto_edit'));
-  assert.ok(geminiCollaboratorRunner.includes('--skip-trust --model "$GEMINI_MODEL"'));
-  assert.doesNotMatch(geminiCollaboratorWorkflow + geminiCollaboratorRunner, /run-gemini-cli|--yolo/);
-  const geminiCliVersion = geminiCollaboratorWorkflow.match(/@google\/gemini-cli@(\d+\.\d+\.\d+)/)?.[1];
-  assert.equal(geminiCliVersion, '0.68.0', 'the Gemini CLI action accepts an npm semver version without the Git tag prefix');
-  assert.ok(geminiCollaboratorWorkflow.includes('quota is unavailable, stop; never retry on a paid tier or switch providers'));
   assert.ok(geminiCollaboratorWorkflow.includes('bash scripts/ai-fleet-authorization.test.sh'));
   assert.ok(geminiCollaboratorWorkflow.includes('node --test scripts/ai-fleet-workflow-contract.test.mjs'));
   assert.ok(geminiCollaboratorWorkflow.includes('npm run lint'));
@@ -412,6 +408,7 @@ test('Gemini engineering collaborator uses the owner-confirmed free-tier API thr
   assert.ok(geminiCollaboratorWorkflow.includes('headRefName | startswith("ai/gemini/")'));
   assert.equal(geminiCollaboratorWorkflow.includes('@google/gemini-cli'), false);
   assert.equal(geminiCollaboratorWorkflow.includes('GEMINI_CLI_SYSTEM_SETTINGS_PATH'), false);
+  assert.equal(geminiCollaboratorWorkflow.includes('bash scripts/run-gemini-collaboration.sh'), false);
   assert.equal(geminiCollaboratorWorkflow.includes('--approval-mode auto_edit'), false);
   assert.doesNotMatch(geminiCollaboratorWorkflow, /allow_paid_inference|MANUAL_PAID_INFERENCE_AUTHORIZATION|OPENAI_API_KEY|NVIDIA_API_KEY|GITHUB_REF:/);
   assert.doesNotMatch(geminiCollaboratorWorkflow, /gh pr merge|enable-pull-request-auto-merge|--auto/);
