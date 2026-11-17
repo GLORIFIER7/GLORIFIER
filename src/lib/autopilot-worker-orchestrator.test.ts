@@ -17,7 +17,7 @@ const freeEnvironment = {
 function missionFixture() {
   return {
     id: 'mission-001',
-    requester: 'owner-uid',
+    requester: 'glorifier-internal-service',
     idempotencyKey: 'request-001',
     title: 'Inspect release readiness',
     objective: 'Inspect the current release readiness using read-only evidence.',
@@ -203,4 +203,21 @@ test('Autopilot does not treat the Workers Free plan label as proof without a se
   assert.equal(result.status, 'blocked');
   assert.equal(result.reason, 'workers-free-plan-attestation-not-verified');
   assert.equal(storeCreated, false);
+});
+
+test('Autopilot scheduler uses requester-scoped internal-service access, never cross-requester access', async () => {
+  let receivedAccess: { requester: string; allowAll?: boolean; source?: string } | null = null;
+  const fixture = storeFixture();
+  await runCloudflareAutopilotCycle({
+    ...freeEnvironment,
+    GLORIFIER_WORKERS_PLAN_VERIFIED: 'false',
+  } as never, {
+    createStore: (_binding, access) => {
+      receivedAccess = access;
+      return fixture.store as never;
+    },
+    fetchNeural: async () => new Response('{}'),
+  });
+
+  assert.equal(receivedAccess, null, 'A Free-plan-unverified scheduler must stop before constructing a database client');
 });
