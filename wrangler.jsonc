@@ -15,8 +15,7 @@
     "GLORIFIER_PROVIDER": "cloudflare_workers_ai",
     "GLORIFIER_WORKERS_AI_MODEL": "@cf/google/gemma-4-26b-a4b-it",
     "GLORIFIER_WORKERS_PLAN_VERIFIED": "false",
-    "FIREBASE_PROJECT_ID": "merchant-center-1660617751955",
-    "FIREBASE_WEB_API_KEY": "AIzaSyBzbiWrIWpceL6OqNgKIsCAflvM2rb806U"
+    "FIREBASE_PROJECT_ID": "merchant-center-1660617751955"
   },
   "services": [
     {
@@ -29,7 +28,8 @@
       "GLORIFIER_SUPABASE_SERVICE_ROLE_KEY",
       "GLORIFIER_INTERNAL_SERVICE_TOKEN",
       "GLORIFIER_API_TOKEN",
-      "OPENSEA_API_KEY"
+      "OPENSEA_API_KEY",
+      "FIREBASE_WEB_API_KEY"
     ]
   },
   "ratelimits": [
@@ -115,8 +115,7 @@
       "GLORIFIER_PROVIDER": "cloudflare_workers_ai",
       "GLORIFIER_WORKERS_AI_MODEL": "@cf/google/gemma-4-26b-a4b-it",
       "GLORIFIER_WORKERS_PLAN_VERIFIED": "false",
-      "FIREBASE_PROJECT_ID": "merchant-center-1660617751955",
-      "FIREBASE_WEB_API_KEY": "AIzaSyBzbiWrIWpceL6OqNgKIsCAflvM2rb806U"
+      "FIREBASE_PROJECT_ID": "merchant-center-1660617751955"
     }
   },
   "main": "./src/worker.ts",
