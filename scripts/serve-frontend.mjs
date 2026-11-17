@@ -146,15 +146,6 @@ export function createFrontendServer(options = {}) {
         return;
       }
 
-      let requestUrl;
-      try {
-        requestUrl = new URL(request.url || '/', 'http://localhost');
-      } catch {
-        sendJson(response, 400, { ok: false, code: 'INVALID_REQUEST_URL' });
-        return;
-      }
-
-      const pathname = requestUrl.pathname;
       if (pathname === '/healthz') {
         try {
           const rootRealPath = await realpath(root);
