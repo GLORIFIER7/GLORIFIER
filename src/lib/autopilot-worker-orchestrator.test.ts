@@ -105,6 +105,10 @@ test('Autopilot executes one bounded read-only analysis and persists it as pendi
           model: '@cf/google/gemma-4-26b-a4b-it',
           workersPlan: 'free',
           workersPlanVerified: true,
+          freeOnly: true,
+          inferenceEnabled: true,
+          externalDataEgress: false,
+          paidInferenceAuthorized: false,
         });
       }
       return Response.json({
@@ -155,7 +159,7 @@ test('Autopilot does not send mission content containing credential-like values 
     createStore: () => fixture.store as never,
     fetchNeural: async (request) => {
       if (request.method === 'GET') {
-        return Response.json({ eligible: true, provider: 'cloudflare_workers_ai', model: '@cf/google/gemma-4-26b-a4b-it', workersPlan: 'free', workersPlanVerified: true });
+        return Response.json({ eligible: true, provider: 'cloudflare_workers_ai', model: '@cf/google/gemma-4-26b-a4b-it', workersPlan: 'free', workersPlanVerified: true, freeOnly: true, inferenceEnabled: true, externalDataEgress: false, paidInferenceAuthorized: false });
       }
       taskRequests += 1;
       return Response.json({});
