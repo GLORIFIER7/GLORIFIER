@@ -366,8 +366,8 @@ test('Gemini collaborator treats provider throttling and overload as a no-patch 
   assert.ok(modelJob.includes('provider_unavailable=true'));
   assert.ok(modelJob.includes("steps.gemini.outputs.provider_unavailable == 'true'"));
   assert.ok(modelJob.includes("steps.gemini.outputs.provider_unavailable != 'true'"));
-  assert.ok(geminiWorkflow.includes("provider_unavailable: \${{ steps.gemini.outputs.provider_unavailable || 'false' }}"));
-  assert.ok(geminiWorkflow.includes("has_changes: \${{ steps.patch.outputs.has_changes || 'false' }}"));
+  assert.ok(geminiWorkflow.includes("provider_unavailable: ${{ steps.gemini.outputs.provider_unavailable || 'false' }}"));
+  assert.ok(geminiWorkflow.includes("has_changes: ${{ steps.patch.outputs.has_changes || 'false' }}"));
   assert.doesNotMatch(modelJob, /switch providers|paid fallback|auto-merge/i);
 });
 
@@ -571,7 +571,7 @@ test('Gemini CLI installation is isolated from every provider-credential-bearing
       workflow.name + ' installation must not define a provider-key environment variable');
     assert.doesNotMatch(inference, /npm install --global|gemini --version|agy --version/,
       workflow.name + ' inference must not install or bootstrap executable code');
-    assert.ok(inference.includes('GEMINI_API_KEY: \${{ secrets.GEMINI_API_KEY }}'),
+    assert.ok(inference.includes('GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}'),
       workflow.name + ' must scope the provider credential to the inference step');
   }
 });test('Gemini workflow summaries use collision-checked multiline GITHUB_OUTPUT delimiters', () => {
