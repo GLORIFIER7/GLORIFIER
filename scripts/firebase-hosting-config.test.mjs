@@ -12,6 +12,7 @@ const fixturePaths = {
   startupWatchdog: { path: '../public/startup-watchdog.js', json: false },
   bootCss: { path: '../public/boot.css', json: false },
   wrangler: { path: '../wrangler.jsonc', json: true },
+  cloudflareWorkflow: { path: '../.github/workflows/cloudflare-worker.yml', json: false },
 };
 
 const loadFixture = async (name, { path, json }) => {
@@ -98,7 +99,8 @@ test('Hosting publishes clickjacking, content-loading, and cache-control protect
   assert.equal(directives['font-src'], "'self' https://fonts.gstatic.com data:");
   assert.equal(directives['img-src'], "'self' data: blob: https:");
   assert.ok(directives['connect-src'].includes('https://*.auth0.com'));
-  assert.ok(directives['frame-src'].includes('https://*.auth0.com'));
+  assert.doesNotMatch(directives['frame-src'], /auth0/,
+    'Auth0 uses top-level redirects and fetch; it is not an embedded frame origin');
   assert.equal(directives['form-action'], "'self' https://accounts.google.com");
   assert.doesNotMatch(csp, /unsafe-inline/);
   const indexHeaders = hosting.hosting.headers.find((entry) => entry.source === '/index.html');
@@ -127,6 +129,11 @@ test('Cloudflare Worker Firebase verification targets the registered project and
     'preview must not duplicate the Worker Web API key as a plain-text variable');
   assert.ok(wrangler.secrets.required.includes('FIREBASE_WEB_API_KEY'),
     'the Worker Web API key must be configured as a Wrangler secret');
+  const workflow = fixture('cloudflareWorkflow');
+  const preflight = workflow.match(/required\s*=\s*\{([^}]+)\}/);
+  assert.ok(preflight, 'the production Worker secret preflight set must be present');
+  assert.match(preflight[1], /FIREBASE_WEB_API_KEY/,
+    'the production preflight must check the Firebase secret before starting deployment');
 });
 
 test('the Hosting CSP does not require unsafe-inline for the app progress indicator', () => {
@@ -139,9 +146,10 @@ test('startup watchdog is loaded as a same-origin asset with no inline scripts o
   const bootCss = fixture('bootCss');
   assert.match(indexHtml, /<script[^>]+src="[/]startup-watchdog[.]js"[^>]+defer[^>]*><[/]script>/);
   assert.match(indexHtml, /<link[^>]+href="[/]boot[.]css"[^>]*>/);
-  assert.doesNotMatch(indexHtml, /<script\b(?![^>]*\bsrc=)[^>]*>/i);
+  assert.doesNotMatch(indexHtml, /<script\\b(?![^>]*\\ssrc\\s*=)[^>]*>/i);
   assert.doesNotMatch(indexHtml, /\sstyle=/i);
-  assert.match(startupWatchdog, /unhandledrejection/);
-  assert.match(startupWatchdog, /setTimeout/);
+  assert.match(startupWatchdog, /window\.addEventListener\(\s*['\"]unhandledrejection['\"]/);
+  assert.match(startupWatchdog, /window\.setTimeout\(/);
+  assert.match(startupWatchdog, /status\.setAttribute\('data-startup-state',\s*'failed'\)/);
   assert.match(bootCss, /boot-status/);
 });
