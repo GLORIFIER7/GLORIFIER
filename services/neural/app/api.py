@@ -710,8 +710,7 @@ async def autopilot_workers_ai_readiness(
         _request_environment_value(request, "GLORIFIER_WORKERS_AI_MODEL") or ""
     ).strip()
 
-    # ProviderRegistry.get() returns only an adapter whose own is_configured()
-    # contract passes, including the real AI binding, pinned model and Free plan.
+    # Registry.get() validates the AI binding, model, and owner-attested plan.
     runtime = _request_orchestrator(request)
     provider = runtime._providers.get("cloudflare_workers_ai")
     eligible = (
