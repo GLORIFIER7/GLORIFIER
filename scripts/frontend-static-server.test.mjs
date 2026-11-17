@@ -1,17 +1,19 @@
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { request as httpRequest } from 'node:http';
+import { Readable } from 'node:stream';
 import os from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 import { createFrontendServer, isInsideRoot } from './serve-frontend.mjs';
 
-async function startFixture(t) {
+async function startFixture(t, serverOptions = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), 'glorifier-mphr-'));
   await mkdir(path.join(root, 'assets'), { recursive: true });
   await writeFile(path.join(root, 'index.html'), '<!doctype html><html><head><script defer src="/startup-status.js"></script><script type="module" src="/assets/app-12345678.js"></script></head><body><div id="root">GLORIFIER React app</div></body></html>');
   await writeFile(path.join(root, 'startup-status.js'), 'window.booted = true;');
   await writeFile(path.join(root, 'assets', 'app-12345678.js'), 'console.log("app");');
-  const server = createFrontendServer({ root });
+  const server = createFrontendServer({ root, ...serverOptions });
   await new Promise((resolve, reject) => {
     server.once('error', reject);
     server.listen(0, '127.0.0.1', resolve);
@@ -23,6 +25,26 @@ async function startFixture(t) {
     await rm(root, { recursive: true, force: true });
   });
   return { root, origin: 'http://127.0.0.1:' + address.port };
+}
+
+
+function requestRawPath(origin, requestPath) {
+  const target = new URL(origin);
+  return new Promise((resolve, reject) => {
+    const req = httpRequest({
+      hostname: target.hostname,
+      port: Number(target.port),
+      method: 'GET',
+      path: requestPath,
+    }, (response) => {
+      let body = '';
+      response.setEncoding('utf8');
+      response.on('data', (chunk) => { body += chunk; });
+      response.on('end', () => resolve({ status: response.statusCode, body, headers: response.headers }));
+    });
+    req.once('error', reject);
+    req.end();
+  });
 }
 
 test('serves the React app at the root and extensionless client-side routes', async (t) => {
@@ -173,6 +195,36 @@ test('rejects decoded path traversal and never serves files outside the dist roo
   await writeFile(secret, 'must-not-leak');
   t.after(() => rm(secret, { force: true }));
   const response = await fetch(origin + '/..%2f' + path.basename(secret));
-  assert.notEqual(response.status, 200);
+  assert.equal(response.status, 403);
   assert.doesNotMatch(await response.text(), /must-not-leak/);
+});
+
+
+test('protocol-relative backend request targets fail closed instead of becoming a hostname', async (t) => {
+  const { origin } = await startFixture(t);
+  const response = await requestRawPath(origin, '//api/health');
+  assert.equal(response.status, 503);
+  assert.equal(JSON.parse(response.body).code, 'BACKEND_NOT_CONFIGURED');
+});
+
+test('destroys a streamed asset when the client disconnects before completion', async (t) => {
+  let openedStream;
+  const { origin } = await startFixture(t, {
+    createReadStream: () => {
+      openedStream = new Readable({
+        read() {
+          this.push(Buffer.alloc(64 * 1024));
+        },
+      });
+      return openedStream;
+    },
+  });
+  const controller = new AbortController();
+  const response = await fetch(origin + '/assets/app-12345678.js', { signal: controller.signal });
+  const reader = response.body.getReader();
+  const closed = new Promise((resolve) => openedStream.once('close', resolve));
+  await reader.read();
+  controller.abort();
+  await closed;
+  assert.equal(openedStream.destroyed, true);
 });
