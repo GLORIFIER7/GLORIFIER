@@ -726,20 +726,27 @@ test('NEURAL dependency audit scans the hash-pinned exported lock set', () => {
     'the audit must not inspect the installed editable glorifier-neural project itself');
 });
 
-test('Gemini collaborator pins the Antigravity download and verifies the published digest before extraction', () => {
+test('Gemini collaborator pins Antigravity CLI and independently verifies its archive digest before extraction', () => {
   const download = 'DOWNLOAD_URL="https://github.com/google-antigravity/antigravity-cli/releases/download/$CLI_VERSION/$ASSET"';
   const verify = 'sha256sum --check --strict';
   const extract = 'tar -xzf "$ARCHIVE" -C "$INSTALL_DIR" antigravity';
   assert.ok(geminiCollaboratorWorkflow.includes('CLI_VERSION="1.5.9"'));
   assert.ok(geminiCollaboratorWorkflow.includes('ASSET="agy_cli_linux_x64.tar.gz"'));
+  assert.ok(geminiCollaboratorWorkflow.includes('EXPECTED_SHA256="8b1f5e56779f2434a0af36f1b715a8392a084de550f8c68bc79821f95fabf3fa"'));
   assert.ok(geminiCollaboratorWorkflow.includes('api.github.com/repos/google-antigravity/antigravity-cli/releases/tags/$CLI_VERSION'));
   assert.ok(geminiCollaboratorWorkflow.includes(download));
   assert.ok(geminiCollaboratorWorkflow.includes('assets[0].get("digest")'));
-  assert.ok(geminiCollaboratorWorkflow.includes('re.fullmatch(r"sha256:[0-9a-f]{64}", digest)'));
-  assert.match(geminiCollaboratorWorkflow, /printf '%s  %s\\n' "\$\{EXPECTED_DIGEST#sha256:\}" "\$ARCHIVE" \| sha256sum --check --strict/);
+  assert.ok(geminiCollaboratorWorkflow.includes('digest != "sha256:" + expected_sha256'));
+  assert.ok(geminiCollaboratorWorkflow.includes('printf \'%s  %s\\n\' "$EXPECTED_SHA256" "$ARCHIVE" | sha256sum --check --strict'));
   assert.ok(geminiCollaboratorWorkflow.includes(extract));
   assert.ok(geminiCollaboratorWorkflow.indexOf(verify) < geminiCollaboratorWorkflow.indexOf(extract),
     'archive integrity must be checked before extraction');
+  assert.ok(geminiCollaboratorWorkflow.includes('grep -Eq'));
+  assert.ok(geminiCollaboratorWorkflow.includes('CLI_VERSION//.'));
+  assert.ok(geminiCollaboratorWorkflow.includes('grep -Eiwq'));
+  assert.ok(geminiCollaboratorWorkflow.includes('\\b(?:429|503|RESOURCE_EXHAUSTED|UNAVAILABLE)\\b'));
+  assert.ok(geminiCollaboratorWorkflow.includes('last 40 lines; API key redacted'));
+  assert.ok(geminiCollaboratorWorkflow.includes('env HOME="$VERSION_HOME"'));
 });
 test('NEURAL dependency audit covers both development and production Neon extras', () => {
   const testJob = neuralJobSection(neuralCiWorkflow, 'test');
