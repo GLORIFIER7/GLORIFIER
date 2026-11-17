@@ -13,6 +13,7 @@ import { buildWorkerIntegrationRegistry, buildWorkerIntegrationDataStatus } from
 import { handleWorkerAppStateRequest, type WorkerAppStateRouteEnvironment } from './lib/worker-app-state-route';
 import { isWorkerInternalService } from './lib/auth/worker-auth';
 import { handleAutopilotWorkerRequest } from './lib/autopilot-worker-route';
+import { runCloudflareAutopilotCycle } from './lib/autopilot-worker-orchestrator';
 
 export type CloudflareEnv = WorkerAppStateRouteEnvironment & {
   CF_VERSION_METADATA?: {
@@ -44,6 +45,9 @@ export type CloudflareEnv = WorkerAppStateRouteEnvironment & {
   GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS?: string;
   GLORIFIER_ENABLE_INFERENCE?: string;
   GLORIFIER_PAID_INFERENCE_AUTHORIZED?: string;
+  // Cloudflare AI is eligible only after the account's Workers Free plan is independently confirmed.
+  GLORIFIER_WORKERS_PLAN?: string;
+  GLORIFIER_WORKERS_AI_FREE_ONLY?: string;
   // Separate downstream API credential accepted by NEURAL /v1/tasks; never reuse the ingress service token.
   GLORIFIER_API_TOKEN?: string;
   // Private same-account Worker-to-Worker route; never fall back to public fetch().
@@ -1142,6 +1146,29 @@ const releaseProvenanceResponse = (request: Request, env: CloudflareEnv): Respon
 };
 
 export default {
+  async scheduled(
+    _controller: unknown,
+    env: CloudflareEnv,
+    context: { waitUntil(promise: Promise<unknown>): void },
+  ): Promise<void> {
+    // This Cron Trigger is intentionally inert until both GLORIFIER and NEURAL
+    // attest Workers Free, the exact free-only model, and the independent opt-ins.
+    context.waitUntil(
+      runCloudflareAutopilotCycle(env)
+        .then((result) => {
+          console.log('[AutopilotScheduled] cycle', {
+            status: result.status,
+            reason: result.reason ?? null,
+            missionId: result.missionId ?? null,
+            provider: result.provider ?? null,
+          });
+        })
+        .catch(() => {
+          console.warn('[AutopilotScheduled] cycle failed; no automatic retry was scheduled.');
+        }),
+    );
+  },
+
   async fetch(request: Request, env: CloudflareEnv): Promise<Response> {
     const incomingUrl = new URL(request.url);
 
