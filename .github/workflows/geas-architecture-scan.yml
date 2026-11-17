@@ -64,6 +64,9 @@ jobs:
       - name: Test GEAS architecture scientist cache and evidence logic
         run: npm run test:geas-scientist
 
+      - name: Verify global collaboration runtime evidence contract
+        run: npm run test:global-collaboration-runtime-evidence
+
       - name: Validate GEAS architecture contracts
         run: npm run validate:geas-architecture
 
