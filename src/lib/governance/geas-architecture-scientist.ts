@@ -1152,8 +1152,40 @@ export const findEarliestKeywordIndex = (text: string, keywords: string[]): numb
   return firstIndex;
 };
 
-const createEvidenceExcerpt = (text: string, matchIndex: number): string =>
-  text.slice(Math.max(0, matchIndex - 240), Math.min(text.length, matchIndex + 760)).trim();
+export function trimEvidenceExcerptToWordBoundaries(
+  text: string,
+  start: number,
+  end: number,
+): string {
+  let startIndex = Math.max(0, Math.min(text.length, Math.trunc(start)));
+  let endIndex = Math.max(startIndex, Math.min(text.length, Math.trunc(end)));
+
+  if (
+    startIndex > 0
+    && startIndex < text.length
+    && !/\\s/u.test(text[startIndex - 1])
+    && !/\\s/u.test(text[startIndex])
+  ) {
+    while (startIndex > 0 && !/\\s/u.test(text[startIndex - 1])) startIndex -= 1;
+  }
+
+  if (
+    endIndex > startIndex
+    && endIndex < text.length
+    && !/\\s/u.test(text[endIndex - 1])
+    && !/\\s/u.test(text[endIndex])
+  ) {
+    while (endIndex < text.length && !/\\s/u.test(text[endIndex])) endIndex += 1;
+  }
+
+  return text.slice(startIndex, endIndex).trim();
+}
+
+const createEvidenceExcerpt = (text: string, matchIndex: number): string => {
+  const start = Math.max(0, matchIndex - 240);
+  const end = Math.min(text.length, matchIndex + 760);
+  return trimEvidenceExcerptToWordBoundaries(text, start, end);
+};
 
 const extractEvidence = (body: string, keywords: string[]): string | null => {
   const text = stripHtmlForEvidence(body);
