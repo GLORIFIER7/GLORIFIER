@@ -3,67 +3,240 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>GLORIFIER — Autonomous AI Enterprise</title>
-    <meta name="description" content="GLORIFIER is building an AI-first autonomous enterprise with provider-neutral intelligence, governed agent execution, and evidence-backed outcomes. Live capabilities and external connections are shown by verified status." />
-    <meta name="theme-color" content="#020617" />
-    <meta name="brand-asset" content="Ethereum Mainnet ERC-721 Official Logo #001 token image; app PNG SHA-256 matches the on-chain image CID." />
-
-    <!-- Use the exact Ethereum ERC-721 Official Logo #001 image; the local PNG is byte-identical to the token image CID. -->
-    <link rel="icon" type="image/png" href="%BASE_URL%glorifier-services-official-logo-001.png" />
-    <link rel="apple-touch-icon" href="%BASE_URL%glorifier-services-official-logo-001.png" />
-    <link rel="manifest" href="%BASE_URL%manifest.webmanifest" />
-
-    <meta property="og:title" content="GLORIFIER — Autonomous AI Enterprise" />
-    <meta property="og:description" content="An AI-first autonomous enterprise with governed agent operations, human authority, and evidence-backed outcomes. Current capability status is shown in the app." />
-    <meta property="og:type" content="website" />
-    <meta property="og:image" content="https://ipfs.io/ipfs/bafkreidnoy2bugujfuc5prawef3onhrxihyo3inoi5s73dhlrm2f5bnxsa" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <meta name="twitter:image" content="https://ipfs.io/ipfs/bafkreidnoy2bugujfuc5prawef3onhrxihyo3inoi5s73dhlrm2f5bnxsa" />
-
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;family=JetBrains+Mono:wght@400;500;600&amp;display=swap" rel="stylesheet" />
-  </head>
-  <body class="bg-slate-950 text-slate-100 antialiased selection:bg-emerald-500/30 selection:text-emerald-200">
-    <div id="root">
-      <main id="boot-status" role="status" aria-live="polite" style="max-width:42rem;margin:12vh auto;padding:2rem;font-family:system-ui,sans-serif;color:#e2e8f0;background:#020617">
-        <h1 style="font-size:1.5rem;font-weight:700">GLORIFIER</h1>
-        <p id="boot-message" style="margin-top:1rem">Starting the application…</p>
-        <p style="margin-top:.75rem;color:#94a3b8">Live services are not verified by this loading screen.</p>
-      </main>
-    </div>
-    <script>
-      window.setTimeout(function () {
-        var status = document.getElementById('boot-status');
-        var message = document.getElementById('boot-message');
-        if (status && message) {
-          message.textContent = 'The application did not start. Check your connection, then reload. Backend and account status have not been verified.';
-        }
-      }, 12000);
-    </script>
-    <script>
-      // Surface startup failures instead of leaving a permanent loading screen.
-      function showStartupFailure(message) {
-        var status = document.getElementById('boot-status');
-        var bootMessage = document.getElementById('boot-message');
-        if (!status || !bootMessage) return;
-        bootMessage.textContent = message;
-        status.setAttribute('data-startup-state', 'failed');
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#101312" />
+    <title>GLORIFIER — Public Status</title>
+    <meta name="description" content="A static, evidence-only public status page for GLORIFIER. Deployment facts are separated from unverified capabilities." />
+    <meta property="og:title" content="GLORIFIER — Public Status" />
+    <meta property="og:description" content="A static evidence summary. No simulated operational metrics or unverified capability claims." />
+    <style>
+      :root {
+        color-scheme: dark;
+        --bg: #101312;
+        --panel: #171d1b;
+        --panel-2: #1d2522;
+        --line: #303a35;
+        --text: #eff4f0;
+        --muted: #a5b2aa;
+        --soft: #78877d;
+        --accent: #9bd6b3;
+        --good: #b7e5c7;
+        --warn: #f1d29a;
+        --bad: #f0aaa4;
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       }
-      window.addEventListener('error', function (event) {
-        var target = event.target;
-        if (target && target.tagName === 'SCRIPT' && target.type === 'module') {
-          showStartupFailure('The frontend entry module failed to load. Check the deployed asset path and Worker build. Live services remain unverified.');
-          return;
-        }
-        if (event instanceof ErrorEvent && event.message) {
-          showStartupFailure('Frontend startup encountered a JavaScript error. Reload once; if it persists, inspect browser console and deployment logs. Live services remain unverified.');
-        }
-      }, true);
-      window.addEventListener('unhandledrejection', function () {
-        showStartupFailure('Frontend startup encountered an unhandled asynchronous error. Inspect browser console and deployment logs. Live services remain unverified.');
-      });
-    </script>
-    <script type="module" src="/src/main.tsx"></script>
+      * { box-sizing: border-box; }
+      html { min-width: 320px; background: var(--bg); scroll-behavior: smooth; }
+      body { margin: 0; color: var(--text); background: var(--bg); line-height: 1.6; }
+      a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 3px; }
+      a:hover { color: #d3f1dd; }
+      a:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 2px; }
+      .wrap { width: min(100% - 36px, 920px); margin: 0 auto; }
+      header { border-bottom: 1px solid var(--line); }
+      .header-inner { min-height: 88px; display: flex; align-items: center; gap: 16px; }
+      .brand-mark { width: 48px; height: 48px; object-fit: contain; flex: 0 0 auto; background: #fff; border-radius: 12px; }
+      .brand-name { font-size: 1.05rem; font-weight: 750; letter-spacing: .12em; }
+      .brand-description { color: var(--muted); font-size: .83rem; }
+      .snapshot { margin-left: auto; text-align: right; color: var(--muted); font-size: .78rem; }
+      main { padding: 54px 0 68px; }
+      .eyebrow { color: var(--accent); font-size: .76rem; font-weight: 750; letter-spacing: .16em; text-transform: uppercase; }
+      h1 { margin: 10px 0 12px; max-width: 760px; font-size: clamp(2.1rem, 6vw, 3.5rem); line-height: 1.06; letter-spacing: -.055em; }
+      h2 { margin: 0 0 10px; font-size: 1.23rem; letter-spacing: -.025em; }
+      h3 { margin: 0 0 6px; font-size: .98rem; }
+      p { margin: 8px 0; }
+      .lede { max-width: 720px; color: var(--muted); font-size: 1.06rem; }
+      .notice { margin: 28px 0 34px; padding: 18px 20px; border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 10px; background: var(--panel); color: var(--muted); }
+      .notice strong { color: var(--text); }
+      .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 22px 0 42px; }
+      .card { min-width: 0; padding: 18px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); }
+      .card-label { color: var(--muted); font-size: .76rem; letter-spacing: .1em; text-transform: uppercase; }
+      .state { display: inline-block; margin-top: 10px; font-weight: 750; font-size: 1rem; }
+      .state.good { color: var(--good); }
+      .state.warn { color: var(--warn); }
+      .state.bad { color: var(--bad); }
+      .detail { color: var(--muted); font-size: .9rem; overflow-wrap: anywhere; }
+      section { margin-top: 36px; }
+      .section-intro { margin-top: -3px; margin-bottom: 14px; color: var(--muted); }
+      .evidence { display: grid; grid-template-columns: 1fr auto; gap: 18px; padding: 18px 0; border-top: 1px solid var(--line); }
+      .evidence:first-of-type { border-top: 0; }
+      .evidence p { color: var(--muted); font-size: .93rem; }
+      .evidence-status { align-self: start; padding: 3px 9px; border: 1px solid var(--line); border-radius: 99px; color: var(--muted); font-size: .72rem; white-space: nowrap; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: .82rem; overflow-wrap: anywhere; color: #d6e2da; }
+      .links { display: flex; flex-wrap: wrap; gap: 8px 18px; margin-top: 10px; font-size: .88rem; }
+      .not-verified { border: 1px solid #5b4b30; background: #211d16; border-radius: 10px; padding: 18px 20px; }
+      .not-verified h2 { color: var(--warn); }
+      ul { margin: 10px 0 0; padding-left: 20px; color: var(--muted); }
+      li { margin: 6px 0; }
+      footer { padding: 22px 0 32px; border-top: 1px solid var(--line); color: var(--soft); font-size: .82rem; }
+      @media (max-width: 680px) {
+        .header-inner { min-height: 78px; flex-wrap: wrap; padding: 14px 0; }
+        .snapshot { width: 100%; margin-left: 64px; margin-top: -10px; text-align: left; }
+        main { padding-top: 38px; }
+        .grid { grid-template-columns: 1fr; }
+        .evidence { grid-template-columns: 1fr; gap: 8px; }
+        .evidence-status { justify-self: start; grid-row: 1; }
+      }
+      @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+    </style>
+  </head>
+  <body>
+    <header>
+      <div class="wrap header-inner">
+        <img class="brand-mark" src="/glorifier-services-official-logo-001.png" alt="GLORIFIER logo" width="48" height="48" />
+        <div>
+          <div class="brand-name">GLORIFIER</div>
+          <div class="brand-description">Governed intelligence for AI-powered businesses</div>
+        </div>
+        <div class="snapshot">
+          <div>PUBLIC STATUS SNAPSHOT</div>
+          <div>Evidence retrieved 17 November 2026 · 04:56–04:57 UTC</div>
+        </div>
+      </div>
+    </header>
+
+    <main class="wrap">
+      <div class="eyebrow">Evidence before claims</div>
+      <h1>Public system status</h1>
+      <p class="lede">A factual snapshot of what the available deployment records and automated checks establish. A successful build is not the same as a verified production capability.</p>
+
+      <div class="notice">
+        <strong>Static status page.</strong> This page contains a fixed evidence snapshot. It does not make API requests, authenticate users, read account data, execute missions, or run AI inference. Statuses are not live health checks and must be refreshed when new evidence becomes available.
+      </div>
+
+      <div class="grid" aria-label="Current verified status">
+        <div class="card">
+          <div class="card-label">Public frontend</div>
+          <div class="state good">Deployed</div>
+          <div class="detail">Cloudflare Pages production deployment succeeded for the latest recorded main commit.</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Backend Worker</div>
+          <div class="state warn">Older revision</div>
+          <div class="detail">A Worker is deployed, but its recorded source is 16 commits behind current main.</div>
+        </div>
+        <div class="card">
+          <div class="card-label">Live AI execution</div>
+          <div class="state bad">Not verified</div>
+          <div class="detail">Inference was disabled in the last verified Worker deployment. No live provider execution is claimed.</div>
+        </div>
+      </div>
+
+      <section aria-labelledby="frontend-heading">
+        <h2 id="frontend-heading">Frontend deployment</h2>
+        <p class="section-intro">The public static page is served from Cloudflare Pages.</p>
+        <div class="evidence">
+          <div>
+            <h3>Latest source deployed to production</h3>
+            <p>Cloudflare Pages reports a successful production deployment from branch <span class="mono">main</span>, commit:</p>
+            <div class="mono">744dee7508fc7ca1e1370e2c56049b51770daf5b</div>
+            <p>Deployment <span class="mono">8e9c873b-5edd-4738-a41d-ab4b16eef0fa</span>; deploy stage completed at 04:56:07 UTC on 17 November 2026.</p>
+            <div class="links">
+              <a href="https://glorifier.pages.dev/">Open public site</a>
+              <a href="https://8e9c873b.glorifier.pages.dev/">Open this deployment</a>
+              <a href="https://github.com/GLORIFIER7/GLORIFIER/commit/744dee7508fc7ca1e1370e2c56049b51770daf5b">View deployed commit</a>
+            </div>
+          </div>
+          <div class="evidence-status">DEPLOYED</div>
+        </div>
+        <div class="evidence">
+          <div>
+            <h3>Frontend build and type check</h3>
+            <p>GitHub Actions frontend build completed successfully on the same commit. TypeScript typecheck, production build, and output verification steps passed.</p>
+            <div class="links">
+              <a href="https://github.com/GLORIFIER7/GLORIFIER/actions/runs/44020385234">Frontend build run #44020385234</a>
+            </div>
+          </div>
+          <div class="evidence-status">PASSED</div>
+        </div>
+      </section>
+
+      <section aria-labelledby="backend-heading">
+        <h2 id="backend-heading">Backend deployment boundary</h2>
+        <p class="section-intro">The frontend and Worker deployment records identify different source revisions.</p>
+        <div class="evidence">
+          <div>
+            <h3>Last recorded Worker deployment</h3>
+            <p>Cloudflare records Worker version <span class="mono">c17f6566-2a05-4d60-b136-839141c2893e</span> as receiving 100% of traffic. Its source commit is:</p>
+            <div class="mono">394b99f66cf5f6380fee801fc203559252c9a8d1</div>
+            <p>The deployment occurred on 16 November 2026. Current main is 16 commits ahead of that Worker source. The current Worker code has therefore not been proven deployed by these records.</p>
+            <div class="links">
+              <a href="https://github.com/GLORIFIER7/GLORIFIER/actions/runs/43821688548">Last successful Worker deployment run #43821688548</a>
+            </div>
+          </div>
+          <div class="evidence-status">REVISION GAP</div>
+        </div>
+        <div class="evidence">
+          <div>
+            <h3>Latest Worker workflow on current main</h3>
+            <p>Validation, type checks, tests, and dry-run bundle validation passed on commit <span class="mono">744dee7508fc7ca1e1370e2c56049b51770daf5b</span>. The production deployment job was skipped because this was a push-triggered validation run, not an explicitly authorized production dispatch.</p>
+            <div class="links">
+              <a href="https://github.com/GLORIFIER7/GLORIFIER/actions/runs/44020388850">Worker workflow run #44020388850</a>
+            </div>
+          </div>
+          <div class="evidence-status">VALIDATION ONLY</div>
+        </div>
+      </section>
+
+      <section aria-labelledby="readiness-heading">
+        <h2 id="readiness-heading">Last observed backend readiness</h2>
+        <p class="section-intro">These observations belong to the 16 November Worker smoke test; they are not current live checks.</p>
+        <div class="evidence">
+          <div>
+            <h3>Database reporting evidence</h3>
+            <p>The last production smoke test reported exact operational row counts verified for six Neon reporting tables. This establishes those read-only count checks at that time; it does not establish every database workflow or business operation.</p>
+          </div>
+          <div class="evidence-status">HISTORICAL CHECK</div>
+        </div>
+        <div class="evidence">
+          <div>
+            <h3>Organizational identity</h3>
+            <p>The identity endpoint returned HTTP 503 with application status <span class="mono">not-ready</span>. The deployment log reported that organizational domain/email identity was not configured or verified.</p>
+          </div>
+          <div class="evidence-status">NOT READY</div>
+        </div>
+        <div class="evidence">
+          <div>
+            <h3>NEURAL readiness and inference</h3>
+            <p>Worker-to-NEURAL liveness was verified, but readiness was disabled by the default-deny external data egress policy. The last deployment showed <span class="mono">GLORIFIER_ENABLE_INFERENCE=false</span> and <span class="mono">GLORIFIER_PAID_INFERENCE_AUTHORIZED=false</span>. No inference was performed during the smoke test.</p>
+          </div>
+          <div class="evidence-status">DISABLED</div>
+        </div>
+        <div class="evidence">
+          <div>
+            <h3>Authenticated browser testing</h3>
+            <p>The 17 November production E2E run completed with one test passed and two skipped. The authenticated session/API/module test and mobile navigation test were skipped because test credentials were not available to the job. The one passing test checked the unauthenticated API protection boundary only.</p>
+            <div class="links">
+              <a href="https://github.com/GLORIFIER7/GLORIFIER/actions/runs/44020554016">Production E2E run #44020554016</a>
+            </div>
+          </div>
+          <div class="evidence-status">PARTIAL COVERAGE</div>
+        </div>
+      </section>
+
+      <section class="not-verified" aria-labelledby="not-verified-heading">
+        <h2 id="not-verified-heading">Capabilities not established by this evidence</h2>
+        <p>Do not interpret the page, repository description, or a green build as proof of the following:</p>
+        <ul>
+          <li>Live AI-provider inference, provider failover, or paid inference readiness.</li>
+          <li>Authenticated user login and complete authenticated frontend workflows.</li>
+          <li>Full Autopilot mission execution or autonomous production operations.</li>
+          <li>A2A or MCP protocol interoperability and conformance.</li>
+          <li>Revenue, payouts, token liquidity, customer activity, or other economic outcomes.</li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="method-heading">
+        <h2 id="method-heading">Evidence method</h2>
+        <p class="section-intro">Each status above is tied to a linked GitHub Actions record or Cloudflare deployment record. “Passed” means the named check passed within its stated scope; it does not imply that untested capabilities work. Historical checks are labelled as historical. No sample metrics, simulated activity, or inferred revenue are displayed.</p>
+        <div class="links">
+          <a href="https://github.com/GLORIFIER7/GLORIFIER">Source repository</a>
+          <a href="https://github.com/GLORIFIER7/GLORIFIER/actions">All GitHub Actions</a>
+        </div>
+      </section>
+    </main>
+
+    <footer>
+      <div class="wrap">GLORIFIER · Public evidence snapshot · Last evidence retrieval: 17 November 2026, 04:56–04:57 UTC · This is not a live monitoring dashboard.</div>
+    </footer>
   </body>
 </html>
