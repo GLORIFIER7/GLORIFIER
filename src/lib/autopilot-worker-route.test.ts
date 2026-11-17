@@ -210,6 +210,63 @@ test('internal-service mission listing remains confined to its requester partiti
   assert.deepEqual(body.missions?.map(mission => mission.id), ['mission-service-001']);
 });
 
+test('internal-service mission intake uses the fixed requester partition', async () => {
+  const fixture = createDependencies();
+  const serviceAccess = {
+    requester: 'glorifier-internal-service',
+    allowAll: false,
+    source: 'internal-service' as const,
+  };
+  let capturedAccess: unknown;
+  let capturedMission: Record<string, unknown> | null = null;
+  const baseStore = fixture.dependencies.createStore();
+  const serviceStore = {
+    ...baseStore,
+    async create(mission: Record<string, unknown>) {
+      capturedMission = mission;
+      return baseStore.create(mission);
+    },
+  };
+  const dependencies = {
+    ...fixture.dependencies,
+    authorize: async () => serviceAccess,
+    createStore: (_binding: unknown, access: unknown) => {
+      capturedAccess = access;
+      return serviceStore;
+    },
+  };
+
+  const response = await handleAutopilotWorkerRequest(
+    new Request('https://glorifier.pages.dev/api/autopilot/missions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Idempotency-Key': 'service-request-002' },
+      body: JSON.stringify({
+        requester: 'attacker-controlled-user',
+        title: 'Internal service mission',
+        objective: 'Verify the internal-service requester partition.',
+      }),
+    }),
+    '/api/autopilot/missions',
+    env as never,
+    dependencies as never,
+  );
+  assert.ok(response, 'Expected the Autopilot route to handle this path.');
+  const body = await response.json() as {
+    accepted?: boolean;
+    executionStarted?: boolean;
+    mission?: { requester?: string; status?: string };
+  };
+
+  assert.equal(response.status, 201);
+  assert.equal(body.accepted, true);
+  assert.equal(body.executionStarted, false);
+  assert.deepEqual(capturedAccess, serviceAccess);
+  assert.equal(capturedMission?.requester, 'glorifier-internal-service');
+  assert.equal(body.mission?.requester, 'glorifier-internal-service');
+  assert.equal(body.mission?.status, 'queued');
+  assert.equal(fixture.missions.length, 1);
+});
+
 test('Autopilot routes fail closed when the dedicated Hyperdrive binding is absent', async () => {
   const fixture = createDependencies();
   const response = await handleAutopilotWorkerRequest(
