@@ -1,0 +1,117 @@
+name: GLORIFIER MDASH Agentic Code Security (Preview)
+
+on:
+  workflow_dispatch:
+    inputs:
+      authorize_source_upload:
+        description: >-
+          I authorize uploading this repository's source to Microsoft Defender
+          MDASH and consuming any model or Azure capacity charges.
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+  security-events: write
+
+concurrency:
+  group: glorifier-mdash-agentic-scan-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  mdash-scan:
+    name: Microsoft Defender MDASH scan
+    if: github.event_name == 'workflow_dispatch' && inputs.authorize_source_upload == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Check Microsoft Entra credentials
+        shell: bash
+        env:
+          DEFENDER_ASPM_TENANT_ID: ${{ secrets.DEFENDER_ASPM_TENANT_ID }}
+          DEFENDER_ASPM_CLIENT_ID: ${{ secrets.DEFENDER_ASPM_CLIENT_ID }}
+          DEFENDER_ASPM_CLIENT_SECRET: ${{ secrets.DEFENDER_ASPM_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          missing=()
+          [[ -n "$DEFENDER_ASPM_TENANT_ID" ]] || missing+=("DEFENDER_ASPM_TENANT_ID")
+          [[ -n "$DEFENDER_ASPM_CLIENT_ID" ]] || missing+=("DEFENDER_ASPM_CLIENT_ID")
+          [[ -n "$DEFENDER_ASPM_CLIENT_SECRET" ]] || missing+=("DEFENDER_ASPM_CLIENT_SECRET")
+          if (( ${#missing[@]} > 0 )); then
+            printf 'MDASH is not configured. Add the required GitHub Actions secrets: %s\n' "${missing[*]}" >&2
+            exit 1
+          fi
+          echo "Microsoft Entra secret presence check passed; values were not printed."
+
+      - name: Download Defender CLI
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --silent --show-error --retry 3 \
+            "https://cli.dfd.security.azure.com/public/v2/latest/Defender_linux-x64" \
+            --output "$RUNNER_TEMP/defender"
+          chmod 700 "$RUNNER_TEMP/defender"
+          "$RUNNER_TEMP/defender" --help >/dev/null
+
+      - name: Submit MDASH scan and collect SARIF
+        shell: bash
+        env:
+          DEFENDER_ASPM_TENANT_ID: ${{ secrets.DEFENDER_ASPM_TENANT_ID }}
+          DEFENDER_ASPM_CLIENT_ID: ${{ secrets.DEFENDER_ASPM_CLIENT_ID }}
+          DEFENDER_ASPM_CLIENT_SECRET: ${{ secrets.DEFENDER_ASPM_CLIENT_SECRET }}
+        run: |
+          set -euo pipefail
+          defender="$RUNNER_TEMP/defender"
+          sarif_file="$RUNNER_TEMP/mdash-results.sarif"
+
+          # This step uploads checked-out repository source to Microsoft Defender MDASH.
+          # It runs only after the manual workflow-dispatch authorization gate.
+          if ! submission_log="$("$defender" scan ai-scan submit . --model-profile gpt-general-profile --force 2>&1)"; then
+            printf '%s\n' "$submission_log" >&2
+            exit 1
+          fi
+          printf '%s\n' "$submission_log"
+
+          job_id="$(printf '%s\n' "$submission_log" | sed -nE 's/^.*Job submitted:[[:space:]]*([^[:space:]]+).*$/\1/p' | tail -n 1)"
+          if [[ -z "$job_id" ]]; then
+            echo "Defender CLI did not return a recognizable MDASH job ID; refusing to claim a scan ran." >&2
+            exit 1
+          fi
+
+          "$defender" status wait "$job_id" -o "$sarif_file"
+          test -s "$sarif_file"
+          echo "MDASH job completed and returned a SARIF file."
+
+      - name: Validate SARIF structure
+        shell: bash
+        run: |
+          set -euo pipefail
+          sarif_file="$RUNNER_TEMP/mdash-results.sarif"
+          jq -e '
+            .version == "2.1.0"
+            and (.runs | type == "array")
+            and (.runs | length > 0)
+          ' "$sarif_file" >/dev/null
+          echo "SARIF 2.1.0 structure validated."
+
+      - name: Retain MDASH SARIF evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: glorifier-mdash-sarif
+          path: ${{ runner.temp }}/mdash-results.sarif
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Publish MDASH findings to GitHub code scanning
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
+        with:
+          sarif_file: ${{ runner.temp }}/mdash-results.sarif
+          category: mdash-agentic-code-scan
