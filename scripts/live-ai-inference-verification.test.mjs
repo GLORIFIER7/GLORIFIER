@@ -277,7 +277,7 @@ test("configured endpoint and exact model must match the current attestation", a
 test("provider errors never trigger a second provider or a hidden paid fallback", async () => {
   const calls = [];
   const fetchImpl = async (url, init) => {
-    calls.push({ url: String(url), method: init.method });
+    calls.push({ url: String(url), init });
     if (init.method === "GET") return new Response(JSON.stringify({ data: [{ id: "gpt-4o" }] }), { status: 200 });
     return new Response(JSON.stringify({ error: { message: "quota exhausted" } }), { status: 402 });
   };
@@ -290,5 +290,7 @@ test("provider errors never trigger a second provider or a hidden paid fallback"
 
   assert.equal(result.status, "FAILED");
   assert.equal(result.reason, "QUOTA_OR_RATE_LIMIT");
-  assert.deepEqual(calls.map((call) => call.method), ["GET", "POST"]);
+  assert.deepEqual(calls.map((call) => call.init.method), ["GET", "POST"]);
+  assert.ok(calls.every((call) => new URL(call.url).origin === "https://api.openai.com"));
+  assert.equal(JSON.parse(calls[1].init.body).model, "gpt-4o");
 });
