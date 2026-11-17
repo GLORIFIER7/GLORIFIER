@@ -21,6 +21,7 @@ import {
   isTrustedCuratedRedirectTarget,
   formatCuratedRedirectTargetDiagnostic,
   findEarliestKeywordIndex,
+  trimEvidenceExcerptToWordBoundaries,
   getSourcePatternKeywords,
   type ArchitectureDomain,
   type ArchitecturePattern,
@@ -1461,6 +1462,22 @@ console.log('GEAS architecture scientist refinement tests passed');
   assertionsCompleted = true;
 });
 
+test('evidence excerpts preserve whole words at both boundaries', () => {
+  const text = 'Representations highlighted reasoning-layer telemetry, non-human identity governance, authorization-scoped containment, and reporting schemas.';
+  const start = text.indexOf('resentations');
+  const end = text.indexOf('reporting') + 3;
+  const excerpt = trimEvidenceExcerptToWordBoundaries(text, start, end);
+  assert.ok(excerpt.startsWith('Representations'), 'excerpt start must not cut the first word');
+  assert.ok(excerpt.endsWith('reporting'), 'excerpt end must not cut the final word');
+  assert.ok(!excerpt.startsWith('resentations'), 'partial leading words must be excluded');
+  assert.ok(!excerpt.endsWith('repor'), 'partial trailing words must be excluded');
+});
+
+test('evidence excerpt boundaries clamp offsets to source length', () => {
+  const text = 'Complete source excerpt remains intact.';
+  assert.equal(trimEvidenceExcerptToWordBoundaries(text, -10, 500), text);
+});
+ 
 test('existing assertions completed in setup hook', () => {
   assert.ok(assertionsCompleted, 'existing assertions completed before the test case');
 });
