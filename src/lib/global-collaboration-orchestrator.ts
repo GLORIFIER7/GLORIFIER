@@ -20,7 +20,12 @@ export function getGlobalCollaborationPolicy() {
     objective:
       'DISCOVER → CONNECT → VERIFY → QUALIFY → AUTHORIZE → EXECUTE → DELIVER → ACCEPT → SETTLE → RESOLVE → LEARN → REPEAT',
     continuous: false,
-    continuousOperation: 'NOT VERIFIED — this orchestrator runs on demand; a persistent global collaboration daemon is not established here.',
+    continuousOperation: 'NOT VERIFIED — the repository workflow runs on a six-hour schedule; a persistent global collaboration daemon is not established in production.',
+    scheduledCadenceHours: 6,
+    scheduledWorkflowCron: '47 */6 * * *',
+    persistentDaemonStatus: 'NOT VERIFIED',
+    runtimeExecutionScope: 'The scheduled workflow executes public-source opportunity discovery and global-resolution case creation only; it does not invoke provider inference, Specialist Council execution, A2A task execution, MCP, or Autopilot mission execution.',
+    declaredParticipantsStatus: 'DECLARED — the participant list is not evidence that every subsystem is currently connected or executing.',
     global: true,
     coordinator: 'GLORIFIER AI CEO',
     participants: [

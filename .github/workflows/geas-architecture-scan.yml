@@ -23,6 +23,12 @@ on:
       - 'scripts/geas-evidence-policy-validate.ts'
       - 'docs/architecture/geas-*'
       - '.github/workflows/geas-architecture-scan.yml'
+      - 'src/lib/global-collaboration-runtime-evidence.test.ts'
+      - 'src/lib/global-collaboration-orchestrator.ts'
+      - 'scripts/run-global-collaboration.ts'
+      - '.github/workflows/global-collaboration.yml'
+      - 'docs/GLORIFIER-GLOBAL-COLLABORATION.md'
+      - 'docs/architecture/GEAS-REFINEMENT-BACKLOG.md'
       - 'package.json'
   schedule:
     - cron: "17 */6 * * *"
@@ -63,6 +69,9 @@ jobs:
 
       - name: Test GEAS architecture scientist cache and evidence logic
         run: npm run test:geas-scientist
+
+      - name: Verify global collaboration runtime evidence contract
+        run: npm run test:global-collaboration-runtime-evidence
 
       - name: Validate GEAS architecture contracts
         run: npm run validate:geas-architecture
