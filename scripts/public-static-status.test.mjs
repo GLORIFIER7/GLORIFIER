@@ -8,6 +8,7 @@ const html = read('../index.html');
 const manifest = JSON.parse(read('../public/manifest.webmanifest'));
 const serviceWorker = read('../public/sw.js');
 const sitemap = read('../public/sitemap.xml');
+const githubPagesSitemap = read('../public/github-pages-sitemap.xml');
 
 test('public production entry is a single static evidence page', () => {
   assert.match(html, /GLORIFIER — Public Status/);
@@ -84,7 +85,13 @@ test('service-worker activation actually deletes retired dashboard caches', asyn
   assert.equal(claimed, true, 'service worker must claim clients after cache cleanup');
 });
 
-test('the public sitemap contains only URLs on its canonical Cloudflare Pages host', () => {
+test('the Cloudflare sitemap contains only URLs on its canonical Pages host', () => {
   const locations = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)].map(([, url]) => url);
   assert.deepEqual(locations, ['https://glorifier.pages.dev/']);
+  assert.doesNotMatch(sitemap, /https:\/\/glorifier7\.github\.io\//);
+});
+
+test('the GitHub Pages project URL remains in its origin-specific sitemap', () => {
+  assert.match(githubPagesSitemap, /https:\/\/glorifier7\.github\.io\/GLORIFIER\/project\.html/);
+  assert.doesNotMatch(githubPagesSitemap, /https:\/\/glorifier\.pages\.dev\//);
 });
