@@ -55,6 +55,12 @@ test("secret-bearing workflow is owner-only, main-only, protected, and manually 
   assert.match(workflow, /permissions:\n      contents: read/);
   assert.doesNotMatch(workflow, /schedule:/);
   assert.doesNotMatch(workflow, /pull-requests: write|contents: write|gh pr merge|--auto/);
+  assert.ok(workflow.includes("group: live-ai-inference-verification-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}"));
+  assert.ok((workflow.match(/vars\\.LIVE_AI_PROBE_ENABLED == 'true'/g) || []).length >= 2);
+  assert.ok(workflow.includes("if: github.event_name == 'workflow_dispatch' && inputs.provider != 'meta' && inputs.provider != 'ollama'"));
+  assert.ok(workflow.includes("runs-on: [self-hosted, linux, x64, glorifier-local-ai]"));
+  assert.ok(workflow.includes("OPENAI_API_KEY: ${{ inputs.provider == 'openai' && secrets.OPENAI_API_KEY || '' }}"));
+  assert.ok(workflow.includes("OPENAI_MODEL: ${{ inputs.provider == 'openai' && inputs.model || vars.OPENAI_MODEL }}"));
 });
 
 test("inference is denied before network access unless the owner explicitly opts in", async () => {
@@ -212,6 +218,46 @@ test("probe bytes are not compared with the attested input-token count", async (
     OPENAI_API_KEY: "test-key", OPENAI_MODEL: "gpt-4o",
   }, { now, fetchImpl });
   assert.equal(result.status, "VERIFIED");
+});
+test("Together AI uses its documented default base URL when no override is set", async () => {
+  const config = { ...attestation, providerId: "together", evidenceUrl: "https://docs.together.ai/docs/rate-limits", endpointUrl: "https://api.together.ai/v1", modelId: "meta-llama/Llama-3.3-70B-Instruct-Turbo" };
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push(String(url));
+    return init.method === "GET" ? new Response(JSON.stringify({ data: [{ id: config.modelId }] }), { status: 200 }) : new Response(JSON.stringify({ choices: [{ message: { content: "GLORIFIER_RUNTIME_PROBE_OK" } }] }), { status: 200 });
+  };
+  const result = await verifySelectedLiveAiProvider("together", { ALLOW_FREE_INFERENCE: "true", GLORIFIER_REPOSITORY_AI_FREE_ATTESTATIONS_JSON: JSON.stringify([config]), TOGETHER_API_KEY: "test-key", TOGETHER_MODEL: config.modelId }, { now, fetchImpl });
+  assert.equal(result.status, "VERIFIED");
+  assert.equal(new URL(calls[0]).origin, "https://api.together.ai");
+});
+
+test("Fireworks uses its documented default base URL when no override is set", async () => {
+  const config = { ...attestation, providerId: "fireworks", evidenceUrl: "https://docs.fireworks.ai", endpointUrl: "https://api.fireworks.ai/inference/v1", modelId: "accounts/fireworks/models/llama-v3p1-8b-instruct" };
+  const calls = [];
+  const fetchImpl = async (url, init) => {
+    calls.push(String(url));
+    return init.method === "GET" ? new Response(JSON.stringify({ data: [{ id: config.modelId }] }), { status: 200 }) : new Response(JSON.stringify({ choices: [{ message: { content: "GLORIFIER_RUNTIME_PROBE_OK" } }] }), { status: 200 });
+  };
+  const result = await verifySelectedLiveAiProvider("fireworks", { ALLOW_FREE_INFERENCE: "true", GLORIFIER_REPOSITORY_AI_FREE_ATTESTATIONS_JSON: JSON.stringify([config]), FIREWORKS_API_KEY: "test-key", FIREWORKS_MODEL: config.modelId }, { now, fetchImpl });
+  assert.equal(result.status, "VERIFIED");
+  assert.equal(new URL(calls[0]).origin, "https://api.fireworks.ai");
+});
+
+test("OpenRouter inference request explicitly disables upstream provider fallback", async () => {
+  const config = { ...attestation, providerId: "openrouter", mode: "free-model", evidenceUrl: "https://openrouter.ai/docs", endpointUrl: "https://openrouter.ai/api/v1", modelId: "openrouter/free", billingEnabled: false, creditsPurchased: false, requestsPerMinute: 20, requestsPerDay: 50 };
+  let posted = null;
+  const fetchImpl = async (_url, init) => init.method === "GET" ? new Response(JSON.stringify({ data: [{ id: "openrouter/free" }] }), { status: 200 }) : (posted = JSON.parse(init.body), new Response(JSON.stringify({ choices: [{ message: { content: "GLORIFIER_RUNTIME_PROBE_OK" } }] }), { status: 200 }));
+  const result = await verifySelectedLiveAiProvider("openrouter", { ALLOW_FREE_INFERENCE: "true", GLORIFIER_REPOSITORY_AI_FREE_ATTESTATIONS_JSON: JSON.stringify([config]), OPENROUTER_API_KEY: "test-key", OPENROUTER_MODEL: "openrouter/free" }, { now, fetchImpl });
+  assert.equal(result.status, "VERIFIED");
+  assert.equal(posted.provider.allow_fallbacks, false);
+});
+
+test("an explicit model override must match the owner-attested model", async () => {
+  let calls = 0;
+  const result = await verifySelectedLiveAiProvider("openai", { ALLOW_FREE_INFERENCE: "true", GLORIFIER_REPOSITORY_AI_FREE_ATTESTATIONS_JSON: JSON.stringify([attestation]), OPENAI_API_KEY: "test-key", OPENAI_MODEL: "unattested-model" }, { now, fetchImpl: async () => { calls += 1; throw new Error("must not call network"); } });
+  assert.equal(result.status, "BLOCKED_BY_POLICY");
+  assert.equal(result.reason, "configured-model-does-not-match-owner-attestation");
+  assert.equal(calls, 0);
 });
 test("configured endpoint and exact model must match the current attestation", async () => {
   let calls = 0;
