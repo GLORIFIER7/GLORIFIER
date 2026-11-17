@@ -26,6 +26,10 @@
       "destination": "https://glorifier.pages.dev/mcp"
     },
     {
+      "source": "/mcp/:path*",
+      "destination": "https://glorifier.pages.dev/mcp/:path*"
+    },
+    {
       "source": "/.well-known/agent-card.json",
       "destination": "https://glorifier.pages.dev/.well-known/agent-card.json"
     },
