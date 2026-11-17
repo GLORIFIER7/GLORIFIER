@@ -391,8 +391,10 @@ test('Gemini engineering collaborator uses the owner-confirmed free-tier API thr
   assert.ok(geminiCollaboratorWorkflow.includes('--output-format json'));
   assert.ok(geminiCollaboratorWorkflow.includes('--print-timeout 35m'));
   assert.ok(geminiCollaboratorWorkflow.includes('payload.get("status") != "SUCCESS"'));
-  assert.ok(geminiCollaboratorWorkflow.includes('/releases/download/1.5.5/agy_cli_linux_x64.tar.gz'));
-  assert.ok(geminiCollaboratorWorkflow.includes('api.github.com/repos/google-antigravity/antigravity-cli/releases/tags/1.5.5'));
+  assert.ok(geminiCollaboratorWorkflow.includes('CLI_VERSION="1.5.5"'));
+  assert.ok(geminiCollaboratorWorkflow.includes('agy_cli_linux_x64.tar.gz'));
+  assert.ok(geminiCollaboratorWorkflow.includes('releases/download/$CLI_VERSION/$ASSET'));
+  assert.ok(geminiCollaboratorWorkflow.includes('api.github.com/repos/google-antigravity/antigravity-cli/releases/tags/$CLI_VERSION'));
   assert.ok(geminiCollaboratorWorkflow.includes('get("digest")'));
   assert.ok(geminiCollaboratorWorkflow.includes('sha256sum --check --strict'));
   assert.ok(geminiCollaboratorWorkflow.includes('tar -xzf "$ARCHIVE" -C "$INSTALL_DIR" antigravity'));
