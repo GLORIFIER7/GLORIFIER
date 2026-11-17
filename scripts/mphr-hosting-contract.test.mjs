@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
 
 const read = (file) => readFileSync(new URL('../' + file, import.meta.url), 'utf8');
@@ -14,7 +14,7 @@ test('Vercel builds the original Vite React application into the canonical dist 
   assert.equal(manifest.scripts?.['build:frontend'], 'vite build');
 });
 
-test('Vercel forwards only documented runtime paths to the current Cloudflare Pages API front door', () => {
+test('Vercel forwards documented runtime paths to the current Cloudflare Pages API front door', () => {
   const rewrites = vercel.rewrites;
   assert.ok(Array.isArray(rewrites));
   const expected = [
@@ -30,9 +30,14 @@ test('Vercel forwards only documented runtime paths to the current Cloudflare Pa
     assert.ok(rewrites.some((item) => item.source === source && item.destination === destination),
       source + ' must retain the approved Cloudflare runtime route');
   }
-  assert.equal(rewrites.at(-1)?.source, '/(.*)',
-    'the SPA fallback must be last so it cannot shadow API/auth/MCP routing');
-  assert.equal(rewrites.at(-1)?.destination, '/index.html');
+  assert.deepEqual(rewrites, [
+    ...expected.map(([source, destination]) => ({ source, destination })),
+    { source: '/(.*)', destination: '/index.html' },
+  ], 'all explicit runtime rewrites must precede the final SPA fallback');
+  assert.equal(existsSync(new URL('../api/health.js', import.meta.url)), false,
+    'Vercel must not discover the retired Railway-backed /api/health function');
+  assert.equal(existsSync(new URL('../api/provider-health.js', import.meta.url)), false,
+    'Vercel must not discover the retired Railway-backed /api/provider-health function');
   assert.ok(!JSON.stringify(vercel).includes('railway.app'),
     'the Vercel frontend standby must not restore the retired Railway API origin');
 });
@@ -58,10 +63,11 @@ test('Cloudflare Pages, Vercel and Docker use the same restrictive CSP policy', 
   assert.doesNotMatch(read('index.html'), /<script>\s*[\s\S]*?<\/script>/,
     'the application entry document must not reintroduce inline scripts');
 });
-test('the frontend container is non-root and reports static availability separately from backend readiness', () => {
+test('frontend container Dockerfile declares a non-root runtime and truthful static-only health contract', () => {
   const dockerfile = read('Dockerfile.frontend');
   const server = read('scripts/serve-frontend.mjs');
-  assert.match(dockerfile, /FROM node:24-trixie-slim AS build/);
+  assert.match(dockerfile, /FROM node:24\\.22\\.3-trixie-slim@sha256:6933172a7f9a11092eb1df709088a1604b6de0783f2a0011cc8b58197e32d6b7 AS build/);
+  assert.match(dockerfile, /FROM node:24\\.22\\.3-trixie-slim@sha256:6933172a7f9a11092eb1df709088a1604b6de0783f2a0011cc8b58197e32d6b7 AS runtime/);
   assert.match(dockerfile, /npm run build:frontend/);
   assert.match(dockerfile, /USER node/);
   assert.match(dockerfile, /EXPOSE 8080/);
@@ -69,6 +75,9 @@ test('the frontend container is non-root and reports static availability separat
   assert.match(server, /BACKEND_NOT_CONFIGURED/);
   assert.match(server, /backend:\s*'not-probed'/);
   assert.match(server, /STATIC_ASSET_NOT_FOUND/);
+  assert.match(server, /process\\.once\\('SIGTERM'/);
+  assert.match(server, /function decodeRoutePath/);
+  assert.match(server, /export function isInsideRoot/);
 });
 
 
