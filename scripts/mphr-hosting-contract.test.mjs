@@ -139,9 +139,9 @@ test('public documentation distinguishes the hosting design from live deployment
   const readme = read('README.md');
   const legacy = read('docs/architecture/cloudflare-workers-only-migration.md');
   assert.match(readme, /GEAS.*Multi-Provider Hosting Resilience|Multi-Provider Hosting Resilience/);
-  assert.match(architecture, /Automatic traffic failover: \\*\\*NOT ENABLED\\*\\*/);
-  assert.match(architecture, /Vercel project: \\*\\*NOT LINKED\\*\\*/);
-  assert.match(architecture, /Docker frontend runtime: \\*\\*NOT DEPLOYED\\*\\*/);
+  assert.ok(architecture.includes('Automatic traffic failover: **NOT ENABLED**'));
+  assert.ok(architecture.includes('Vercel project: **NOT LINKED**'));
+  assert.ok(architecture.includes('Docker frontend runtime: **NOT DEPLOYED**'));
   assert.match(architecture, /backend.*Cloudflare/i);
   assert.match(legacy, /Superseded by GEAS MPHR/i);
 });
