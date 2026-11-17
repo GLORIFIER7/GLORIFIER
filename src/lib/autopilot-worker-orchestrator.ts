@@ -14,6 +14,7 @@ export type CloudflareAutopilotEnvironment = {
   GLORIFIER_NEURAL?: WorkerServiceBinding;
   GLORIFIER_API_TOKEN?: string;
   GLORIFIER_WORKERS_PLAN?: string;
+  GLORIFIER_WORKERS_PLAN_VERIFIED?: string;
   GLORIFIER_WORKERS_AI_FREE_ONLY?: string;
   GLORIFIER_ENABLE_INFERENCE?: string;
   GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS?: string;
@@ -71,8 +72,9 @@ const defaultFetchNeural = (
 const freeOnlyGateReason = (
   environment: CloudflareAutopilotEnvironment,
 ): string | null => {
-  if (environment.GLORIFIER_WORKERS_PLAN !== 'free') {
-    return 'workers-free-plan-not-verified';
+  if (environment.GLORIFIER_WORKERS_PLAN !== 'free' ||
+      environment.GLORIFIER_WORKERS_PLAN_VERIFIED !== 'true') {
+    return 'workers-free-plan-attestation-not-verified';
   }
   if (environment.GLORIFIER_WORKERS_AI_FREE_ONLY !== 'true') {
     return 'workers-ai-free-only-mode-not-enabled';
@@ -163,6 +165,7 @@ async function probeNeuralFreeProvider(
       body.provider !== PROVIDER_ID ||
       body.model !== PROVIDER_MODEL ||
       body.workersPlan !== 'free' ||
+      body.workersPlanVerified !== true ||
       body.freeOnly !== true ||
       body.inferenceEnabled !== true ||
       body.externalDataEgress !== false ||
