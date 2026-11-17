@@ -72,8 +72,10 @@ const defaultFetchNeural = (
 const freeOnlyGateReason = (
   environment: CloudflareAutopilotEnvironment,
 ): string | null => {
-  if (environment.GLORIFIER_WORKERS_PLAN !== 'free' ||
-      environment.GLORIFIER_WORKERS_PLAN_VERIFIED !== 'true') {
+  if (environment.GLORIFIER_WORKERS_PLAN !== 'free') {
+    return 'workers-free-plan-not-verified';
+  }
+  if (environment.GLORIFIER_WORKERS_PLAN_VERIFIED !== 'true') {
     return 'workers-free-plan-attestation-not-verified';
   }
   if (environment.GLORIFIER_WORKERS_AI_FREE_ONLY !== 'true') {
