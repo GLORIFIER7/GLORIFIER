@@ -38,10 +38,6 @@ const geminiWorkflow = readFileSync(
   new URL('../.github/workflows/gemini-collaborator.yml', import.meta.url),
   'utf8',
 );
-const geminiRunner = readFileSync(
-  new URL('./run-gemini-collaboration.sh', import.meta.url),
-  'utf8',
-);
 const geminiDevelopmentWorkflow = readFileSync(
   new URL('../.github/workflows/gemini-development.yml', import.meta.url),
   'utf8',
@@ -76,7 +72,7 @@ test('Gemini collaborator uses the pinned Antigravity binary and exact Gemini mo
   assert.ok(geminiWorkflow.includes('"read_url(*)"'));
   assert.ok(geminiWorkflow.includes('"execute_url(*)"'));
   assert.ok(geminiWorkflow.includes('"mcp(*)"'));
-  assert.ok(geminiWorkflow.includes('CLI_VERSION="1.5.5"'));
+  assert.ok(geminiWorkflow.includes('CLI_VERSION="1.5.9"'));
   assert.ok(geminiWorkflow.includes('agy_cli_linux_x64.tar.gz'));
   assert.ok(geminiWorkflow.includes('releases/download/$CLI_VERSION/$ASSET'));
   assert.ok(geminiWorkflow.includes('api.github.com/repos/google-antigravity/antigravity-cli/releases/tags/$CLI_VERSION'));
@@ -626,10 +622,23 @@ test('Gemini CLI installation is isolated from every provider-credential-bearing
     { name: 'PR review', source: geminiPrReviewWorkflow, step: 'Run Gemini free-tier advisory review' },
   ];
 
+  const collaborator = geminiWorkflowStep(geminiWorkflow, 'Run Gemini engineering collaboration');
+  assert.match(collaborator, /import secrets/);
+  assert.match(collaborator, /delimiter = "GEMINI_" \+ secrets\.token_hex\(16\)/);
+  assert.match(collaborator, /while delimiter in response:/);
+  assert.ok(collaborator.includes('output.write(f"summary<<{delimiter}\\n")'));
+  assert.ok(collaborator.includes('output.write(response)'));
+  assert.ok(collaborator.includes('output.write(f"\\n{delimiter}\\n")'));
+  assert.equal(geminiWorkflow.includes('geminiRunner'), false);
+  assert.doesNotMatch(collaborator, /response\.replace\("%", "%25"\)/);
+  assert.doesNotMatch(collaborator, /response\.replace\("\\n", "%0A"\)/);
+
+  const workflows = [
+    { name: 'development', source: geminiDevelopmentWorkflow, step: 'Run Gemini CLI' },
+    { name: 'PR review', source: geminiPrReviewWorkflow, step: 'Run Gemini free-tier advisory review' },
+  ];
   for (const workflow of workflows) {
-    const inference = workflow.name === 'collaborator'
-      ? geminiRunner
-      : geminiWorkflowStep(workflow.source, workflow.step);
+    const inference = geminiWorkflowStep(workflow.source, workflow.step);
     assert.match(inference, /import secrets/,
       workflow.name + ' must generate a fresh output delimiter');
     assert.match(inference, /delimiter = "GEMINI_" \+ secrets\.token_hex\(16\)/,
