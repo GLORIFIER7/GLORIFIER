@@ -512,7 +512,7 @@ test('Gemini CLI installation is isolated from every provider-credential-bearing
       assert.ok(install.includes('agy_cli_linux_x64.tar.gz'));
       assert.ok(install.includes('sha256sum --check --strict'));
       assert.ok(install.includes('install -m 755'));
-      assert.ok(install.includes('agy --version'));
+      assert.ok(install.includes('"$HOME/.local/bin/agy" --version'));
     } else {
       assert.match(install, /npm install --global --silent --no-audit --prefer-offline "@google\/gemini-cli@0\.68\.0"/);
       assert.match(install, /gemini --version/);
