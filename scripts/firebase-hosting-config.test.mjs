@@ -139,8 +139,8 @@ test('startup watchdog is loaded as a same-origin asset with no inline scripts o
   const bootCss = fixture('bootCss');
   assert.match(indexHtml, /<script[^>]+src="[/]startup-watchdog[.]js"[^>]+defer[^>]*><[/]script>/);
   assert.match(indexHtml, /<link[^>]+href="[/]boot[.]css"[^>]*>/);
-  assert.doesNotMatch(indexHtml, /<script\\b(?![^>]*\\bsrc=)[^>]*>/i);
-  assert.doesNotMatch(indexHtml, /\\sstyle=/i);
+  assert.doesNotMatch(indexHtml, /<script\b(?![^>]*\bsrc=)[^>]*>/i);
+  assert.doesNotMatch(indexHtml, /\sstyle=/i);
   assert.match(startupWatchdog, /unhandledrejection/);
   assert.match(startupWatchdog, /setTimeout/);
   assert.match(bootCss, /boot-status/);
