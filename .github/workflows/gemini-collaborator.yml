@@ -69,6 +69,29 @@ jobs:
                 "read_url(*)",
                 "execute_url(*)",
                 "mcp(*)",
+                "read_file(.github/)",
+                "read_file(.env)",
+                "read_file(.env.local)",
+                "read_file(.env.production)",
+                "read_file(.dev.vars)",
+                "read_file(.npmrc)",
+                "read_file(.wrangler/)",
+                "read_file(secrets/)",
+                "read_file(credentials/)",
+                "read_file(signing/)",
+                "read_file(.ssh/)",
+                "read_file(.aws/)",
+                "read_file(private/)",
+                "read_file(certs/)",
+                "read_file(keys/)",
+                "read_file(package.json)",
+                "read_file(package-lock.json)",
+                "read_file(npm-shrinkwrap.json)",
+                "read_file(wrangler.toml)",
+                "read_file(vercel.json)",
+                "read_file(railway.toml)",
+                "read_file(Dockerfile)",
+                "read_file(.git/)",
                 "write_file(.github/)",
                 "write_file(GEMINI.md)",
                 "write_file(AGENTS.md)",
@@ -84,6 +107,11 @@ jobs:
                 "write_file(secrets/)",
                 "write_file(credentials/)",
                 "write_file(signing/)",
+                "write_file(.ssh/)",
+                "write_file(.aws/)",
+                "write_file(private/)",
+                "write_file(certs/)",
+                "write_file(keys/)",
                 "write_file(wrangler.toml)",
                 "write_file(vercel.json)",
                 "write_file(railway.toml)",
@@ -164,17 +192,78 @@ jobs:
           tar -xzf "$ARCHIVE" -C "$INSTALL_DIR" antigravity
           install -m 755 "$INSTALL_DIR/antigravity" "$HOME/.local/bin/agy"
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-          VERSION_OUTPUT="$("$HOME/.local/bin/agy" --version 2>&1)"
+          VERSION_HOME="$RUNNER_TEMP/agy-version-home"
+          install -d -m 700 "$VERSION_HOME"
+          VERSION_OUTPUT="$(HOME="$VERSION_HOME" "$HOME/.local/bin/agy" --version 2>&1)"
           if [[ "$VERSION_OUTPUT" != *"$CLI_VERSION"* ]]; then
             echo "::error::Installed Antigravity CLI version did not match the pinned release."
             exit 1
           fi
+
+      - name: Prepare filtered Antigravity workspace
+        if: ${{ steps.duplicate.outputs.blocked != 'true' && env.HAS_GEMINI_API_KEY == 'true' }}
+        env:
+          GEMINI_WORKSPACE: ${{ runner.temp }}/gemini-workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - "$GEMINI_WORKSPACE" <<'PY'
+          from pathlib import Path
+          import re
+          import shutil
+          import subprocess
+          import sys
+
+          workspace = Path(sys.argv[1])
+          if workspace.exists():
+              shutil.rmtree(workspace)
+          workspace.mkdir(parents=True, mode=0o700)
+
+          protected = re.compile(
+              r"(^|/)(?:\\.git|\\.github|node_modules|\\.wrangler|secrets|credentials|signing|\\.ssh|\\.aws|private|certs|keys)(?:/|$)|"
+              r"(^|/)(?:package\\.json|package-lock\\.json|npm-shrinkwrap\\.json|\\.npmrc|\\.env(?:$|[./])|\\.dev\\.vars|"
+              r"wrangler\\.toml|vercel\\.json|railway\\.toml|Dockerfile)$|"
+              r"\\.(?:pem|key|p12|pfx|crt|cer|der|gpg|asc|jks|keystore|pkcs12|p7b|p7c|p7m|p7s|spc|csr|mobileprovision|provisionprofile)$",
+              re.IGNORECASE,
+          )
+          tracked = subprocess.check_output(["git", "ls-files", "-z"]).split(b"\\0")
+          copied = 0
+          excluded = 0
+          for raw_path in tracked:
+              if not raw_path:
+                  continue
+              relative = raw_path.decode("utf-8", "surrogateescape").replace("\\\\", "/")
+              if protected.search(relative):
+                  excluded += 1
+                  continue
+              source = Path(relative)
+              if source.is_symlink() or not source.is_file():
+                  continue
+              destination = workspace / source
+              destination.parent.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(source, destination, follow_symlinks=False)
+              copied += 1
+
+          if copied == 0:
+              raise SystemExit("Filtered Antigravity workspace contains no source files.")
+
+          def git(*args):
+              subprocess.run(["git", "-C", str(workspace), *args], check=True)
+
+          git("init", "--quiet")
+          git("config", "user.name", "GLORIFIER Antigravity Baseline")
+          git("config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com")
+          git("add", "--all")
+          git("-c", "core.hooksPath=/dev/null", "commit", "--quiet", "-m", "Filtered workspace baseline")
+          print(f"Prepared isolated workspace: copied {copied} files; excluded {excluded} protected files.")
+          PY
 
       - name: Run Gemini engineering collaboration
         id: gemini
         if: ${{ steps.duplicate.outputs.blocked != 'true' && env.HAS_GEMINI_API_KEY == 'true' }}
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_WORKSPACE: ${{ runner.temp }}/gemini-workspace
           AGY_MODEL: gemini-3.8-flash
           AGY_EFFORT: medium
           GEMINI_PROMPT: |
@@ -201,6 +290,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          cd "$GEMINI_WORKSPACE"
           AGY_OUTPUT="$RUNNER_TEMP/agy-output.json"
           AGY_ERROR="$RUNNER_TEMP/agy-error.log"
           trap 'rm -f "$AGY_OUTPUT" "$AGY_ERROR"' EXIT
@@ -257,41 +347,52 @@ jobs:
       - name: Prepare and validate Gemini patch
         id: patch
         if: ${{ steps.duplicate.outputs.blocked != 'true' && steps.gemini.outcome == 'success' && steps.gemini.outputs.provider_unavailable != 'true' }}
+        env:
+          GEMINI_WORKSPACE: ${{ runner.temp }}/gemini-workspace
         shell: bash
         run: |
           set -euo pipefail
-          GIT=(git -c core.hooksPath=/dev/null -c core.fsmonitor=false)
-          "${GIT[@]}" add -N -- .
+          git -C "$GEMINI_WORKSPACE" -c core.hooksPath=/dev/null -c core.fsmonitor=false add -N -- .
           python - <<'PY'
-          import os, re, subprocess, sys
-          git = ["git", "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"]
+          import os
+          import re
+          import subprocess
+          import sys
+
+          git = ["git", "-C", os.environ["GEMINI_WORKSPACE"], "-c", "core.hooksPath=/dev/null", "-c", "core.fsmonitor=false"]
           changed = subprocess.check_output(git + ["diff", "--name-only", "-z", "HEAD"])
-          paths = changed.decode("utf-8", "surrogateescape").split("\0")
+          paths = [path for path in changed.decode("utf-8", "surrogateescape").split("\\0") if path]
           protected = re.compile(
-              r"(^|/)\.github(?:/|$)|(^|/)GEMINI\.md$|(^|/)AGENTS\.md$|"
-              r"(^|/)\.env(?:$|[./])|(^|/)package\.json$|(^|/)package-lock\.json$|"
-              r"(^|/)npm-shrinkwrap\.json$|(^|/)\.npmrc$|"
-              r"(^|/)(?:secrets|credentials|signing)(?:/|$)|"
-              r"(^|/)(?:wrangler\.toml|vercel\.json|railway\.toml|Dockerfile)$|"
-              r"\.(?:pem|key|p12|pfx|crt|cer|der|gpg|asc|jks|keystore|pkcs12|p7b|p7c|p7m|p7s|spc|csr|mobileprovision|provisionprofile)$",
+              r"(^|/)\\.github(?:/|$)|(^|/)GEMINI\\.md$|(^|/)AGENTS\\.md$|"
+              r"(^|/)\\.env(?:$|[./])|(^|/)package\\.json$|(^|/)package-lock\\.json$|"
+              r"(^|/)npm-shrinkwrap\\.json$|(^|/)\\.npmrc$|"
+              r"(^|/)(?:secrets|credentials|signing|\\.ssh|\\.aws|private|certs|keys)(?:/|$)|"
+              r"(^|/)(?:wrangler\\.toml|vercel\\.json|railway\\.toml|Dockerfile)$|"
+              r"\\.(?:pem|key|p12|pfx|crt|cer|der|gpg|asc|jks|keystore|pkcs12|p7b|p7c|p7m|p7s|spc|csr|mobileprovision|provisionprofile)$",
               re.IGNORECASE)
-          blocked = [path for path in paths if path and protected.search(path)]
-          if blocked:
-              print("::error::Gemini changed protected paths: " + ", ".join(repr(path) for path in blocked))
-              sys.exit(1)
-          patch = subprocess.check_output(git + ["diff", "--binary", "--no-ext-diff", "HEAD"])
+          safe_paths = [path for path in paths if not protected.search(path)]
+          filtered = [path for path in paths if protected.search(path)]
+          if filtered:
+              print("::warning::Filtered protected-file changes from the Antigravity proposal: " + ", ".join(repr(path) for path in filtered))
+          if not safe_paths:
+              with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
+                  out.write("has_changes=false\\n")
+              print("Antigravity produced no publishable changes; no PR will be created.")
+              sys.exit(0)
+
+          patch = subprocess.check_output(git + ["diff", "--binary", "--no-ext-diff", "HEAD", "--", *safe_paths])
           if len(patch) > 500000:
-              print("::error::Gemini patch exceeds the 500 KB review limit.")
+              print("::error::Antigravity patch exceeds the 500 KB review limit.")
               sys.exit(1)
           if not patch:
               with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
-                  out.write("has_changes=false\n")
-              print("Gemini produced no changes; no PR will be created.")
+                  out.write("has_changes=false\\n")
+              print("Antigravity produced no changes; no PR will be created.")
               sys.exit(0)
           with open(os.path.join(os.environ["RUNNER_TEMP"], "gemini.patch"), "wb") as handle:
               handle.write(patch)
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as out:
-              out.write("has_changes=true\n")
+              out.write("has_changes=true\\n")
           PY
       - name: Upload isolated patch
         if: ${{ steps.patch.outputs.has_changes == 'true' }}
