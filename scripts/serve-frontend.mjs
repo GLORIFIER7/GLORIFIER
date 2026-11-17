@@ -1,4 +1,3 @@
-import { randomBytes } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -110,24 +109,7 @@ function cacheControlFor(pathname, filePath) {
   return 'public, max-age=300';
 }
 
-function contentSecurityPolicy(nonce) {
-  return [
-    "default-src 'self'",
-    "script-src 'self' 'nonce-" + nonce + "'",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' data: https://fonts.gstatic.com",
-    "img-src 'self' data: blob: https:",
-    "connect-src 'self' https: wss:",
-    "frame-src 'self' https://accounts.google.com https://firebaseapp.com https://*.firebaseapp.com https://*.web.app https://*.auth0.com",
-    "form-action 'self' https://accounts.google.com https://*.auth0.com",
-    "base-uri 'self'",
-    "object-src 'none'",
-    "frame-ancestors 'none'",
-    "worker-src 'self' blob:",
-    "manifest-src 'self'",
-    "upgrade-insecure-requests",
-  ].join('; ');
-}
+const CONTENT_SECURITY_POLICY = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https: wss:; frame-src 'self' https://accounts.google.com https://firebaseapp.com https://*.firebaseapp.com https://*.web.app https://*.auth0.com; form-action 'self' https://accounts.google.com https://*.auth0.com; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; worker-src 'self' blob:; manifest-src 'self'; upgrade-insecure-requests";
 
 export function createFrontendServer(options = {}) {
   const configuredRoot = options.root || process.env.FRONTEND_DIST_DIR || DEFAULT_ROOT;
@@ -228,19 +210,13 @@ export function createFrontendServer(options = {}) {
       }
 
       if (extension === '.html') {
-        const nonce = randomBytes(18).toString('base64');
-        const html = await readFile(resolved.filePath, 'utf8');
-        const securedHtml = html.replace(
-          /<script(?![^>]*\ssrc\s*=)([^>]*)>/gi,
-          (_match, attributes) => '<script' + attributes + ' nonce="' + nonce + '">',
-        );
-        const payload = Buffer.from(securedHtml);
+        const html = await readFile(resolved.filePath);
         response.writeHead(200, securityHeaders({
           ...headers,
-          'Content-Length': String(payload.byteLength),
-          'Content-Security-Policy': contentSecurityPolicy(nonce),
+          'Content-Length': String(html.byteLength),
+          'Content-Security-Policy': CONTENT_SECURITY_POLICY,
         }));
-        response.end(payload);
+        response.end(html);
         return;
       }
 
