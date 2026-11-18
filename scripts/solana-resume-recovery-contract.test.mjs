@@ -60,3 +60,21 @@ test('a never-initialized freeze authority uses an explicit non-transaction rece
   assert.ok(script.includes('NOT_APPLICABLE_NEVER_SET'));
   assert.ok(script.includes('require_receipt'));
 });
+
+test('reused evidence is verified against finalized transactions and the expected operation', () => {
+  assert.match(script, /verify_finalized_transaction/);
+  assert.match(script, /commitment:"finalized"/);
+  assert.match(script, /\.result\.meta\.err == null/);
+  assert.match(script, /\.result\.transaction\.signatures\[0\] == \$signature/);
+  assert.match(script, /\.result\.transaction\.message\.instructions/);
+});
+
+test('missing authority output is not treated as a revoked authority', () => {
+  assert.match(script, /\[\[ "\$1" == "None" \|\| "\$1" == "Disabled" \|\| "\$1" == "\(not set\)" \]\]/);
+  assert.doesNotMatch(script, /\[\[ -z "\$1" \|\|/);
+});
+
+test('Solana signatures use the canonical base58 length range', () => {
+  assert.match(script, /SIGNATURE_PATTERN='\^\[1-9A-HJ-NP-Za-km-z\]\{64,88\}\$'/);
+  assert.doesNotMatch(script, /\{64,90\}/);
+});
