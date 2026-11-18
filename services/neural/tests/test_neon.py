@@ -88,10 +88,13 @@ def test_neon_probe_sanitizes_connection_errors(monkeypatch):
         raise OSError("sensitive host and credential data")
 
     monkeypatch.setitem(sys.modules, "psycopg", types.SimpleNamespace(connect=connect))
-    dsn = f"postgresql://neon_user:{secrets.token_hex(8)}@example.neon.tech/db"
+    password = secrets.token_hex(8)
+    dsn = f"postgresql://neon_user:{password}@example.neon.tech/db"
     with pytest.raises(RuntimeError, match="Neon connectivity probe failed") as error:
         NeonConnectivityProbe(dsn).check()
     assert "sensitive host" not in str(error.value)
+    assert password not in str(error.value)
+
 
 @pytest.mark.parametrize("timeout_seconds", [1, 3, 5])
 def test_neon_connection_options_accepts_bounded_integer_timeouts(timeout_seconds):
