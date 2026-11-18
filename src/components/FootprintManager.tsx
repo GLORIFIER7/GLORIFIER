@@ -275,6 +275,7 @@ export const FootprintManager: React.FC<FootprintManagerProps> = ({
                             key={tierOption.id}
                             onClick={() => onUpdatePrivacyTier(fp.id, tierOption.id as PrivacyTier, fp.privacyEpsilon)}
                             role="button"
+                            aria-pressed={fp.privacyTier === tierOption.id}
                             tabIndex={0}
                             onKeyDown={(event) => {
                               if (event.key === 'Enter' || event.key === ' ') {
