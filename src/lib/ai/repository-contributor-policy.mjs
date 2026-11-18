@@ -57,7 +57,7 @@ const PROFILE_BY_ID = new Map(PROVIDER_PROFILES.map((profile) => [profile.id, pr
 
 const isRecord = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
 const parseTime = (value) => {
-  if (typeof value !== 'string' || !value.trim()) return NaN;
+  if (typeof value !== 'string' || !value.trim()) return Number.NaN;
   return Date.parse(value);
 };
 const isPositiveInteger = (value) => Number.isSafeInteger(value) && value > 0;
