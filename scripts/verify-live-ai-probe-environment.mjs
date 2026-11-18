@@ -1,3 +1,4 @@
+import { stripTrailingSlashes } from './linear-string.mjs';
 import process from "node:process";
 import { pathToFileURL } from "node:url";
 
