@@ -315,6 +315,7 @@ export const MarketplaceOffers: React.FC<MarketplaceOffersProps> = ({
                         Proposed Compensation Rate ($/month)
                       </label>
                       <input
+                        id="glorifier-MarketplaceOffers-tsx-1"
                         type="number"
                         value={counterPrice}
                         onChange={(e) => setCounterPrice(Number.parseFloat(e.target.value) || 0)}
