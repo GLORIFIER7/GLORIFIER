@@ -1,3 +1,4 @@
+import { stripTrailingSlashes } from '../../../scripts/linear-string.mjs';
 const ATTESTATION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const ATTESTATION_MAX_FUTURE_MS = 7 * 24 * 60 * 60 * 1000;
 export const MAX_REPOSITORY_CONTRIBUTOR_PROVIDERS = 16;
@@ -129,7 +130,7 @@ export function normalizeRepositoryProviderEndpoint(providerIdValue, rawUrl) {
       if (url.protocol !== 'https:' || (url.port && url.port !== '443') ||
           !allowedHosts.some((host) => hostname === host || hostname.endsWith('.' + host))) return null;
     }
-    const normalizedPath = url.pathname.replace(/\/+$/, '');
+    const normalizedPath = stripTrailingSlashes(url.pathname);
     return url.origin + normalizedPath;
   } catch {
     return null;
