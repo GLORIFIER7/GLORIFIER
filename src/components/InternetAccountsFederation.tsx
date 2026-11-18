@@ -200,7 +200,10 @@ export const InternetAccountsFederation: React.FC<InternetAccountsFederationProp
                     }
                   }}
                   onClick={(event) => {
-                    if (event.target === event.currentTarget) setSelectedAccount(acc);
+                    const target = event.target;
+                    if (!(target instanceof Element) || !target.closest('button, a, input, select, textarea')) {
+                      setSelectedAccount(acc);
+                    }
                   }}
                   className={`cursor-pointer rounded-xl border p-4 transition-all ${
                     isSelected
