@@ -29,29 +29,13 @@ exports.isWindows = () => {
 exports.removeBackslashes = str => {
   let output = '';
   let index = 0;
-  let preserveBracketClasses = true;
 
   while (index < str.length) {
-    if (preserveBracketClasses && str[index] === '\\' && str[index + 1] === '[') {
-      let close = index + 3;
-
-      // Preserve a complete escaped-opening bracket class only when its closing
-      // bracket is preceded by a non-backslash character, matching the old
-      // parser contract without using a backtracking regular expression.
-      while (close < str.length && (str[close] !== ']' || str[close - 1] === '\\')) {
-        close++;
-      }
-
-      if (close < str.length) {
-        output += str.slice(index, close + 1);
-        index = close + 1;
-        continue;
-      }
-
-      // No closing class exists after this opener. No later opener can form a
-      // complete class either, so finish with a simple linear escape pass.
-      preserveBracketClasses = false;
-      index++;
+    // Preserve the one escaped-empty-class form handled atomically by the
+    // legacy implementation; all other escaped characters lose the slash.
+    if (str[index] === '\\' && str[index + 1] === '[' && str[index + 2] === ']') {
+      output += '\\[]';
+      index += 3;
       continue;
     }
 
