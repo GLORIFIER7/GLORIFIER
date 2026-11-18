@@ -149,6 +149,8 @@ test('EDDI is inventoried as an optional external workforce and remains NOT VERI
     item.kind === 'documentation' && item.reference.endsWith('/docs/mcp-server.md')));
   assert.ok(capability.evidence.some((item) =>
     item.kind === 'documentation' && item.reference.endsWith('/docs/a2a-protocol.md')));
+  assert.ok(capability.evidence.some((item) =>
+    item.kind === 'documentation' && item.reference.endsWith('/docs/tenant-quotas.md')));
   assert.match(capability.boundary, /GEAS-governed/);
   assert.match(capability.limitations.join('\n'), /general-purpose external MCP client/);
   assert.match(capability.limitations.join('\n'), /OIDC/);
@@ -160,6 +162,8 @@ test('EDDI adoption keeps GLORIFIER governance, credentials, memory and economic
   assert.match(eddiAdoption, /No credential forwarding/i);
   assert.match(eddiAdoption, /Keep memory stores separate by default/i);
   assert.match(eddiAdoption, /Reconcile spend independently/i);
+  assert.match(eddiAdoption, /embedding calls.*not currently metered/i);
+  assert.match(eddiAdoption, /unpriced model calls can meter at \$0/i);
   assert.match(eddiAdoption, /Do not automatically retry non-idempotent calls/i);
   assert.match(eddiAdoption, /No external MCP\/A2A request is made/);
   assert.match(gapRegister, /INT-016 \| EDDI external agent workforce/);

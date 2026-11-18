@@ -2095,6 +2095,13 @@
           "targetEnvironment": "GLORIFIER7/GLORIFIER adoption design; source-only",
           "observedAt": null,
           "notes": "Defines extraction decisions, GLORIFIER/GEAS authority boundaries, security constraints, staged acceptance gates and explicit non-actions. No EDDI runtime or external request is enabled."
+        },
+        {
+          "kind": "documentation",
+          "reference": "https://github.com/labsai/EDDI/blob/4255562f6aa0f773851ff1689ddbafb1eec6922b/docs/tenant-quotas.md",
+          "targetEnvironment": "Upstream labsai/EDDI commit 4255562f6aa0f773851ff1689ddbafb1eec6922b; public tenant-quota documentation",
+          "observedAt": null,
+          "notes": "The documented cost model says only priced spend is counted and that embeddings are not currently metered; unpriced model calls may meter at zero unless strict pricing controls are enabled. This supports a limitation, not verified cost completeness."
         }
       ],
       "limitations": [
@@ -2105,7 +2112,8 @@
         "The inspected EDDI MCP documentation describes a broad tool set including non-idempotent create operations; pin a release, review tools/list and allowlist read-only tools before any invocation.",
         "Remote EDDI roles, approvals, memory, costs and audit events do not grant GEAS authority or replace GLORIFIER's evidence and economic ledgers.",
         "No external MCP conformance, A2A conformance, authenticated task exchange, production health, data-boundary test or spend reconciliation has been performed.",
-        "No EDDI source, Java/Quarkus runtime, database, NATS cluster, Keycloak, vector store or dashboard is imported or provisioned."
+        "No EDDI source, Java/Quarkus runtime, database, NATS cluster, Keycloak, vector store or dashboard is imported or provisioned.",
+        "EDDI's inspected tenant-quota documentation says embedding calls are not metered and unpriced model calls can meter at $0 unless strict pricing controls are enabled; remote spend totals are not complete GLORIFIER economic evidence."
       ]
     }
   ]
