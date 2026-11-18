@@ -53,12 +53,12 @@ test('extracts the first non-empty angle-bracket value', () => {
 });
 
 test('normalizes outer JSON and diff fences without regular expressions', () => {
-  assert.equal(stripOuterCodeFence('```json\n{"ok":true}\n```', 'json'), '{"ok":true}\n');
+  assert.equal(stripOuterCodeFence('```json\n{"ok":true}\n```', 'json'), '{"ok":true}');
   assert.equal(stripOuterCodeFence('```diff\n+line\n```', 'diff'), '+line');
   assert.equal(stripOuterCodeFence('plain text  ', 'diff'), 'plain text');
 });
 
 test('extracts the first fenced block with an optional language marker', () => {
-  assert.equal(extractFirstFencedContent('answer ```json\n{"ok":true}\n``` tail', 'json'), '{"ok":true}\\n');
+  assert.equal(extractFirstFencedContent('answer ```json\n{"ok":true}\n``` tail', 'json'), '{"ok":true}\n');
   assert.equal(extractFirstFencedContent('no fence here', 'json'), null);
 });
