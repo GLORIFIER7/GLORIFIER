@@ -91,11 +91,14 @@ def _open_sync_connection(url: str, *, timeout: float) -> http.client.HTTPSConne
     parsed = urlsplit(url)
     if parsed.scheme.casefold() != "https" or not parsed.hostname:
         raise OSError("NVIDIA Dynamo sync transport requires an HTTPS URL")
+    tls_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH)
+    tls_context.verify_mode = ssl.CERT_REQUIRED
+    tls_context.check_hostname = True
     return http.client.HTTPSConnection(
         parsed.hostname,
         parsed.port or 443,
         timeout=timeout,
-        context=ssl.create_default_context(),
+        context=tls_context,
     )
 
 
