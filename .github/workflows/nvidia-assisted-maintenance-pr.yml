@@ -17,7 +17,7 @@ permissions:
   contents: read
   pull-requests: read
 concurrency:
-  group: nvidia-assisted-maintenance-${{ inputs.run_id || 'latest' }}
+  group: nvidia-assisted-maintenance
   cancel-in-progress: false
 jobs:
   propose-fix:
