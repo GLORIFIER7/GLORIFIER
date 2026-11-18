@@ -116,8 +116,10 @@ verify_finalized_transaction() {
           )
           and (
             $expected_authority_type == ""
-            or ($parsed.type == "updateTokenMetadataAuthority" and $parsed.info.newAuthority == null)
-            or ($parsed.type == "updateMetadataPointerAuthority" and $parsed.info.newAuthority == null)
+            or ($parsed.type == "updateTokenMetadataAuthority"
+                and ($parsed.info | type == "object" and has("newAuthority") and .newAuthority == null))
+            or ($parsed.type == "updateMetadataPointerAuthority"
+                and ($parsed.info | type == "object" and has("newAuthority") and .newAuthority == null))
             or $parsed.info.authorityType == $expected_authority_type
           )))
     ' <<< "$response" >/dev/null || {
@@ -387,7 +389,7 @@ jq -n \
   --arg workflowRunUrl "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
   '{
     network:"solana-devnet",
-    status:"VERIFIED_ON_CHAIN",
+    status:"READY_FOR_RECONCILIATION",
     mint:$mint,
     programId:$programId,
     creationTransaction:$creationTransaction,
@@ -400,14 +402,18 @@ jq -n \
     metadataPointerAuthorityRevocationTransaction:$metadataPointerAuthorityRevocationTransaction,
     workflowRunId:$workflowRunId,
     workflowRunUrl:$workflowRunUrl,
+    transactionHistorySource:"FINALIZED_RPC_TRANSACTION_HISTORY",
+    historyComplete:true,
     verifiedFinalState:true,
     transactionSemanticsVerified:true
   }' > "${TEMP_EVIDENCE}"
 
 jq -e --arg mint "${MINT}" --arg program "${TOKEN_2022_PROGRAM}" '
-  .network == "solana-devnet" and .status == "VERIFIED_ON_CHAIN"
+  .network == "solana-devnet" and .status == "READY_FOR_RECONCILIATION"
   and .mint == $mint and .programId == $program and .verifiedFinalState == true
   and .transactionSemanticsVerified == true
+  and .transactionHistorySource == "FINALIZED_RPC_TRANSACTION_HISTORY"
+  and .historyComplete == true
   and ([.creationTransaction, .metadataTransaction, .tokenAccountCreationTransaction, .mintTransaction,
         .mintAuthorityRevocationTransaction, .metadataUpdateAuthorityRevocationTransaction,
         .metadataPointerAuthorityRevocationTransaction]
