@@ -87,6 +87,30 @@ class HistoryTests(unittest.TestCase):
         })
         self.assertFails(d)
 
+    def test_legacy_metadata_instruction_variants_reconcile_to_canonical_receipts(self):
+        d = copy.deepcopy(FIXTURE)
+        for transaction in d["transactions"]:
+            for instruction in transaction["instructions"]:
+                if instruction["type"] == "initializeTokenMetadata":
+                    instruction["type"] = "initializeMetadata"
+                elif instruction["type"] == "updateTokenMetadataAuthority":
+                    instruction["type"] = "setAuthority"
+                    instruction["info"]["authorityType"] = "metadata"
+                elif instruction["type"] == "setAuthority" and instruction["info"].get("authorityType") == "metadataPointer":
+                    instruction["type"] = "updateMetadataPointerAuthority"
+                    instruction["info"].pop("authorityType", None)
+        result = v.analyze(MINT, d)
+        self.assertTrue(result["transactionSemanticsVerified"])
+        self.assertEqual(result["metadataTransaction"], "5vi2wS9SkmFMrdzCPCc3apr9ttcrxvhjBoiWtDn1H5acsAKA92Mtc63W4qatJP46A6uB7MuNDR7d4G9chSpSyW9p")
+        self.assertEqual(result["metadataUpdateAuthorityRevocationTransaction"], "5MAwjhNvP4Ex5xKzQGeJbHZ54QeaDPteAfzPVu6Kp3F4JTYytcoqBNhUFVsiNLjuU1B4Pe5uP2bmCEHi9MB6pVPn")
+        self.assertEqual(result["metadataPointerAuthorityRevocationTransaction"], "2UTZTcuxQBfGbGTV2sfofGdyxDgXtXJEY3AsfzXpFnFm7EsafRaxVH6Lssjqy85j7aEiL6NmSV6stDZaFfg5HxCh")
+
+    def test_authority_revocation_requires_an_explicit_null_new_authority(self):
+        d = copy.deepcopy(FIXTURE)
+        _, instruction = find(d, "updateTokenMetadataAuthority")
+        del instruction["info"]["newAuthority"]
+        self.assertFails(d)
+
     def test_instruction_must_explicitly_target_the_mint_or_metadata(self):
         self.assertTrue(v.touches_mint({"mint": MINT}, MINT))
         self.assertTrue(v.touches_mint({"metadata": MINT}, MINT))
