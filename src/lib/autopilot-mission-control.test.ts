@@ -724,7 +724,7 @@ test('Autopilot does not release dependents when a prerequisite lacks verified e
 });
 
 
-test('legacy sequential missions with seven steps remain claimable after graph introduction', async () => {
+test('legacy sequential mission plans with seven steps remain claimable after graph introduction', async () => {
   const store = new MemoryMissionStore();
   await createAutopilotMission(store, {
     requester: 'owner',
@@ -740,7 +740,7 @@ test('legacy sequential missions with seven steps remain claimable after graph i
     claimed.id,
     claimed.version,
     'worker-legacy',
-    Array.from({ length: 6 }, (_, index) => ({
+    Array.from({ length: 7 }, (_, index) => ({
       id: `legacy-${index + 1}`,
       capability: 'engineering',
       objective: `Legacy sequential step ${index + 1}.`,
@@ -749,20 +749,16 @@ test('legacy sequential missions with seven steps remain claimable after graph i
     '2026-11-18T06:02:00.000Z',
   );
 
-  const legacySteps = [
-    ...planned.steps.map(step => ({ ...step, dependsOn: undefined })),
-    {
-      ...planned.steps[0],
-      id: 'legacy-7',
-      objective: 'Legacy sequential step 7.',
-      dependsOn: undefined,
-      idempotencyKey: `mission:${planned.id}:step:legacy-7`,
-      attemptCount: 0,
-      evidenceRefs: [],
-      status: 'pending' as const,
-    },
-  ] as unknown as AutopilotMission['steps'];
-  store.records.set(planned.id, { ...planned, steps: legacySteps });
+  assert.equal(planned.steps.length, 7);
+  assert.deepEqual(planned.steps.map(step => step.dependsOn), [
+    [],
+    ['legacy-1'],
+    ['legacy-2'],
+    ['legacy-3'],
+    ['legacy-4'],
+    ['legacy-5'],
+    ['legacy-6'],
+  ]);
 
   const recovered = await claimAutopilotMissionStep(
     store,
@@ -797,6 +793,7 @@ test('new dependency-graph plans report the six-node cap separately from legacy 
       'worker-limit',
       Array.from({ length: 7 }, (_, index) => ({
         id: `new-${index + 1}`,
+        dependsOn: index === 0 ? [] : [`new-${index}`],
         capability: 'engineering',
         objective: `New graph step ${index + 1}.`,
         effect: 'read-only' as const,
