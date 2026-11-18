@@ -30,7 +30,7 @@ This survey is broad but not an exhaustive audit of every project in the ecosyst
 | [AG2](https://github.com/ag2ai/ag2) | Hub-based agent networks, typed channels, write-ahead log, audit trail and explicit human-input hooks | **Adopt typed agent messages and append-only collaboration events.** Evaluate as an interoperability peer, not a replacement runtime. |
 | [BeeAI Framework](https://github.com/i-am-bee/beeai) | Rule-driven governance, dynamic workflows, parallelism, retries, declarative definitions, OpenTelemetry and MCP/A2A | **Study deterministic policy separation and telemetry.** GEAS remains the source of authorization decisions. |
 | [Dapr Agents](https://github.com/dapr/dapr-agents) | Durable workflows, virtual actors, pub/sub coordination, persisted state and service-discovery patterns | **Adopt actor lifecycle and recovery ideas where useful.** Avoid adding Dapr infrastructure solely to obtain these patterns. |
-| [Strands Agents](https://github.com/strands-agents/sdk-python) | Model-driven agent loop, tool composition and multi-agent patterns | **Use as a provider/runtime reference.** Do not couple the orchestration core to AWS. |
+| [Strands Agents](https://github.com/strands-agents/harness-sdk) | Model-driven agent loop, tool composition and multi-agent patterns | **Use as a provider/runtime reference.** Do not couple the orchestration core to AWS. |
 | [Mastra](https://github.com/mastra-ai/mastra) | TypeScript-first agents and step-based workflows, typed schemas, suspension/resumption, streaming and replay | **Strong reference for TypeScript workflow ergonomics.** Check the license of each path: core is Apache-2.0, while `ee/` paths use a separate enterprise license. |
 | [Hugging Face smolagents](https://github.com/huggingface/smolagents) | Small, model-agnostic tool/code-agent loop and sub-agent hierarchies | **Adopt minimal loop and tool-interface ideas.** Never treat its local Python executor as a security sandbox. |
 | [CAMEL](https://github.com/camel-ai/camel) and [MetaGPT](https://github.com/FoundationAgents/MetaGPT) | Agent societies, structured roles, software-team decomposition and artifacts | **Use as research patterns for bounded specialist collaboration**, not as proof that agent consensus or generated artifacts are correct. |
@@ -51,13 +51,13 @@ This survey is broad but not an exhaustive audit of every project in the ecosyst
 
 ### D. Durable workflow and task backends
 
-[Temporal](https://github.com/temporalio/temporal), [DBOS](https://github.com/dbos-inc/dbos-transact), [Trigger.dev](https://github.com/triggerdotdev/trigger.dev), and [Hatchet](https://github.com/hatchet-dev/hatchet) provide patterns for durable functions, checkpointed tasks, retries, queues, waits/signals, concurrency control and workflow recovery.
+[Temporal](https://github.com/temporalio/temporal), [DBOS](https://github.com/dbos-inc/dbos-transact-ts), [Trigger.dev](https://github.com/triggerdotdev/trigger.dev), and [Hatchet](https://github.com/hatchet-dev/hatchet) provide patterns for durable functions, checkpointed tasks, retries, queues, waits/signals, concurrency control and workflow recovery.
 
 **GLORIFIER decision:** compare these against the already implemented PostgreSQL mission ledger before adding infrastructure. A second scheduler, event store, database, or worker control plane is not justified by feature overlap alone. Reconsider only if measured requirements exceed the existing lease, retry, persistence, throughput, or operational envelope. Review license and self-hosting conditions per version; some workflow products commonly grouped in this category are source-available or fair-code rather than OSI open source.
 
 ### E. Memory and knowledge layers
 
-[Mem0](https://github.com/mem0ai/mem0), [Graphiti](https://github.com/getzep/graphiti), and [Letta](https://github.com/letta-ai/letta) illustrate scoped memory, temporal facts, persistent agent state, and long-term knowledge.
+[Mem0](https://github.com/mem0ai/mem0), [Graphiti](https://github.com/getzep/graphiti), and [Letta](https://github.com/letta-ai/letta-code) illustrate scoped memory, temporal facts, persistent agent state, and long-term knowledge.
 
 **GLORIFIER decision:** memory is context, not evidence and not policy. Any future memory adapter must enforce requester/tenant/mission/role scopes, provenance, data classification, retention and deletion, source timestamps, and conflict handling. The authoritative mission ledger and evidence records remain separate from model-generated memory. Do not add another vector database without a measured retrieval gap and a reviewed data-governance plan.
 
