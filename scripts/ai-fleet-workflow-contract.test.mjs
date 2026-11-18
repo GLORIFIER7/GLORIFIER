@@ -9,11 +9,20 @@ const claudeWorkflow = readFileSync(new URL('../.github/workflows/claude-develop
 const ciWorkflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const neuralCiWorkflow = readFileSync(new URL('../.github/workflows/neural-ci.yml', import.meta.url), 'utf8');
 const geminiCollaboratorWorkflow = readFileSync(new URL('../.github/workflows/gemini-collaborator.yml', import.meta.url), 'utf8');
-const geminiPublishStart = geminiCollaboratorWorkflow.indexOf('\n  publish:\n');
+function sliceAfterMarker(source, marker) {
+  const start = source.indexOf(marker);
+  return start < 0 ? '' : source.slice(start);
+}
+
+const geminiPublishMarker = '\n  publish:\n';
+const geminiPublish = sliceAfterMarker(geminiCollaboratorWorkflow, geminiPublishMarker);
 test('Gemini collaborator declares a separate publisher job', () => {
-  assert.ok(geminiPublishStart >= 0, 'Gemini collaborator must declare a separate publisher job');
+  assert.notEqual(geminiPublish, '', 'Gemini collaborator must declare a separate publisher job');
 });
-const geminiPublish = geminiCollaboratorWorkflow.slice(geminiPublishStart);
+
+test('a missing Gemini publisher marker cannot turn the final character into a valid publisher section', () => {
+  assert.equal(sliceAfterMarker('jobs:\n  review:\n    steps: []\n', geminiPublishMarker), '');
+});
 const geminiDevelopmentWorkflow = readFileSync(new URL('../.github/workflows/gemini-development.yml', import.meta.url), 'utf8');
 const geminiPrReviewWorkflow = readFileSync(new URL('../.github/workflows/gemini-pr-review.yml', import.meta.url), 'utf8');
 const nvidiaTriageWorkflow = readFileSync(new URL('../.github/workflows/nvidia-ci-triage.yml', import.meta.url), 'utf8');
