@@ -73,7 +73,7 @@ export const DataSampleModal: React.FC<DataSampleModalProps> = ({
               max="1.2"
               step="0.05"
               value={currentEpsilon}
-              onChange={(e) => handleSliderChange(parseFloat(e.target.value))}
+              onChange={(e) => handleSliderChange(Number.parseFloat(e.target.value))}
               className="w-full accent-emerald-500 cursor-pointer h-1.5 bg-slate-800 rounded"
             />
             <div className="flex justify-between text-[9px] text-slate-500 font-mono mt-1">
