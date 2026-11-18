@@ -635,8 +635,8 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-400 mb-1">Error Message / Description</label>
-                <textarea
+                <label htmlFor="edit-error-message" className="block text-slate-400 mb-1">Error Message / Description</label>
+                <textare id="edit-error-message"a
                   value={editMessage}
                   onChange={(e) => setEditMessage(e.target.value)}
                   rows={2}
@@ -645,8 +645,8 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Patch Diff Snippet</label>
-                <textarea
+                <label htmlFor="edit-patch-diff" className="block text-slate-400 mb-1">Patch Diff Snippet</label>
+                <textare id="edit-patch-diff"a
                   value={editPatch}
                   onChange={(e) => setEditPatch(e.target.value)}
                   rows={5}
@@ -655,8 +655,8 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Lifecycle Status</label>
-                <select
+                <label htmlFor="edit-lifecycle-status" className="block text-slate-400 mb-1">Lifecycle Status</label>
+                <selec id="edit-lifecycle-status"t
                   value={editStatus}
                   onChange={(e) => setEditStatus(e.target.value as ErrorLifecycleStatus)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
@@ -703,8 +703,8 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-400 mb-1">Error Code Identifier</label>
-                <input
+                <label htmlFor="new-error-code" className="block text-slate-400 mb-1">Error Code Identifier</label>
+                <inpu id="new-error-code"t
                   type="text"
                   value={newErrorCode}
                   onChange={(e) => setNewErrorCode(e.target.value)}
@@ -713,8 +713,8 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Source Component / File</label>
-                <input
+                <label htmlFor="new-error-source" className="block text-slate-400 mb-1">Source Component / File</label>
+                <inpu id="new-error-source"t
                   type="text"
                   value={newErrorSource}
                   onChange={(e) => setNewErrorSource(e.target.value)}
@@ -723,8 +723,8 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Error Message / Symptom</label>
-                <textarea
+                <label htmlFor="new-error-message" className="block text-slate-400 mb-1">Error Message / Symptom</label>
+                <textare id="new-error-message"a
                   value={newErrorMessage}
                   onChange={(e) => setNewErrorMessage(e.target.value)}
                   rows={2}
@@ -733,8 +733,8 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Severity</label>
-                <select
+                <label htmlFor="new-error-severity" className="block text-slate-400 mb-1">Severity</label>
+                <selec id="new-error-severity"t
                   value={newErrorSeverity}
                   onChange={(e) => setNewErrorSeverity(e.target.value as ErrorSeverity)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-emerald-500"

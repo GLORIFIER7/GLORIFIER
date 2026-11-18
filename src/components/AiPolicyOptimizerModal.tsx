@@ -189,9 +189,9 @@ export const AiPolicyOptimizerModal: React.FC<AiPolicyOptimizerModalProps> = ({
         <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
           {/* Risk Tolerance Level Selector */}
           <div>
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-3">
+            <div className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-3">
               Step 1: Select Your Sovereign Risk Tolerance
-            </label>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* Conservative */}
               <button

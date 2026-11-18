@@ -591,9 +591,9 @@ Treat every response as AI-generated analysis or draft text, not evidence that a
 
             {/* Allowed Buyer Purposes Toggles */}
             <div className="pt-3 border-t border-slate-800 space-y-2.5">
-              <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
                 Buyer-Purpose Preferences (Local Only)
-              </label>
+              </div>
               <p className="text-[10px] text-slate-500">These switches record application preferences only. They do not authorize or block an external data release.</p>
 
               {/* AI Pretraining */}

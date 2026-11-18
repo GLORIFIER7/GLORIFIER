@@ -261,9 +261,9 @@ export const FootprintManager: React.FC<FootprintManagerProps> = ({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Privacy Tier Selector */}
                     <div>
-                      <label className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider block mb-1.5">
+                      <div className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider block mb-1.5">
                         Selected privacy technique (configuration only)
-                      </label>
+                      </div>
                       <div className="grid grid-cols-2 gap-2">
                         {[
                           { id: 'differential-privacy', label: 'Differential Privacy (ε)', desc: 'Selection only; runtime enforcement not verified' },
