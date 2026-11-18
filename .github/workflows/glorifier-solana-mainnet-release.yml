@@ -127,7 +127,7 @@ jobs:
             [ -n "$ID" ] || continue
             [ "$ID" != "$GITHUB_RUN_ID" ] || continue
             ARTS="$(gh api "/repos/$GITHUB_REPOSITORY/actions/runs/$ID/artifacts?per_page=100")"
-            while IFS=
+            while read -r AID DIGEST; do
               [ -n "$AID" ] || continue
               rm -rf /tmp/glr-replay; mkdir -p /tmp/glr-replay
               [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::Prior Mainnet evidence artifact has no valid SHA-256 digest; refusing replay lock verification."; exit 1; }
@@ -423,23 +423,6 @@ jobs:
           set -euo pipefail
           chmod +x solana/publish-verified-mainnet-identity.sh
           ./solana/publish-verified-mainnet-identity.sh
-\t' read -r AID _; do
-              [ -n "$AID" ] || continue
-              rm -rf /tmp/glr-replay; mkdir -p /tmp/glr-replay
-              gh api "/repos/$GITHUB_REPOSITORY/actions/artifacts/$AID/zip" > /tmp/glr-replay.zip
-              unzip -oq /tmp/glr-replay.zip -d /tmp/glr-replay
-              E="$(find /tmp/glr-replay -type f -name deployment-mainnet-evidence.json -print -quit || true)"
-              if [ -n "$E" ] && jq -e '.network=="solana-mainnet" and (.mint|type=="string") and .status=="READY_FOR_VERIFICATION"' "$E" >/dev/null; then
-                echo "::error::A prior mainnet run produced a completed deployment. Reconcile it; never mint a second canonical GLR."
-                exit 1
-              fi
-              if [ -n "$E" ] && jq -e '.network=="solana-mainnet" and (.mint|type=="string") and .status=="DEPLOYED"' "$E" >/dev/null; then
-                M="$(jq -r '.mint' "$E")"
-                test "$M" = "7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9" || { echo "::error::An unexpected incomplete Mainnet mint exists; refusing to mint another."; exit 1; }
-              fi
-            done < <(jq -r '[.artifacts[]? | select(.expired==false) | select(.name=="glorifier-solana-mainnet-evidence")] | .[] | [(.id|tostring),(.digest//"")] | @tsv' <<<"$ARTS")
-          done < <(jq -r '[.workflow_runs[]? | select(.event=="workflow_dispatch") | select(.head_branch=="main") | select(.path==".github/workflows/glorifier-solana-mainnet-release.yml")] | .[].id' <<<"$RUNS")
-          echo "Mainnet replay lock passed."
 
   deploy:
     name: Deploy GLR Token-2022 to Solana Mainnet
