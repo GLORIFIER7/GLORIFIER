@@ -43,10 +43,10 @@ test('preserves representative non-risky extglob behavior', () => {
 });
 
 test('backslash cleanup preserves the legacy escaped-empty-class case', () => {
-  assert.equal(utils.removeBackslashes('\\\\[]'), '\\\\[]');
-  assert.equal(utils.removeBackslashes('\\\\[abc]'), '[abc]');
-  assert.equal(utils.removeBackslashes('\\\\[abc\\\\]'), '[abc]');
-  assert.equal(utils.removeBackslashes('foo\\\\ bar\\\\\\\\baz\\\\'), 'foo barbaz\\\\');
+  assert.equal(utils.removeBackslashes('\\[]'), '\\[]');
+  assert.equal(utils.removeBackslashes('\\[abc]'), '[abc]');
+  assert.equal(utils.removeBackslashes('\\[abc\\]'), '[abc]');
+  assert.equal(utils.removeBackslashes('foo\\ bar\\\\baz\\'), 'foo barbaz\\');
 });
 test('backslash cleanup processes repeated unmatched opening brackets in bounded time', () => {
   const count = 25000;
