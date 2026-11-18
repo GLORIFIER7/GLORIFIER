@@ -116,7 +116,7 @@ test('legacy sequential missions above six steps remain normalizable and schedul
     step.id,
     index === 6 ? 'pending' as const : 'completed' as const,
   ]));
-  assert.deepEqual(getReadyAutopilotGraphWave(graph, statuses, 2).map((step) => step.id), ['legacy-7']);
+  assert.deepEqual(getReadyAutopilotGraphWave(graph, statuses, 2, 30).map((step) => step.id), ['legacy-7']);
 });
 
 test('a running mutation prevents another mutation from entering the same execution wave', () => {
