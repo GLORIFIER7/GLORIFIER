@@ -509,10 +509,14 @@ export async function recordAutopilotMissionPlan(
   if (!Array.isArray(plan) || plan.length < 1 || plan.length > MAX_STEPS) {
     throw new Error(`mission plan must contain between 1 and ${MAX_STEPS} steps.`);
   }
-  if (plan.length > MAX_GRAPH_NODES) {
+  const hasExplicitDependencies = plan.some((step) => step.dependsOn !== undefined);
+  if (hasExplicitDependencies && plan.length > MAX_GRAPH_NODES) {
     throw new Error(`New dependency graphs are limited to ${MAX_GRAPH_NODES} steps; legacy sequential missions may contain up to ${MAX_STEPS} steps.`);
   }
-  const normalizedPlan = normalizeAutopilotGraph(plan);
+  const normalizedPlan = normalizeAutopilotGraph(
+    plan,
+    hasExplicitDependencies ? MAX_GRAPH_NODES : MAX_STEPS,
+  );
   const ids = new Set<string>();
   const steps: AutopilotMissionStep[] = normalizedPlan.map((step) => {
     const id = requireNonEmpty(step.id, 'step id', 128);
