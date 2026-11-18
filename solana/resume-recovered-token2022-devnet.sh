@@ -397,7 +397,7 @@ jq -n \
   }' > "${TEMP_EVIDENCE}"
 
 jq -e --arg mint "${MINT}" --arg program "${TOKEN_2022_PROGRAM}" '
-  .network == "solana-devnet" and .status == "READY_FOR_RECONCILIATION"
+  .network == "solana-devnet" and .status == "VERIFIED_ON_CHAIN"
   and .mint == $mint and .programId == $program and .verifiedFinalState == true
   and .transactionSemanticsVerified == true
   and ([.creationTransaction, .metadataTransaction, .tokenAccountCreationTransaction, .mintTransaction,
