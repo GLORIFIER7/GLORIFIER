@@ -80,7 +80,7 @@ export const verifyLiveAiEnvironment = async ({ token, repository, apiUrl = "htt
     throw new Error("GITHUB_REPOSITORY must be in owner/repository form");
   }
 
-  const base = apiUrl.replace(/\/+$/, "");
+  const base = stripTrailingSlashes(apiUrl);
   const [owner, repoName] = repository.split("/");
   const encodedRepository = `${encodeURIComponent(owner)}/${encodeURIComponent(repoName)}`;
   const encodedEnvironment = encodeURIComponent(REQUIRED_ENVIRONMENT);
