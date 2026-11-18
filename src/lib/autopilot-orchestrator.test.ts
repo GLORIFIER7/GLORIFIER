@@ -415,3 +415,65 @@ test('Autopilot free-provider authorization rejects an attested model absent fro
     { id: 'gemini', status: 'connected', models: ['different-model'] },
   ], now), false);
 });
+
+
+test('Autopilot accepts explicit dependency graphs and normalizes steps into topological order', () => {
+  const plan = validateAutopilotPlan(JSON.stringify({
+    steps: [
+      { id: 'synthesize', capability: 'github.get_repository', objective: 'Synthesize verified findings.', dependsOn: ['inspect', 'list'] },
+      { id: 'inspect', capability: 'github.read_file', objective: 'Inspect repository documentation.', arguments: { path: 'README.md', ref: 'main' }, dependsOn: [] },
+      { id: 'list', capability: 'github.list_pull_requests', objective: 'List open pull requests.', arguments: { state: 'open', per_page: 5 }, dependsOn: [] },
+    ],
+  }));
+
+  assert.deepEqual(plan.map((step) => step.id), ['inspect', 'list', 'synthesize']);
+  assert.deepEqual(plan[2].dependsOn, ['inspect', 'list']);
+});
+
+test('Autopilot rejects unknown dependencies and cyclic graph plans before execution', () => {
+  assert.throws(() => validateAutopilotPlan(JSON.stringify({
+    steps: [
+      { id: 'inspect', capability: 'github.get_repository', objective: 'Inspect repository.', dependsOn: ['missing'] },
+    ],
+  })), /unknown dependency/);
+
+  assert.throws(() => validateAutopilotPlan(JSON.stringify({
+    steps: [
+      { id: 'first', capability: 'github.get_repository', objective: 'Read first.', dependsOn: ['second'] },
+      { id: 'second', capability: 'github.list_pull_requests', objective: 'Read second.', dependsOn: ['first'] },
+    ],
+  })), /dependency cycle/);
+});
+
+test('Autopilot requires graph prerequisites for each repository update and final draft PR', () => {
+  const branch = 'autopilot/mission-graph-1';
+  const hashA = 'a'.repeat(64);
+  const hashB = 'b'.repeat(64);
+  const plan = JSON.stringify({
+    steps: [
+      { id: 'branch', capability: 'github.create_branch', objective: 'Create the mission branch.', arguments: { branch, base_ref: 'main' }, dependsOn: [] },
+      { id: 'read-a', capability: 'github.read_file', objective: 'Inspect file A.', arguments: { path: 'src/lib/a.ts', ref: branch }, dependsOn: ['branch'] },
+      { id: 'read-b', capability: 'github.read_file', objective: 'Inspect file B.', arguments: { path: 'src/lib/b.ts', ref: branch }, dependsOn: ['branch'] },
+      { id: 'update-a', capability: 'github.update_file', objective: 'Update file A.', arguments: { branch, path: 'src/lib/a.ts', content: 'export const a = 1;', message: 'fix: update a', expectedContentSha256: hashA }, dependsOn: ['read-a'] },
+      { id: 'update-b', capability: 'github.update_file', objective: 'Update file B.', arguments: { branch, path: 'src/lib/b.ts', content: 'export const b = 1;', message: 'fix: update b', expectedContentSha256: hashB }, dependsOn: ['read-b'] },
+      { id: 'pr', capability: 'github.create_pull_request', objective: 'Open the draft PR.', arguments: { branch, title: 'Fix graph dependencies', body: 'Review the changes.' }, dependsOn: ['update-a', 'update-b'] },
+    ],
+  });
+
+  const validated = validateAutopilotPlan(plan, {
+    expectedBranch: branch,
+    allowWrites: true,
+    inspectedPaths: ['src/lib/a.ts', 'src/lib/b.ts'],
+    expectedSourceHashes: { 'src/lib/a.ts': hashA, 'src/lib/b.ts': hashB },
+  });
+  assert.deepEqual(validated[5].dependsOn, ['update-a', 'update-b']);
+
+  const unsafe = JSON.parse(plan) as { steps: Array<Record<string, unknown>> };
+  unsafe.steps[5].dependsOn = ['update-a'];
+  assert.throws(() => validateAutopilotPlan(JSON.stringify(unsafe), {
+    expectedBranch: branch,
+    allowWrites: true,
+    inspectedPaths: ['src/lib/a.ts', 'src/lib/b.ts'],
+    expectedSourceHashes: { 'src/lib/a.ts': hashA, 'src/lib/b.ts': hashB },
+  }), /depend on every repository update/);
+});

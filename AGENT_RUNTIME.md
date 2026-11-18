@@ -30,6 +30,14 @@ Mission records are requester-scoped and idempotent. Mission state changes use o
 
 The mission ledger provides durable state, requester scoping, idempotent creation, optimistic concurrency, bounded leases, evidence references, and crash reconciliation. Provider-backed planning, bounded read-only inspection, and optional branch-scoped GitHub maintenance are described in the following section.
 
+### Native bounded agent graph
+
+New Autopilot plans use a validated directed acyclic graph (DAG) carried inside the existing mission payload. Each step can declare `dependsOn` prerequisite step IDs. The validator rejects duplicate IDs, unknown/self/duplicate dependencies, cycles, unsupported effects and graphs larger than six nodes. Plans from before dependency support remain sequential by default.
+
+The scheduler releases a step only after each prerequisite is completed with verified evidence. It may dispatch up to two independent read-only GitHub steps concurrently. Mutating and irreversible steps are serialized; the existing capability authorization, GEAS, isolated-branch writer and human approval controls remain mandatory. Claims and completion writes are serialized through the mission store's optimistic version checks. All in-flight steps settle before a failed wave is moved into reconciliation, and successful siblings are recorded before failure handling.
+
+Dependencies are stored in the existing JSONB mission payload, so this feature does not require a new database, scheduler, hosted platform, paid service, or schema migration. This graph contract is not a claim that every third-party agent framework is connected or that external A2A/MCP conformance has been completed.
+
 ### Unified observation intake
 
 The system daemon now submits component failures to the same persistent mission ledger through `src/lib/autopilot-observation-intake.ts`. Observation sources are allowlisted (daemon components, continuous improvement, CI, GEAS, providers, integrations, security, opportunities, agent runtime, and business operations). Each event is bounded, timestamp-validated, credential-redacted, and assigned a deterministic source-scoped idempotency key. The event is stored as an investigation mission; intake does not start execution or bypass AI CEO planning, GEAS/GATS policy, capability authorization, budget controls, or human approval. Observation text is explicitly untrusted data and cannot become an instruction to the executor.

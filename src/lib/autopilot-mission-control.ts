@@ -5,6 +5,7 @@ import { aiOrchestrator } from './ai/orchestrator';
 import { getProviderEndpointUrl } from './ai/registry';
 import { getRepositoryFreeContributorPolicy, normalizeRepositoryProviderEndpoint } from './ai/repository-contributor-policy.mjs';
 import { hasGithubAppWriteConfiguration } from './github-app-auth';
+import { normalizeAutopilotGraph } from './autopilot-graph';
 
 export type AutopilotMissionStatus =
   | 'queued'
@@ -46,6 +47,7 @@ export type AutopilotMissionStep = {
   capability: string;
   objective: string;
   effect: AutopilotActionEffect;
+  dependsOn?: string[];
   status: AutopilotMissionStepStatus;
   idempotencyKey: string;
   evidenceRefs: string[];
@@ -82,7 +84,7 @@ export type AutopilotMission = {
 export type AutopilotMissionPlanStep = Pick<
   AutopilotMissionStep,
   'id' | 'capability' | 'objective' | 'effect'
-> & { toolArguments?: Record<string, unknown> };
+> & { dependsOn?: string[]; toolArguments?: Record<string, unknown> };
 
 export interface AutopilotMissionStore {
   initialize(): Promise<void>;
@@ -507,8 +509,9 @@ export async function recordAutopilotMissionPlan(
   if (!Array.isArray(plan) || plan.length < 1 || plan.length > MAX_STEPS) {
     throw new Error(`mission plan must contain between 1 and ${MAX_STEPS} steps.`);
   }
+  const normalizedPlan = normalizeAutopilotGraph(plan);
   const ids = new Set<string>();
-  const steps: AutopilotMissionStep[] = plan.map((step) => {
+  const steps: AutopilotMissionStep[] = normalizedPlan.map((step) => {
     const id = requireNonEmpty(step.id, 'step id', 128);
     const capability = requireNonEmpty(step.capability, 'step capability', 128);
     const objective = requireNonEmpty(step.objective, 'step objective', MAX_OBJECTIVE_LENGTH);
@@ -526,6 +529,7 @@ export async function recordAutopilotMissionPlan(
       capability,
       objective,
       effect: step.effect,
+      dependsOn: [...step.dependsOn],
       status: 'pending',
       ...(step.toolArguments ? { toolArguments: structuredClone(step.toolArguments) } : {}),
       attemptCount: 0,
@@ -566,6 +570,16 @@ export async function claimAutopilotMissionStep(
   if (index < 0) throw new Error('Autopilot mission step not found.');
   const step = mission.steps[index];
   if (step.status !== 'pending') throw new Error('mission step is not pending and cannot be replayed.');
+  const graph = normalizeAutopilotGraph(mission.steps);
+  const graphStep = graph.find((entry) => entry.id === step.id);
+  if (!graphStep) throw new Error('Autopilot mission step is missing from its validated dependency graph.');
+  const unresolvedDependencies = graphStep.dependsOn.filter((dependency) => {
+    const prerequisite = mission.steps.find((entry) => entry.id === dependency);
+    return prerequisite?.status !== 'completed' || prerequisite.verification?.status !== 'verified';
+  });
+  if (unresolvedDependencies.length > 0) {
+    return { claimed: false, reason: 'dependencies-not-completed', mission };
+  }
   if (step.effect === 'irreversible') {
     const approver = approval && typeof approval.approvedBy === 'string' ? approval.approvedBy.trim() : '';
     if (!approver || !approval?.approvedAt || !Number.isFinite(Date.parse(approval.approvedAt))) {

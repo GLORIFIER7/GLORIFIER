@@ -270,7 +270,33 @@ test('Autopilot recovery quarantines expired in-flight work instead of replaying
     { id: 'inspect', capability: 'engineering', objective: 'Inspect state.', effect: 'read-only' },
     { id: 'write', capability: 'engineering', objective: 'Write a reversible change.', effect: 'reversible' },
   ], '2026-11-13T08:02:00.000Z');
-  const started = await claimAutopilotMissionStep(store, planned.id, 'write', 'worker-1', undefined, '2026-11-13T08:03:00.000Z');
+  const inspection = await claimAutopilotMissionStep(
+    store, planned.id, 'inspect', 'worker-1', undefined, '2026-11-13T08:03:00.000Z',
+  );
+  assert.equal(inspection.claimed, true);
+  const verifiedAt = '2026-11-13T08:03:30.000Z';
+  const verifiedInspection = await completeAutopilotMissionStep(
+    store,
+    planned.id,
+    'inspect',
+    inspection.mission.version,
+    'worker-1',
+    ['github-verification://github-rest-source-readback-v1/' + 'a'.repeat(64)],
+    verifiedAt,
+    {
+      status: 'verified',
+      verifierId: 'github-rest-source-readback-v1',
+      sourceUrl: 'https://api.github.com/repos/GLORIFIER7/GLORIFIER/contents/README.md',
+      verifiedAt,
+      sourceSha256: 'a'.repeat(64),
+      executionSha256: 'a'.repeat(64),
+    },
+  );
+  assert.equal(verifiedInspection.steps[0].status, 'completed');
+
+  const started = await claimAutopilotMissionStep(
+    store, planned.id, 'write', 'worker-1', undefined, '2026-11-13T08:04:00.000Z',
+  );
   assert.equal(started.mission.steps[1].status, 'running');
 
   const recovered = await recoverAutopilotMissions(store, '2026-11-13T08:10:00.000Z');
@@ -597,4 +623,102 @@ test('Autopilot provider readiness requires exact attested endpoints and never h
     if (originalBaseUrl === undefined) delete process.env.OPENAI_BASE_URL;
     else process.env.OPENAI_BASE_URL = originalBaseUrl;
   }
+});
+
+
+test('Autopilot persists graph prerequisites and refuses to claim a dependent step early', async () => {
+  const store = new MemoryMissionStore();
+  const now = '2026-11-18T06:00:00.000Z';
+  const mission = await createAutopilotMission(store, {
+    requester: 'owner-graph',
+    idempotencyKey: 'graph-dependency-001',
+    objective: 'Inspect a source before preparing its dependent operation.',
+    now,
+  });
+  const leased = await claimNextAutopilotMission(store, 'graph-worker', 60_000, now);
+  assert.ok(leased);
+
+  const planned = await recordAutopilotMissionPlan(store, mission.id, leased.version, 'graph-worker', [
+    { id: 'inspect', capability: 'github.read_file', objective: 'Inspect the approved source.', effect: 'read-only', dependsOn: [] },
+    { id: 'publish', capability: 'github.update_file', objective: 'Apply the reviewed update.', effect: 'reversible', dependsOn: ['inspect'] },
+  ], now);
+
+  assert.deepEqual(planned.steps[1].dependsOn, ['inspect']);
+  const earlyClaim = await claimAutopilotMissionStep(store, mission.id, 'publish', 'graph-worker', undefined, now);
+  assert.equal(earlyClaim.claimed, false);
+  assert.equal(earlyClaim.reason, 'dependencies-not-completed');
+
+  const inspectionClaim = await claimAutopilotMissionStep(store, mission.id, 'inspect', 'graph-worker', undefined, now);
+  assert.equal(inspectionClaim.claimed, true);
+  const verifiedAt = '2026-11-18T06:00:01.000Z';
+  const verified = {
+    status: 'verified' as const,
+    verifierId: 'github-rest-source-readback-v1',
+    sourceUrl: 'https://api.github.com/repos/GLORIFIER7/GLORIFIER/contents/README.md',
+    verifiedAt,
+    sourceSha256: 'a'.repeat(64),
+    executionSha256: 'a'.repeat(64),
+  };
+  const complete = await completeAutopilotMissionStep(
+    store,
+    mission.id,
+    'inspect',
+    inspectionClaim.mission.version,
+    'graph-worker',
+    ['github-verification://github-rest-source-readback-v1/' + 'a'.repeat(64)],
+    verifiedAt,
+    verified,
+  );
+  assert.equal(complete.steps.find((step) => step.id === 'inspect')?.status, 'completed');
+
+  const dependentClaim = await claimAutopilotMissionStep(
+    store,
+    mission.id,
+    'publish',
+    'graph-worker',
+    undefined,
+    '2026-11-18T06:00:02.000Z',
+  );
+  assert.equal(dependentClaim.claimed, true);
+});
+
+
+test('Autopilot does not release dependents when a prerequisite lacks verified evidence', async () => {
+  const store = new MemoryMissionStore();
+  const now = '2026-11-18T06:10:00.000Z';
+  const mission = await createAutopilotMission(store, {
+    requester: 'owner-unverified-graph',
+    idempotencyKey: 'graph-unverified-001',
+    objective: 'Keep an unverified prerequisite from releasing downstream work.',
+    now,
+  });
+  const leased = await claimNextAutopilotMission(store, 'graph-worker', 60_000, now);
+  assert.ok(leased);
+  await recordAutopilotMissionPlan(store, mission.id, leased.version, 'graph-worker', [
+    { id: 'inspect', capability: 'github.read_file', objective: 'Inspect source.', effect: 'read-only', dependsOn: [] },
+    { id: 'update', capability: 'github.update_file', objective: 'Update source.', effect: 'reversible', dependsOn: ['inspect'] },
+  ], now);
+
+  const claimed = await claimAutopilotMissionStep(store, mission.id, 'inspect', 'graph-worker', undefined, now);
+  assert.equal(claimed.claimed, true);
+  await completeAutopilotMissionStep(
+    store,
+    mission.id,
+    'inspect',
+    claimed.mission.version,
+    'graph-worker',
+    ['inspection-result://unverified'],
+    '2026-11-18T06:10:01.000Z',
+  );
+
+  const dependent = await claimAutopilotMissionStep(
+    store,
+    mission.id,
+    'update',
+    'graph-worker',
+    undefined,
+    '2026-11-18T06:10:02.000Z',
+  );
+  assert.equal(dependent.claimed, false);
+  assert.equal(dependent.reason, 'dependencies-not-completed');
 });

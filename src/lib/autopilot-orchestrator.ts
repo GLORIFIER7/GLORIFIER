@@ -8,6 +8,7 @@ import { estimateRepositoryInputTokenUpperBound, reserveRepositoryProviderReques
 import { createA2ATaskForProtocol, executeA2ATask, getA2ARuntimeStatus } from './a2a-runtime';
 import { authorizeCapability } from './capability-authorization';
 import { evaluateGeasPolicy } from './governance/geas-policy-engine';
+import { getAutopilotGraphAncestors, getReadyAutopilotGraphWave, normalizeAutopilotGraph } from './autopilot-graph';
 import { executeAutopilotToolStep, normalizeGithubToolInvocation } from './autopilot-execution-fabric';
 import { isAllowedAutopilotWritePath, normalizeAutopilotWriteBranch } from './autopilot-github-write';
 import { hasGithubAppWriteConfiguration, type GithubAppWriterIdentity } from './github-app-auth';
@@ -286,12 +287,12 @@ export function validateAutopilotPlan(
     throw new Error('AI CEO plan must contain between 1 and 6 steps.');
   }
   const ids = new Set<string>();
-  const plan = parsed.steps.map((value, index) => {
+  const rawPlan = parsed.steps.map((value, index) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       throw new Error(`Plan step ${index + 1} is invalid.`);
     }
     const step = value as Record<string, unknown>;
-    if (Object.keys(step).some(key => !['id', 'capability', 'objective', 'arguments'].includes(key))) {
+    if (Object.keys(step).some(key => !['id', 'capability', 'objective', 'arguments', 'dependsOn'].includes(key))) {
       throw new Error(`Plan step ${index + 1} contains unsupported fields.`);
     }
     if (typeof step.id !== 'string' || typeof step.capability !== 'string' || typeof step.objective !== 'string') {
@@ -311,15 +312,24 @@ export function validateAutopilotPlan(
     if (isWrite && options.allowWrites !== true) {
       throw new Error(`Plan step ${id} requests a repository write while the write adapter is disabled.`);
     }
+    let dependsOn: string[] | undefined;
+    if (step.dependsOn !== undefined) {
+      if (!Array.isArray(step.dependsOn) || step.dependsOn.some(dependency => typeof dependency !== 'string')) {
+        throw new Error(`Plan step ${id} has an invalid dependsOn list.`);
+      }
+      dependsOn = step.dependsOn as string[];
+    }
     const invocation = normalizeGithubToolInvocation(capability, step.arguments ?? {});
     return {
       id,
       capability,
       objective,
       effect: isWrite ? 'reversible' : 'read-only',
+      ...(dependsOn === undefined ? {} : { dependsOn }),
       toolArguments: invocation.arguments,
     } as PlannedStep;
   });
+  const plan = normalizeAutopilotGraph(rawPlan);
 
   const writeSteps = plan.filter(step =>
     (REVERSIBLE_REPOSITORY_WRITE_CAPABILITIES as readonly string[]).includes(step.capability),
@@ -375,6 +385,20 @@ export function validateAutopilotPlan(
         lastRead >= firstUpdate || firstUpdate < 2 ||
         plan.slice(firstUpdate, prIndex).some(step => step.capability !== 'github.update_file')) {
       throw new Error('Repository repair steps must follow branch, source reads, file updates, then draft PR order.');
+    }
+    const branchId = branchSteps[0].id;
+    if (readSteps.some(step => !getAutopilotGraphAncestors(plan, step.id).includes(branchId))) {
+      throw new Error('Every repository source read must depend on completion of the mission-scoped branch creation.');
+    }
+    for (const step of updateSteps) {
+      const path = String(step.toolArguments?.path || '');
+      const readStep = readSteps.find(candidate => candidate.toolArguments?.path === path);
+      if (!readStep || !getAutopilotGraphAncestors(plan, step.id).includes(readStep.id)) {
+        throw new Error('Every repository update must depend on its own source-read step.');
+      }
+    }
+    if (updateSteps.some(step => !getAutopilotGraphAncestors(plan, pullRequestSteps[0].id).includes(step.id))) {
+      throw new Error('The draft pull request must depend on every repository update.');
     }
     for (const step of updateSteps) {
       const path = String(step.toolArguments?.path || '');
@@ -469,10 +493,10 @@ async function planMission(objective: string, missionId: string) {
     const systemPrompt = writePlanningEnabled
       ? [
           'You are the GLORIFIER AI CEO. Prepare a bounded repository repair as an isolated branch and draft pull request. Never change main.',
-          'Return strict JSON only with shape {"steps":[{"id":"short-id","capability":"github.create_branch","objective":"...","arguments":{"branch":"<exact-branch>","base_ref":"main"}}]}.',
+          'Return strict JSON only with shape {"steps":[{"id":"short-id","dependsOn":[],"capability":"github.create_branch","objective":"...","arguments":{"branch":"<exact-branch>","base_ref":"main"}}]}.',
           'The exact branch for this mission is ' + expectedBranch + '. Use only this branch for all writes and use main as the PR base.',
           'Valid operations are github.create_branch, github.read_file, github.update_file, and github.create_pull_request. Use 1-6 steps.',
-          'The order must be: one create_branch, one github.read_file per edited path with ref equal to the mission branch, one github.update_file per inspected path, then one github.create_pull_request as the final step.',
+          'The dependency graph must require branch creation before each source read, each file update after its matching source read, and the final draft PR after every file update. Set dependsOn to the exact prerequisite step IDs; independent read-only inspections may run in parallel.',
           'You may update at most two inspected files. Do not edit any path that was not supplied in inspectedFiles. Every update_file needs branch, path, complete replacement content, a concise message, and the exact expectedContentSha256 from inspectedFiles.',
           'Keep each replacement file at or below 24,000 characters. Do not change dependencies, package manifests, lockfiles, credentials, environment files, secrets, ownership, production settings, or generated artifacts.',
           'The PR must target main and remain a draft. Never merge, deploy, dispatch workflows, publish packages, change secrets, or perform financial or irreversible actions.',
@@ -481,9 +505,9 @@ async function planMission(objective: string, missionId: string) {
         ].join(' ')
       : [
           'You are the GLORIFIER AI CEO. Produce a bounded plan using only the four existing read-only GitHub adapter tools.',
-          'Return strict JSON only, with this shape: {"steps":[{"id":"short-id","capability":"github.get_repository","objective":"...","arguments":{}}]}.',
+          'Return strict JSON only, with this shape: {"steps":[{"id":"short-id","dependsOn":[],"capability":"github.get_repository","objective":"...","arguments":{}}]}.',
           'Valid capability strings are github.get_repository, github.list_pull_requests, github.list_workflow_runs, and github.read_file.',
-          'Use 1-6 steps. github.get_repository accepts an empty arguments object.',
+          'Use 1-6 steps. Every step must include dependsOn as an array of prerequisite step IDs. Independent read-only steps may have dependsOn: []. github.get_repository accepts an empty arguments object.',
           'github.list_pull_requests accepts only optional state (open, closed, all) and per_page (1-20).',
           'github.list_workflow_runs accepts only optional per_page (1-20).',
           'github.read_file requires a repository-relative path and accepts optional ref. Never use path traversal.',
@@ -733,101 +757,149 @@ export async function processNextAutopilotMission(
       writerIdentity: GithubAppWriterIdentity | null;
     }> = [];
 
-    for (const step of planned.steps) {
-      if (step.status === 'completed' && step.verification?.status === 'verified') continue;
-      if (step.status !== 'pending') {
-        throw new Error(`Mission step ${step.id} is not safely resumable from status ${step.status}.`);
-      }
-
-      authorizeStep(step);
-      // Pause heartbeats around compare-and-swap writes so a lease renewal cannot
-      // race the mission-version check. Restart immediately after the transition.
-      await pauseHeartbeat();
-      await assertLeaseOwned();
-      const claimed = await claimAutopilotMissionStep(
-        store, planned.id, step.id, WORKER_ID, undefined, clock(),
+    // Bound only independent read-only graph work; all repository mutations stay serial.
+    const MAX_PARALLEL_READ_STEPS = 2;
+    while (true) {
+      const currentMission = await store.get(planned.id);
+      if (!currentMission) throw new Error('Autopilot mission disappeared during graph execution.');
+      const completedWithoutVerification = currentMission.steps.find(step =>
+        step.status === 'completed' && step.verification?.status !== 'verified',
       );
-      if (!claimed.claimed) {
-        throw new Error(`Mission step ${step.id} was not authorized for execution: ${claimed.reason || 'claim denied'}.`);
+      if (completedWithoutVerification) {
+        throw new Error(`Mission step ${completedWithoutVerification.id} completed without verified evidence and cannot release downstream work.`);
       }
-      resumeHeartbeat();
+      if (currentMission.steps.every(step =>
+        step.status === 'completed' && step.verification?.status === 'verified',
+      )) break;
 
-      const execution = await executeAutopilotToolStep(step.capability, step.toolArguments ?? {});
-      heartbeat?.assertHealthy();
-      const task = await createA2ATaskForProtocol({
-        requesterAgentId: 'ai-ceo',
-        capability: 'analyze.code',
-        objective: `Analyze the GitHub source-readback-verified operation result for mission step ${step.id}. Separate observed fields, verified repository changes, interpretation, limitations, and recommendations. A verified branch or draft PR is not a merged change or deployment.`,
-        input: {
-          missionId: planned.id,
-          missionObjective: planned.objective,
+      const statuses = new Map(currentMission.steps.map(step => [step.id, step.status]));
+      const readyWave = getReadyAutopilotGraphWave(
+        currentMission.steps,
+        statuses,
+        MAX_PARALLEL_READ_STEPS,
+      );
+      if (readyWave.length === 0) {
+        const unresolved = currentMission.steps
+          .filter(step => step.status !== 'completed')
+          .map(step => `${step.id}:${step.status}`)
+          .join(', ');
+        throw new Error(`Autopilot graph cannot progress because prerequisites are incomplete or failed (${unresolved}).`);
+      }
+
+      const claimedWave: Array<{ step: AutopilotMission['steps'][number]; attemptCount: number }> = [];
+      for (const step of readyWave) {
+        if (step.status !== 'pending') {
+          throw new Error(`Mission graph step ${step.id} is not safely resumable from status ${step.status}.`);
+        }
+        authorizeStep(step);
+
+        // Claims are serialized through the mission ledger's optimistic version
+        // checks. Only the subsequent read-only work is dispatched concurrently.
+        await pauseHeartbeat();
+        await assertLeaseOwned();
+        const claimed = await claimAutopilotMissionStep(
+          store, planned.id, step.id, WORKER_ID, undefined, clock(),
+        );
+        if (!claimed.claimed) {
+          throw new Error(`Mission graph step ${step.id} was not authorized for execution: ${claimed.reason || 'claim denied'}.`);
+        }
+        const claimedStep = claimed.mission.steps.find(entry => entry.id === step.id);
+        claimedWave.push({ step, attemptCount: claimedStep?.attemptCount ?? 1 });
+        resumeHeartbeat();
+      }
+
+      const outcomes = await Promise.allSettled(claimedWave.map(async ({ step, attemptCount }) => {
+        const execution = await executeAutopilotToolStep(step.capability, step.toolArguments ?? {});
+        heartbeat?.assertHealthy();
+        const task = await createA2ATaskForProtocol({
+          requesterAgentId: 'ai-ceo',
+          capability: 'analyze.code',
+          objective: `Analyze the GitHub source-readback-verified operation result for mission step ${step.id}. Separate observed fields, verified repository changes, interpretation, limitations, and recommendations. A verified branch or draft PR is not a merged change or deployment.`,
+          input: {
+            missionId: planned.id,
+            missionObjective: planned.objective,
+            stepId: step.id,
+            toolName: execution.toolName,
+            toolArguments: execution.arguments,
+            toolResult: boundedJson(execution.executionResult),
+            executionSha256: execution.executionSha256,
+            independentVerification: execution.verification,
+          },
+          idempotencyKey: `${step.idempotencyKey}:attempt:${attemptCount}`,
+          maxAttempts: 1,
+        });
+        const completed = await executeA2ATask(task, async (prompt, options) => {
+          const currentPolicy = getAutopilotRepositoryContributorPolicy();
+          if (!currentPolicy.authorized || currentPolicy.eligibleProviders.length === 0) {
+            throw new Error('A2A analysis blocked because no currently attested free repository provider is eligible.');
+          }
+          const analyst = currentPolicy.eligibleProviders[0];
+          const response = await generateRepositoryFreeProvider(analyst, [
+            {
+              role: 'system',
+              content: 'You are an analytical A2A worker. Analyze the supplied GitHub operation result and its REST source readback. Distinguish source observations, verified branch/PR state, assumptions, recommendations, and missing evidence. Never claim a merge or deployment unless separate external evidence proves it.',
+            },
+            { role: 'user', content: formatAutopilotA2AContext(prompt, options) },
+          ], 0.1, planned.id);
+          return { text: response.text, model: `${response.provider}:${response.model}` };
+        });
+        if (completed.status !== 'completed' || !completed.evidenceId) {
+          throw new Error(`A2A analytical task ${task.id} did not complete: ${completed.error || completed.status}.`);
+        }
+        return { step, execution, completed };
+      }));
+
+      const failures = outcomes.filter((outcome): outcome is PromiseRejectedResult => outcome.status === 'rejected');
+      for (const outcome of outcomes) {
+        if (outcome.status !== 'fulfilled') continue;
+        const { step, execution, completed } = outcome.value;
+        heartbeat?.assertHealthy();
+        await pauseHeartbeat();
+        const latest = await assertLeaseOwned();
+        const verifiedEvidence = {
+          status: 'verified' as const,
+          verifierId: execution.verification.verifierId,
+          sourceUrl: execution.verification.sourceUrl,
+          verifiedAt: execution.verification.verifiedAt,
+          sourceSha256: execution.verification.sourceSha256,
+          executionSha256: execution.verification.executionSha256,
+        };
+        const saved = await completeAutopilotMissionStep(
+          store,
+          planned.id,
+          step.id,
+          latest.version,
+          WORKER_ID,
+          [
+            `github-adapter://${execution.toolName}/${execution.executionSha256}`,
+            `github-verification://${verifiedEvidence.verifierId}/${verifiedEvidence.sourceSha256}`,
+            `a2a-artifact://${completed.id}/${completed.evidenceId}`,
+          ],
+          clock(),
+          verifiedEvidence,
+        );
+        results.push({
           stepId: step.id,
           toolName: execution.toolName,
-          toolArguments: execution.arguments,
-          toolResult: boundedJson(execution.executionResult),
+          status: completed.status,
           executionSha256: execution.executionSha256,
-          independentVerification: execution.verification,
-        },
-        idempotencyKey: `${step.idempotencyKey}:attempt:${claimed.mission.steps.find(entry => entry.id === step.id)?.attemptCount ?? 1}`,
-        maxAttempts: 1,
-      });
-      const completed = await executeA2ATask(task, async (prompt, options) => {
-        const currentPolicy = getAutopilotRepositoryContributorPolicy();
-        if (!currentPolicy.authorized || currentPolicy.eligibleProviders.length === 0) {
-          throw new Error('A2A analysis blocked because no currently attested free repository provider is eligible.');
-        }
-        const analyst = currentPolicy.eligibleProviders[0];
-        const response = await generateRepositoryFreeProvider(analyst, [
-          {
-            role: 'system',
-            content: 'You are an analytical A2A worker. Analyze the supplied GitHub operation result and its REST source readback. Distinguish source observations, verified branch/PR state, assumptions, recommendations, and missing evidence. Never claim a merge or deployment unless separate external evidence proves it.',
-          },
-          { role: 'user', content: formatAutopilotA2AContext(prompt, options) },
-        ], 0.1, planned.id);
-        return { text: response.text, model: `${response.provider}:${response.model}` };
-      });
-      if (completed.status !== 'completed' || !completed.evidenceId) {
-        throw new Error(`A2A analytical task ${task.id} did not complete: ${completed.error || completed.status}.`);
+          verifierId: execution.verification.verifierId,
+          sourceUrl: execution.verification.sourceUrl,
+          writerIdentity: execution.writerIdentity,
+        });
+        if (saved.status !== 'completed') resumeHeartbeat();
       }
 
-      heartbeat?.assertHealthy();
-      await pauseHeartbeat();
-      const latest = await assertLeaseOwned();
-      const verifiedEvidence = {
-        status: 'verified' as const,
-        verifierId: execution.verification.verifierId,
-        sourceUrl: execution.verification.sourceUrl,
-        verifiedAt: execution.verification.verifiedAt,
-        sourceSha256: execution.verification.sourceSha256,
-        executionSha256: execution.verification.executionSha256,
-      };
-      const saved = await completeAutopilotMissionStep(
-        store,
-        planned.id,
-        step.id,
-        latest.version,
-        WORKER_ID,
-        [
-          `github-adapter://${execution.toolName}/${execution.executionSha256}`,
-          `github-verification://${verifiedEvidence.verifierId}/${verifiedEvidence.sourceSha256}`,
-          `a2a-artifact://${completed.id}/${completed.evidenceId}`,
-        ],
-        clock(),
-        verifiedEvidence,
-      );
-      results.push({
-        stepId: step.id,
-        toolName: execution.toolName,
-        status: completed.status,
-        executionSha256: execution.executionSha256,
-        verifierId: execution.verification.verifierId,
-        sourceUrl: execution.verification.sourceUrl,
-        writerIdentity: execution.writerIdentity,
-      });
-      if (saved.status !== 'completed') resumeHeartbeat();
-      else break;
+      // Wait for every in-flight operation before entering reconciliation. Any
+      // successful siblings have already been durably completed above; uncertain
+      // or failed siblings are quarantined by the existing mission failure path.
+      if (failures.length > 0) {
+        const firstFailure = failures[0].reason;
+        throw firstFailure instanceof Error
+          ? firstFailure
+          : new Error(String(firstFailure || 'Autopilot graph step failed.'));
+      }
     }
-
     await pauseHeartbeat();
     const finalMission = await store.get(planned.id);
     return {
