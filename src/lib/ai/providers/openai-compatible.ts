@@ -1,3 +1,4 @@
+import { stripTrailingSlashes } from '../../linear-string.js';
 import type { AIProvider, AIRequest, AIResponse } from '../types';
 
 export interface OpenAICompatibleConfig {
@@ -53,7 +54,7 @@ export class OpenAICompatibleProvider implements AIProvider {
     const model = request.model || this.defaultModel;
     if (!model) throw new Error(`${this.name} model is not configured: missing ${this.config.modelEnv}.`);
 
-    const cleanBaseUrl = this.baseUrl.replace(/\/+$/, '');
+    const cleanBaseUrl = stripTrailingSlashes(this.baseUrl);
     const response = await fetch(`${cleanBaseUrl}/chat/completions`, {
       method: 'POST',
       headers: {
