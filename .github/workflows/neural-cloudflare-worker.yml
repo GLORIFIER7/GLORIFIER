@@ -64,12 +64,17 @@ jobs:
         run: uv lock
       - name: Install Cloudflare Worker dependencies
         working-directory: services/neural/cloudflare
-        run: uv sync --locked --no-build --group dev --no-install-project
+        run: uv sync --locked --no-build --no-install-package glorifier-neural-app --group dev --no-install-project
+      - name: Install the trusted first-party Neural package without build isolation
+        working-directory: services/neural/cloudflare
+        run: |
+          uv pip install --python .venv/bin/python --only-binary=:all: setuptools==83.0.0 wheel==0.45.1
+          uv pip install --python .venv/bin/python --no-build-isolation --no-deps ./neural_app
       - name: Run Workers AI free-only and Autopilot readiness unit tests
         working-directory: services/neural/cloudflare
         env:
           PYTHONPATH: ..
-        run: uv run --locked --no-build pytest ../tests/test_workers_ai_provider.py ../tests/test_autopilot_workers_ai_readiness.py -q
+        run: uv run --no-sync --locked --no-build pytest ../tests/test_workers_ai_provider.py ../tests/test_autopilot_workers_ai_readiness.py -q
       - name: Verify Cloudflare Python Worker runtime startup including asyncpg
         working-directory: services/neural/cloudflare
         env:
@@ -77,7 +82,7 @@ jobs:
           CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_NEON_READONLY: postgresql://local:local@127.0.0.1:5432/local
         run: |
           set -euo pipefail
-          uv run --locked --no-build python - <<'PY'
+          uv run --no-sync --locked --no-build python - <<'PY'
           import importlib.util
 
           assert importlib.util.find_spec("psycopg") is None
@@ -86,7 +91,7 @@ jobs:
           assert importlib.util.find_spec("torch") is None
           PY
 
-          uv run --locked --no-build pywrangler dev --ip 127.0.0.1 --port 8787 > /tmp/glorifier-neural-worker.log 2>&1 &
+          uv run --no-sync --locked --no-build pywrangler dev --ip 127.0.0.1 --port 8787 > /tmp/glorifier-neural-worker.log 2>&1 &
           worker_pid=$!
           trap 'kill "$worker_pid" 2>/dev/null || true; wait "$worker_pid" 2>/dev/null || true' EXIT
 
@@ -156,7 +161,12 @@ jobs:
         run: python prepare_worker.py
       - name: Install locked Cloudflare Worker dependencies
         working-directory: services/neural/cloudflare
-        run: uv sync --locked --no-build --group dev --no-install-project
+        run: uv sync --locked --no-build --no-install-package glorifier-neural-app --group dev --no-install-project
+      - name: Install the trusted first-party Neural package without build isolation
+        working-directory: services/neural/cloudflare
+        run: |
+          uv pip install --python .venv/bin/python --only-binary=:all: setuptools==83.0.0 wheel==0.45.1
+          uv pip install --python .venv/bin/python --no-build-isolation --no-deps ./neural_app
       - name: Prepare isolated Worker bundle and validate without deployment
         working-directory: services/neural/cloudflare
         run: |
