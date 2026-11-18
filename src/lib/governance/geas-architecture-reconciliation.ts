@@ -1,3 +1,4 @@
+import { stripTrailingZeros } from '../linear-string.js';
 import { createHash } from 'node:crypto';
 import { compareCodeUnits } from '../deterministic-string-order';
 
@@ -149,7 +150,7 @@ function parseEvidenceTimestamp(value: unknown): ParsedEvidenceTimestamp | null 
   // comparisons do not lose precision beyond JavaScript Date's milliseconds.
   const epochSecondMs = Date.parse(`${yearText}-${monthText}-${dayText}T${hourText}:${minuteText}:${secondText}${offset}`);
   if (!Number.isFinite(epochSecondMs)) return null;
-  return { epochSecondMs, fraction: (fractionText ?? '').replace(/0+$/, '') };
+  return { epochSecondMs, fraction: stripTrailingZeros(fractionText ?? '') };
 }
 
 function compareEvidenceTimestamps(
@@ -170,7 +171,7 @@ function evidenceTimestampFromMilliseconds(value: number): ParsedEvidenceTimesta
   const epochSecondMs = Math.floor(value / 1000) * 1000;
   const millisecond = value - epochSecondMs;
   if (!Number.isInteger(millisecond)) return null;
-  return { epochSecondMs, fraction: String(millisecond).padStart(3, '0').replace(/0+$/, '') };
+  return { epochSecondMs, fraction: stripTrailingZeros(String(millisecond).padStart(3, '0')) };
 }
 
 function isFreshStateEvidence(
