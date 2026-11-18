@@ -229,23 +229,7 @@ export const GmailGovernanceTab: React.FC<GmailGovernanceTabProps> = ({
                 {messages.map((item) => (
                   <div
                     key={item.id}
-                    role="group"
-                    tabIndex={0}
-                    aria-current={selectedItem?.id === item.id ? 'true' : undefined}
-                    onKeyDown={(event) => {
-                      if (event.target !== event.currentTarget) return;
-                      if (event.key === "Enter" || event.key === " ") {
-                        event.preventDefault();
-                        setSelectedItem(item);
-                      }
-                    }}
-                    onClick={(event) => {
-                      const target = event.target;
-                      if (!(target instanceof Element) || !target.closest('button, a, input, select, textarea')) {
-                        setSelectedItem(item);
-                      }
-                    }}
-                    className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                                        className={`p-4 rounded-xl border transition-all cursor-pointer ${
                       selectedItem?.id === item.id
                         ? 'bg-slate-900 border-emerald-500/50 shadow-md'
                         : 'bg-slate-900/60 hover:bg-slate-900 border-slate-800'
@@ -254,9 +238,14 @@ export const GmailGovernanceTab: React.FC<GmailGovernanceTabProps> = ({
                     <div className="flex items-start justify-between gap-3">
                       <div className="space-y-1 flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-white truncate max-w-[200px]">
+                          <button
+                            type="button"
+                            aria-pressed={selectedItem?.id === item.id}
+                            onClick={() => setSelectedItem(item)}
+                            className="text-xs font-bold text-white truncate max-w-[200px] text-left hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400"
+                          >
                             {item.sender}
-                          </span>
+                          </button>
                           <span className="px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-800 text-slate-300 border border-slate-700">
                             {item.category}
                           </span>
