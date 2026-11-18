@@ -8,7 +8,7 @@ const scriptPath = fileURLToPath(new URL('../solana/resume-recovered-token2022-d
 const script = readFileSync(scriptPath, 'utf8');
 
 test('recovered Token-2022 script passes Bash syntax parsing without execution', () => {
-  execFileSync('bash', ['-n', scriptPath], { stdio: 'pipe' });
+  assert.doesNotThrow(() => execFileSync('bash', ['-n', scriptPath], { stdio: 'pipe' }));
 });
 
 test('recovery requires the authorized workflow and the exact metadata URI', () => {
