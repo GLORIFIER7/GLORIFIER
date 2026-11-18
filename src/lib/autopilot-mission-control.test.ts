@@ -270,7 +270,33 @@ test('Autopilot recovery quarantines expired in-flight work instead of replaying
     { id: 'inspect', capability: 'engineering', objective: 'Inspect state.', effect: 'read-only' },
     { id: 'write', capability: 'engineering', objective: 'Write a reversible change.', effect: 'reversible' },
   ], '2026-11-13T08:02:00.000Z');
-  const started = await claimAutopilotMissionStep(store, planned.id, 'write', 'worker-1', undefined, '2026-11-13T08:03:00.000Z');
+  const inspection = await claimAutopilotMissionStep(
+    store, planned.id, 'inspect', 'worker-1', undefined, '2026-11-13T08:03:00.000Z',
+  );
+  assert.equal(inspection.claimed, true);
+  const verifiedAt = '2026-11-13T08:03:30.000Z';
+  const verifiedInspection = await completeAutopilotMissionStep(
+    store,
+    planned.id,
+    'inspect',
+    inspection.mission.version,
+    'worker-1',
+    ['github-verification://github-rest-source-readback-v1/' + 'a'.repeat(64)],
+    verifiedAt,
+    {
+      status: 'verified',
+      verifierId: 'github-rest-source-readback-v1',
+      sourceUrl: 'https://api.github.com/repos/GLORIFIER7/GLORIFIER/contents/README.md',
+      verifiedAt,
+      sourceSha256: 'a'.repeat(64),
+      executionSha256: 'a'.repeat(64),
+    },
+  );
+  assert.equal(verifiedInspection.steps[0].status, 'completed');
+
+  const started = await claimAutopilotMissionStep(
+    store, planned.id, 'write', 'worker-1', undefined, '2026-11-13T08:04:00.000Z',
+  );
   assert.equal(started.mission.steps[1].status, 'running');
 
   const recovered = await recoverAutopilotMissions(store, '2026-11-13T08:10:00.000Z');
