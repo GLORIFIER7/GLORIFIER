@@ -68,7 +68,10 @@ def test_neon_probe_uses_tls_bounded_connection_and_read_only_query(monkeypatch)
         return Connection()
 
     monkeypatch.setitem(sys.modules, "psycopg", types.SimpleNamespace(connect=connect))
-    NeonConnectivityProbe("postgresql://example.neon.tech/db").check()
+    username = "neon_user"
+    password = secrets.token_hex(8)
+    dsn = f"postgresql://{username}:{password}@example.neon.tech/db"
+    NeonConnectivityProbe(dsn).check()
 
     assert calls["query"] == "SELECT 1"
     assert calls["kwargs"] == {
@@ -77,7 +80,7 @@ def test_neon_probe_uses_tls_bounded_connection_and_read_only_query(monkeypatch)
         "sslrootcert": "system",
         "channel_binding": "require",
     }
-    assert calls["dsn"] == "postgresql://example.neon.tech/db"
+    assert calls["dsn"] == dsn
 
 
 def test_neon_probe_sanitizes_connection_errors(monkeypatch):
@@ -85,8 +88,9 @@ def test_neon_probe_sanitizes_connection_errors(monkeypatch):
         raise OSError("sensitive host and credential data")
 
     monkeypatch.setitem(sys.modules, "psycopg", types.SimpleNamespace(connect=connect))
+    dsn = f"postgresql://neon_user:{secrets.token_hex(8)}@example.neon.tech/db"
     with pytest.raises(RuntimeError, match="Neon connectivity probe failed") as error:
-        NeonConnectivityProbe("postgresql://example.neon.tech/db").check()
+        NeonConnectivityProbe(dsn).check()
     assert "sensitive host" not in str(error.value)
 
 @pytest.mark.parametrize("timeout_seconds", [1, 3, 5])
