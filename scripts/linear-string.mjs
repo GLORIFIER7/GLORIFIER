@@ -23,12 +23,17 @@ export function hasFingerprintAssetSegment(filename) {
     || character === '_'
     || character === '-';
 
-  for (let index = 0; index < filename.length; index += 1) {
-    if (filename[index] !== '.' && filename[index] !== '-') continue;
+  let index = 0;
+  while (index < filename.length) {
+    if (filename[index] !== '.' && filename[index] !== '-') {
+      index += 1;
+      continue;
+    }
+
     let end = index + 1;
     while (end < filename.length && isHashCharacter(filename[end])) end += 1;
     if (end - index - 1 >= 8 && filename[end] === '.') return true;
-    index = end - 1;
+    index = end;
   }
   return false;
 }
