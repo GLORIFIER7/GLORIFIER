@@ -1,3 +1,4 @@
+import { extractGreedyBracedText } from './src/lib/linear-string.js';
 import express, { Request, Response } from 'express';
 import { ipKeyGenerator, rateLimit } from 'express-rate-limit';
 import { isIP } from 'node:net';
@@ -1471,9 +1472,9 @@ Return a valid JSON object with:
         return res.json({ ...parsed, modelUsed: execution.modelUsed, provider: execution.provider });
       } catch {
         // Try extracting JSON block if wrapped
-        const jsonMatch = execution.text.match(/\{[\s\S]*\}/);
+        const jsonMatch = extractGreedyBracedText(execution.text);
         if (jsonMatch) {
-          const parsed = JSON.parse(jsonMatch[0]);
+          const parsed = JSON.parse(jsonMatch);
           return res.json({ ...parsed, modelUsed: execution.modelUsed, provider: execution.provider });
         }
       }
@@ -1529,9 +1530,9 @@ Format as JSON with keys:
         const parsed = JSON.parse(execution.text);
         return res.json({ ...parsed, modelUsed: execution.modelUsed, provider: execution.provider });
       } catch {
-        const match = execution.text.match(/\{[\s\S]*\}/);
+        const match = extractGreedyBracedText(execution.text);
         if (match) {
-          const parsed = JSON.parse(match[0]);
+          const parsed = JSON.parse(match);
           return res.json({ ...parsed, modelUsed: execution.modelUsed, provider: execution.provider });
         }
       }
@@ -1584,9 +1585,9 @@ Return JSON with { documentTitle: string, legalNotice: string }`;
         const parsed = JSON.parse(execution.text);
         return res.json({ ...parsed, modelUsed: execution.modelUsed, provider: execution.provider });
       } catch {
-        const match = execution.text.match(/\{[\s\S]*\}/);
+        const match = extractGreedyBracedText(execution.text);
         if (match) {
-          const parsed = JSON.parse(match[0]);
+          const parsed = JSON.parse(match);
           return res.json({ ...parsed, modelUsed: execution.modelUsed, provider: execution.provider });
         }
       }
