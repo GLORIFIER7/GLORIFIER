@@ -151,7 +151,7 @@ export const CompensationEngine: React.FC<CompensationEngineProps> = ({
                   max="100000"
                   step="5000"
                   value={buyerBudgetUsd}
-                  onChange={(e) => setBuyerBudgetUsd(parseInt(e.target.value))}
+                  onChange={(e) => setBuyerBudgetUsd(Number.parseInt(e.target.value))}
                   className="w-full accent-emerald-500 h-1.5 bg-slate-800 rounded cursor-pointer"
                 />
               </div>
@@ -167,7 +167,7 @@ export const CompensationEngine: React.FC<CompensationEngineProps> = ({
                   max="15.0"
                   step="0.5"
                   value={modelAccuracyGain}
-                  onChange={(e) => setModelAccuracyGain(parseFloat(e.target.value))}
+                  onChange={(e) => setModelAccuracyGain(Number.parseFloat(e.target.value))}
                   className="w-full accent-emerald-500 h-1.5 bg-slate-800 rounded cursor-pointer"
                 />
               </div>
@@ -183,7 +183,7 @@ export const CompensationEngine: React.FC<CompensationEngineProps> = ({
                   max="5000"
                   step="100"
                   value={datasetSize}
-                  onChange={(e) => setDatasetSize(parseInt(e.target.value))}
+                  onChange={(e) => setDatasetSize(Number.parseInt(e.target.value))}
                   className="w-full accent-emerald-500 h-1.5 bg-slate-800 rounded cursor-pointer"
                 />
               </div>
@@ -280,7 +280,7 @@ export const CompensationEngine: React.FC<CompensationEngineProps> = ({
                   max="0.10"
                   step="0.005"
                   value={dpBasePrice}
-                  onChange={(e) => setDpBasePrice(parseFloat(e.target.value))}
+                  onChange={(e) => setDpBasePrice(Number.parseFloat(e.target.value))}
                   className="w-full accent-emerald-500 h-1.5 bg-slate-800 rounded cursor-pointer"
                 />
               </div>
@@ -296,7 +296,7 @@ export const CompensationEngine: React.FC<CompensationEngineProps> = ({
                   max="1.5"
                   step="0.05"
                   value={queryEpsilon}
-                  onChange={(e) => setQueryEpsilon(parseFloat(e.target.value))}
+                  onChange={(e) => setQueryEpsilon(Number.parseFloat(e.target.value))}
                   className="w-full accent-emerald-500 h-1.5 bg-slate-800 rounded cursor-pointer"
                 />
               </div>
