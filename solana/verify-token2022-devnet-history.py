@@ -170,6 +170,10 @@ def apply_instruction(typ, info, sig, receipts):
                 f"mintTo/mintToChecked missing or invalid amount field in {sig}")
         receipts["mintTransaction"] = sig
         return int(amount)
+    elif typ in ("transfer", "transferChecked"):
+        # Token transfers move existing units but do not increase total supply.
+        # They are permitted in the full mint history and contribute zero base units.
+        return 0
     elif typ == "setAuthority":
         require(info.get("newAuthority") is None, f"authority granted (not revoked) in {sig}")
         key = AUTHORITY_RECEIPT.get(info.get("authorityType"))
