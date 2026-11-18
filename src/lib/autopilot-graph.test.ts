@@ -35,7 +35,8 @@ test('preserves legacy plan order when no explicit dependencies were supplied', 
 test('rejects missing, duplicate, and self-referential dependencies', () => {
   assert.throws(() => normalizeAutopilotGraph([node('first', ['missing'])]), /unknown dependency/);
   assert.throws(() => normalizeAutopilotGraph([node('first', ['first'])]), /cannot depend on itself/);
-  assert.throws(() => normalizeAutopilotGraph([node('first', ['first', 'first'])]), /duplicate dependency/);
+  assert.throws(() => normalizeAutopilotGraph([node('first', ['first'])]), /cannot depend on itself/);
+  assert.throws(() => normalizeAutopilotGraph([node('first'), node('second', ['first', 'first'])]), /duplicate dependency/);
 });
 
 test('rejects cyclic graphs and plans that exceed the bounded node limit', () => {
