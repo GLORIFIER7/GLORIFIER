@@ -575,10 +575,57 @@ const SOVEREIGNTY_DEFAULTS: SovereigntyBoundary = {
   exitStrategy: 'document-before-material-provider-commitment',
 };
 
+function removeActiveHtmlElements(input: string, tagName: 'script' | 'style'): string {
+  const source = input.toLowerCase();
+  const openingTag = `<${tagName}`;
+  const closingTag = `</${tagName}`;
+  const isWordCharacter = (character: string | undefined): boolean =>
+    character !== undefined && /[a-z0-9_]/i.test(character);
+  let result = '';
+  let cursor = 0;
+
+  while (cursor < input.length) {
+    const opening = source.indexOf(openingTag, cursor);
+    if (opening < 0) {
+      result += input.slice(cursor);
+      break;
+    }
+    const afterOpeningName = opening + openingTag.length;
+    if (isWordCharacter(source[afterOpeningName])) {
+      cursor = afterOpeningName;
+      continue;
+    }
+
+    let closeSearchFrom = afterOpeningName;
+    let closing = -1;
+    let closingEnd = -1;
+    while ((closing = source.indexOf(closingTag, closeSearchFrom)) >= 0) {
+      const afterClosingName = closing + closingTag.length;
+      if (isWordCharacter(source[afterClosingName])) {
+        closeSearchFrom = afterClosingName;
+        continue;
+      }
+      closingEnd = source.indexOf('>', afterClosingName);
+      break;
+    }
+
+    if (closing < 0 || closingEnd < 0) {
+      result += input.slice(cursor);
+      break;
+    }
+
+    result += input.slice(cursor, opening) + ' ';
+    cursor = closingEnd + 1;
+  }
+
+  return result;
+}
+
 export const stripHtml = (input: string): string => {
-  const withoutActiveContent = input
-    .replace(/<script\b[\s\S]*?<\/script\b[^>]*>/gi, ' ')
-    .replace(/<style\b[\s\S]*?<\/style\b[^>]*>/gi, ' ');
+  const withoutActiveContent = removeActiveHtmlElements(
+    removeActiveHtmlElements(input, 'script'),
+    'style',
+  );
   return stripHtmlTags(withoutActiveContent)
     .replace(/&nbsp;/gi, ' ')
     .replace(/&amp;/gi, ' and ')
