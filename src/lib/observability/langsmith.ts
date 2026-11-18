@@ -1,3 +1,4 @@
+import { stripTrailingSlashes } from '../linear-string.js';
 import { randomUUID } from 'node:crypto';
 
 type TraceSummary = Record<string, unknown>;
@@ -9,7 +10,7 @@ function getConfig(): LangSmithConfig | null {
   const apiKey = process.env.LANGSMITH_API_KEY?.trim();
   if (!apiKey) return null;
 
-  const configuredEndpoint = (process.env.LANGSMITH_ENDPOINT || 'https://api.smith.langchain.com').trim().replace(/\/+$/, '');
+  const configuredEndpoint = stripTrailingSlashes((process.env.LANGSMITH_ENDPOINT || 'https://api.smith.langchain.com').trim());
   let parsedEndpoint: URL;
   try {
     parsedEndpoint = new URL(configuredEndpoint);
