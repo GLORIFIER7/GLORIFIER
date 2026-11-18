@@ -281,8 +281,9 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
 
   const handleCopyAddress = (id: string, addr: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    void navigator.clipboard.writeText(addr).catch((error) => console.warn('Clipboard write failed:', error));
-    setCopiedId(id);
+    void navigator.clipboard.writeText(addr).then(() => {
+      setCopiedId(id);
+    }).catch((error) => console.warn('Clipboard write failed:', error));
   };
 
   const handleWithdraw = async () => {
@@ -357,8 +358,9 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
 
   const handleCopyTx = () => {
     if (!settledReceipt) return;
-    void navigator.clipboard.writeText(settledReceipt.txHash).catch((error) => console.warn('Clipboard write failed:', error));
-    setCopiedTx(true);
+    void navigator.clipboard.writeText(settledReceipt.txHash).then(() => {
+      setCopiedTx(true);
+    }).catch((error) => console.warn('Clipboard write failed:', error));
   };
 
   const filteredWallets = connectedWallets.filter(w => {
