@@ -190,9 +190,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
         <div className="flex-1 overflow-y-auto p-5 space-y-6 scrollbar-thin">
           {/* Agenda / Topic Input Section */}
           <div className="space-y-3">
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">
-              Council Agenda & Discussion Topic
-            </label>
+            <p className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">Council Agenda & Discussion Topic</p>
 
             {/* Quick Agenda Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
