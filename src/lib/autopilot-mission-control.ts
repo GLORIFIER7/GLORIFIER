@@ -573,9 +573,10 @@ export async function claimAutopilotMissionStep(
   const graph = normalizeAutopilotGraph(mission.steps);
   const graphStep = graph.find((entry) => entry.id === step.id);
   if (!graphStep) throw new Error('Autopilot mission step is missing from its validated dependency graph.');
-  const unresolvedDependencies = graphStep.dependsOn.filter((dependency) =>
-    mission.steps.find((entry) => entry.id === dependency)?.status !== 'completed',
-  );
+  const unresolvedDependencies = graphStep.dependsOn.filter((dependency) => {
+    const prerequisite = mission.steps.find((entry) => entry.id === dependency);
+    return prerequisite?.status !== 'completed' || prerequisite.verification?.status !== 'verified';
+  });
   if (unresolvedDependencies.length > 0) {
     return { claimed: false, reason: 'dependencies-not-completed', mission };
   }
