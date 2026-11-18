@@ -68,6 +68,14 @@ class HistoryTests(unittest.TestCase):
         self.assertTrue(result["transactionSemanticsVerified"])
         self.assertEqual(result["tokenAccountCreationTransaction"], tx["signature"])
 
+    def test_instruction_must_explicitly_target_the_mint_or_metadata(self):
+        self.assertTrue(v.touches_mint({"mint": MINT}, MINT))
+        self.assertTrue(v.touches_mint({"metadata": MINT}, MINT))
+        self.assertTrue(v.touches_mint({"metadataAddress": MINT}, MINT))
+        self.assertFalse(v.touches_mint({"account": "UnrelatedAccount"}, MINT))
+        self.assertFalse(v.touches_mint({"mint": "AnotherMint"}, MINT))
+        self.assertFalse(v.touches_mint({"metadata": "AnotherMetadataAccount"}, MINT))
+
     def test_rpc_retries_body_read_oserror(self):
         successful_response = io.BytesIO(b'{"jsonrpc":"2.0","id":1,"result":{"ok":true}}')
         with patch.object(v.urllib.request, "urlopen", side_effect=[OSError("socket read reset"), successful_response]), patch.object(v.time, "sleep"):
