@@ -35,7 +35,7 @@ function createDialogHarness(focusableCount = 2) {
     contains: (node: Node | null) => node === dialog || items.includes(node as HTMLElement),
     focus: () => { documentLike.activeElement = dialog as unknown as HTMLElement; },
   } as unknown as HTMLElement;
-  const previous = { focused: false, focus() { this.focused = true; } };
+  const previous = { focused: false, focus() { this.focused = true; } } as unknown as HTMLElement & { focused: boolean };
   documentLike.activeElement = previous as unknown as HTMLElement;
 
   const dispatch = (key: string, shiftKey = false) => {
@@ -135,5 +135,32 @@ test('only the topmost open dialog handles the shared document key event', () =>
   assert.equal(harness.documentLike.activeElement, harness.items[0]);
   assert.equal(harness.dispatch('Tab'), true);
   assert.equal(harness.documentLike.activeElement, harness.items[0]);
+  firstCleanup();
+});
+
+test('keeps dialog stacks isolated between documents', () => {
+  const first = createDialogHarness(1);
+  const second = createDialogHarness(1);
+  let firstClosed = false;
+  let secondClosed = false;
+
+  const firstCleanup = installAccessibleDialogBehavior(
+    first.dialog,
+    () => { firstClosed = true; },
+    first.documentLike as unknown as Document,
+  );
+  const secondCleanup = installAccessibleDialogBehavior(
+    second.dialog,
+    () => { secondClosed = true; },
+    second.documentLike as unknown as Document,
+  );
+
+  assert.equal(first.dispatch('Escape'), true);
+  assert.equal(firstClosed, true);
+  assert.equal(secondClosed, false);
+  assert.equal(second.dispatch('Escape'), true);
+  assert.equal(secondClosed, true);
+
+  secondCleanup();
   firstCleanup();
 });
