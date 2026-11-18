@@ -1,3 +1,4 @@
+import { stripHtmlTags } from '../linear-string.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { getPostgresPool } from '../db/postgres';
 import { GLORIFIER_ARCHITECTURE_MODEL } from './glorifier-architecture';
@@ -574,16 +575,18 @@ const SOVEREIGNTY_DEFAULTS: SovereigntyBoundary = {
   exitStrategy: 'document-before-material-provider-commitment',
 };
 
-export const stripHtml = (input: string): string => input
-  .replace(/<script\b[\s\S]*?<\/script\b[^>]*>/gi, ' ')
-  .replace(/<style\b[\s\S]*?<\/style\b[^>]*>/gi, ' ')
-  .replace(/<[^>]+>/g, ' ')
-  .replace(/&nbsp;/gi, ' ')
-  .replace(/&amp;/gi, ' and ')
-  .replace(/&quot;/gi, '"')
-  .replace(/&#39;|&apos;/gi, "'")
-  .replace(/\s+/g, ' ')
-  .trim();
+export const stripHtml = (input: string): string => {
+  const withoutActiveContent = input
+    .replace(/<script\b[\s\S]*?<\/script\b[^>]*>/gi, ' ')
+    .replace(/<style\b[\s\S]*?<\/style\b[^>]*>/gi, ' ');
+  return stripHtmlTags(withoutActiveContent)
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, ' and ')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+};
 
 /**
  * Extract evidence from the document's semantic content region, not site chrome.
