@@ -88,7 +88,7 @@ EOF
 if [[ -n "${EXISTING_MINT:-}" ]]; then
   MINT="${EXISTING_MINT}"
   echo "::notice::Resuming existing partially deployed Token-2022 mint: ${MINT}"
-  [["${MINT}" != "$(jq -r '.mint // empty' solana/devnet-deployment-recovery.json 2>/dev/null || true)" ]]|| { echo "::error::Refusing to operate on the irrecoverable recovered mint."; exit 1; }
+  [[ "${MINT}" != "$(jq -r '.mint // empty' solana/devnet-deployment-recovery.json 2>/dev/null || true)" ]]|| { echo "::error::Refusing to operate on the irrecoverable recovered mint."; exit 1; }
   CREATE_TOKEN_TX=""
 else
   MINT_OUTPUT="$(spl-token --program-2022 create-token --decimals "$DECIMALS" --mint-authority "$HOME/.config/solana/glorifier-devnet-keypair.json" --enable-metadata)"
@@ -103,7 +103,7 @@ if [[ -z "${EXISTING_MINT:-}" ]]; then
   CREATED_MINT="$(printf '%s\n' "$MINT_OUTPUT" | awk '/^[[:space:]]*Creating token[[:space:]]+/ {print $3; exit}')"
   MINT="$(printf '%s\n' "$MINT_OUTPUT" | awk '/^[[:space:]]*Address:[[:space:]]+/ {print $2; exit}')"
   CREATE_TOKEN_TX="$(printf '%s\n' "$MINT_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:[[:space:]]+/ {print $2; exit}')"
-  [[-n "$CREATED_MINT" ]]&& [[-n "$MINT" ]]&& [[-n "$CREATE_TOKEN_TX" ]]|| { echo "::error::Could not recover new Token-2022 mint evidence."; exit 1; }
+  [[ -n "$CREATED_MINT" ]]&& [[ -n "$MINT" ]]&& [[ -n "$CREATE_TOKEN_TX" ]]|| { echo "::error::Could not recover new Token-2022 mint evidence."; exit 1; }
   [[ "$CREATED_MINT" == "$MINT" ]] || { echo "::error::Token-2022 CLI returned conflicting mint addresses."; exit 1; }
   [[ "$MINT" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || { echo "::error::spl-token returned an invalid Solana mint address."; exit 1; }
 fi
@@ -123,13 +123,13 @@ else
   METADATA_OUTPUT="$(spl-token --program-2022 initialize-metadata "$MINT" "GLORIFIER" "GLR" "$METADATA_URI")"
   printf '%s\n' "$METADATA_OUTPUT"
   METADATA_TX="$(printf '%s\n' "$METADATA_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-  [[-n "$METADATA_TX" ]]|| { echo "::error::Could not recover metadata transaction signature."; exit 1; }
+  [[ -n "$METADATA_TX" ]]|| { echo "::error::Could not recover metadata transaction signature."; exit 1; }
 fi
 
 if ACCOUNT_OUTPUT="$(spl-token --program-2022 create-account "$MINT" 2>&1)"; then
   printf '%s\n' "$ACCOUNT_OUTPUT"
   CREATE_ACCOUNT_TX="$(printf '%s\n' "$ACCOUNT_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-  [[-n "$CREATE_ACCOUNT_TX" ]]|| { echo "::error::Could not recover token-account creation transaction signature."; exit 1; }
+  [[ -n "$CREATE_ACCOUNT_TX" ]]|| { echo "::error::Could not recover token-account creation transaction signature."; exit 1; }
 else
   echo "Token account creation was not needed or the account already exists; continuing."
   CREATE_ACCOUNT_TX=""
@@ -143,7 +143,7 @@ else
   MINT_OUTPUT_2="$(spl-token --program-2022 mint "$MINT" "$SUPPLY")"
   printf '%s\n' "$MINT_OUTPUT_2"
   MINT_TX="$(printf '%s\n' "$MINT_OUTPUT_2" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-  [[-n "$MINT_TX" ]]|| { echo "::error::Could not recover supply mint transaction signature."; exit 1; }
+  [[ -n "$MINT_TX" ]]|| { echo "::error::Could not recover supply mint transaction signature."; exit 1; }
 fi
 
 # Permanently remove authorities after the exact supply is minted.
@@ -155,7 +155,7 @@ else
   MINT_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" mint --disable)"
   printf '%s\n' "$MINT_AUTH_OUTPUT"
   MINT_AUTH_TX="$(printf '%s\n' "$MINT_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-  [[-n "$MINT_AUTH_TX" ]]|| { echo "::error::Could not recover mint-authority revocation transaction signature."; exit 1; }
+  [[ -n "$MINT_AUTH_TX" ]]|| { echo "::error::Could not recover mint-authority revocation transaction signature."; exit 1; }
 fi
 
 FINAL_MINT_STATE_PRE_FREEZE="$(spl-token --program-2022 display "$MINT")"
@@ -166,7 +166,7 @@ else
   FREEZE_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" freeze --disable)"
   printf '%s\n' "$FREEZE_AUTH_OUTPUT"
   FREEZE_AUTH_TX="$(printf '%s\n' "$FREEZE_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-  [[-n "$FREEZE_AUTH_TX" ]]|| { echo "::error::Could not recover freeze-authority revocation transaction signature."; exit 1; }
+  [[ -n "$FREEZE_AUTH_TX" ]]|| { echo "::error::Could not recover freeze-authority revocation transaction signature."; exit 1; }
 fi
 
 FINAL_METADATA_STATE="$(spl-token --program-2022 display "$MINT")"
@@ -177,7 +177,7 @@ else
   METADATA_AUTH_OUTPUT="$(spl-token --program-2022 authorize "$MINT" metadata --disable)"
   printf '%s\n' "$METADATA_AUTH_OUTPUT"
   METADATA_AUTH_TX="$(printf '%s\n' "$METADATA_AUTH_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-  [[-n "$METADATA_AUTH_TX" ]]|| { echo "::error::Could not recover metadata-update-authority revocation transaction signature."; exit 1; }
+  [[ -n "$METADATA_AUTH_TX" ]]|| { echo "::error::Could not recover metadata-update-authority revocation transaction signature."; exit 1; }
 fi
 
 FINAL_METADATA_POINTER_STATE="$(spl-token --program-2022 display "$MINT")"
@@ -186,17 +186,17 @@ if [[ "$CURRENT_POINTER_AUTH" == "Disabled" || "$CURRENT_POINTER_AUTH" == "None"
   echo "Metadata pointer authority is already disabled; continuing."
   METADATA_POINTER_AUTH_TX=""
 else
-  [["$CURRENT_POINTER_AUTH" = "$(solana address)" ]]
+  [[ "$CURRENT_POINTER_AUTH" = "$(solana address)" ]]
   METADATA_POINTER_OUTPUT="$(spl-token --program-2022 authorize "$MINT" metadata-pointer --disable)"
   printf '%s\n' "$METADATA_POINTER_OUTPUT"
   METADATA_POINTER_AUTH_TX="$(printf '%s\n' "$METADATA_POINTER_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-  [[-n "$METADATA_POINTER_AUTH_TX" ]]|| { echo "::error::Could not recover metadata-pointer-authority revocation transaction signature."; exit 1; }
+  [[ -n "$METADATA_POINTER_AUTH_TX" ]]|| { echo "::error::Could not recover metadata-pointer-authority revocation transaction signature."; exit 1; }
 fi
 
 BALANCE_OUTPUT="$(spl-token --program-2022 balance "$MINT")"
 printf '%s\n' "$BALANCE_OUTPUT"
 HOLDER_BALANCE="$(printf '%s\n' "$BALANCE_OUTPUT" | awk 'NR==1 {print $1}' | tr -d '\r')"
-[["$HOLDER_BALANCE" = "$SUPPLY" ]]
+[[ "$HOLDER_BALANCE" = "$SUPPLY" ]]
 
 echo "Final mint state:"
 FINAL_MINT_STATE="$(spl-token --program-2022 display "$MINT")"
