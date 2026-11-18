@@ -9,10 +9,14 @@ function createDialogHarness(focusableCount = 2) {
   const documentLike = {
     activeElement: null as HTMLElement | null,
     addEventListener: (type: string, listener: EventListenerOrEventListenerObject) => {
-      handlers.set(type, listener as KeyHandler);
+      const listeners = handlers.get(type) ?? new Set<KeyHandler>();
+      listeners.add(listener as KeyHandler);
+      handlers.set(type, listeners);
     },
     removeEventListener: (type: string, listener: EventListenerOrEventListenerObject) => {
-      if (handlers.get(type) === listener) handlers.delete(type);
+      const listeners = handlers.get(type);
+      listeners?.delete(listener as KeyHandler);
+      if (listeners?.size === 0) handlers.delete(type);
     },
   };
 
@@ -41,7 +45,7 @@ function createDialogHarness(focusableCount = 2) {
       shiftKey,
       preventDefault: () => { prevented = true; },
     } as unknown as KeyboardEvent;
-    handlers.get('keydown')?.(event);
+    for (const handler of handlers.get('keydown') ?? []) handler(event);
     return prevented;
   };
 
@@ -97,4 +101,37 @@ test('focuses the dialog itself when it has no focusable descendants', () => {
   assert.equal(harness.documentLike.activeElement, harness.dialog);
   assert.equal(harness.dispatch('Tab'), true);
   assert.equal(harness.documentLike.activeElement, harness.dialog);
+});
+
+test('only the topmost open dialog handles the shared document key event', () => {
+  const harness = createDialogHarness(1);
+  const firstCleanup = installAccessibleDialogBehavior(
+    harness.dialog,
+    () => undefined,
+    harness.documentLike as unknown as Document,
+  );
+  const secondItem = {
+    focus: () => { harness.documentLike.activeElement = secondItem as unknown as HTMLElement; },
+  } as unknown as HTMLElement;
+  const secondDialog = {
+    ownerDocument: harness.documentLike,
+    querySelectorAll: () => [secondItem],
+    contains: (node: Node | null) => node === secondDialog || node === secondItem,
+    focus: () => { harness.documentLike.activeElement = secondDialog as unknown as HTMLElement; },
+  } as unknown as HTMLElement;
+  const secondCleanup = installAccessibleDialogBehavior(
+    secondDialog,
+    () => undefined,
+    harness.documentLike as unknown as Document,
+  );
+
+  harness.documentLike.activeElement = harness.items[0];
+  assert.equal(harness.dispatch('Tab'), true);
+  assert.equal(harness.documentLike.activeElement, secondItem);
+
+  secondCleanup();
+  assert.equal(harness.documentLike.activeElement, harness.items[0]);
+  assert.equal(harness.dispatch('Tab'), true);
+  assert.equal(harness.documentLike.activeElement, harness.items[0]);
+  firstCleanup();
 });
