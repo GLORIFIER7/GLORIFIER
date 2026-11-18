@@ -118,7 +118,7 @@ export function classifyDriveMetadataForReview(file: DriveApiFile): DriveAnalysi
     id: file.id,
     name: file.name,
     mimeType: file.mimeType,
-    sizeBytes: file.size ? parseInt(file.size, 10) : undefined,
+    sizeBytes: file.size ? Number.parseInt(file.size, 10) : undefined,
     createdTime: file.createdTime ? new Date(file.createdTime).toLocaleDateString() : undefined,
     modifiedTime: file.modifiedTime ? new Date(file.modifiedTime).toLocaleDateString() : undefined,
     shared: !!file.shared,
