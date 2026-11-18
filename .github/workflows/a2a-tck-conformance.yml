@@ -183,7 +183,7 @@ jobs:
         run: |
           set -euo pipefail
           uv venv
-          uv pip install --python .venv/bin/python -e .
+          uv pip install --no-build --python .venv/bin/python -e .
 
       - name: Run full declared JSON-RPC transport conformance
         working-directory: .a2a-tck
