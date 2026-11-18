@@ -38,6 +38,7 @@ export function hasFingerprintAssetSegment(filename: string): boolean {
     let end = index + 1;
     while (end < filename.length && isHashCharacter(filename[end])) end += 1;
     if (end - index - 1 >= 8 && filename[end] === '.') return true;
+    index = end - 1;
   }
 
   return false;
@@ -50,6 +51,10 @@ export function stripHtmlTags(value: string): string {
   while (index < value.length) {
     if (value[index] === '<') {
       const closing = value.indexOf('>', index + 1);
+      if (closing < 0) {
+        result += value.slice(index);
+        break;
+      }
       if (closing > index + 1) {
         result += ' ';
         index = closing + 1;
@@ -78,8 +83,9 @@ export function extractAngleBracketContent(value: string): string | null {
     const opening = value.indexOf('<', searchFrom);
     if (opening < 0) return null;
     const closing = value.indexOf('>', opening + 1);
+    if (closing < 0) return null;
     if (closing > opening + 1) return value.slice(opening + 1, closing);
-    searchFrom = opening + 1;
+    searchFrom = closing + 1;
   }
 
   return null;
