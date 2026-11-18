@@ -1,10 +1,6 @@
 name: NVIDIA CI Failure Triage
 
 on:
-  workflow_run:
-    workflows: ["GLORIFIER CI"]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
     inputs:
       run_id:
@@ -23,7 +19,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: nvidia-ci-triage-${{ github.event.workflow_run.id || inputs.run_id || github.run_id }}
+  group: nvidia-ci-triage-${{ inputs.run_id || github.run_id }}
   cancel-in-progress: false
 
 jobs:
@@ -34,7 +30,7 @@ jobs:
     timeout-minutes: 5
     env:
       GH_TOKEN: ${{ github.token }}
-      RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id || '' }}
+      RUN_ID: ${{ inputs.run_id || '' }}
     steps:
       - name: Checkout trusted main-branch authorization policy
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
