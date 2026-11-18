@@ -633,6 +633,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
               </label>
               <div className="flex gap-2">
                 <input
+                  id="glorifier-AiModelsCollaborationManagement-tsx-1"
                   type="text"
                   placeholder="e.g. Audit my developer telemetry licensing for OpenAI and Anthropic research labs with zero-identifiability guarantees"
                   value={customAgenda}
