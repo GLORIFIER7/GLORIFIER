@@ -205,7 +205,7 @@ def test_task_run_repository_rejects_invalid_neon_timeouts(connect_timeout):
 def test_task_run_repository_reads_request_scoped_worker_environment():
     env = {
         "GLORIFIER_NEON_TASK_RUNS_ENABLED": "true",
-        "NEON_DATABASE_URL": "postgresql://neon_user:neon_pass@example.neon.tech/neural",
+        "NEON_DATABASE_URL": "postgresql://neon_user:neon_pass@example.neon.tech/neural"  # NOSONAR - synthetic DSN in tests with monkeypatched database adapters,  # NOSONAR - synthetic DSN; factory only parses it
     }
 
     repository = TaskRunRepository.from_environment(env)
@@ -257,7 +257,7 @@ def test_worker_task_run_write_is_committed_and_verified_by_readback(monkeypatch
 
     monkeypatch.setitem(sys.modules, "pg8000", SimpleNamespace(connect=connect))
     repository = TaskRunRepository(
-        "postgresql://neon_user:neon_pass@example.neon.tech/neural"
+        "postgresql://neon_user:neon_pass@example.neon.tech/neural"  # NOSONAR - synthetic DSN in tests with monkeypatched database adapters
     )
 
     repository.record_worker(
@@ -304,7 +304,7 @@ def test_worker_task_run_write_fails_closed_on_missing_readback(monkeypatch):
         SimpleNamespace(connect=lambda **_kwargs: Connection()),
     )
     repository = TaskRunRepository(
-        "postgresql://neon_user:neon_pass@example.neon.tech/neural"
+        "postgresql://neon_user:neon_pass@example.neon.tech/neural"  # NOSONAR - synthetic DSN in tests with monkeypatched database adapters
     )
 
     with pytest.raises(RuntimeError, match="readback did not match"):
