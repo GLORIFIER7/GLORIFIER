@@ -77,6 +77,10 @@ verify_finalized_transaction() {
   local response
 
   require_signature "$signature" "$label"
+  solana confirm --commitment finalized "$signature" >/dev/null || {
+    echo "::error::The ${label} transaction did not reach finalized confirmation."
+    exit 1
+  }
   payload="$(jq -cn --arg signature "$signature" '{
     jsonrpc:"2.0",
     id:1,
