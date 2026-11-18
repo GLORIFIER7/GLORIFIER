@@ -19,7 +19,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: nvidia-ci-triage-${{ inputs.run_id || 'latest' }}
+  group: nvidia-ci-triage
   cancel-in-progress: false
 
 jobs:
