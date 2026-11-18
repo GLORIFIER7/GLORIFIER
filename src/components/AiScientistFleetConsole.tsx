@@ -75,8 +75,8 @@ export const AiScientistFleetConsole: React.FC<AiScientistFleetConsoleProps> = (
   };
 
   useEffect(() => {
-    loadData();
-    const timer = window.setInterval(loadData, 15000);
+    void loadData();
+    const timer = window.setInterval(() => { void loadData(); }, 15000);
     return () => window.clearInterval(timer);
   }, []);
 

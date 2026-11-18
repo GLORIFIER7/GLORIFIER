@@ -281,7 +281,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
 
   const handleCopyAddress = (id: string, addr: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(addr);
+    void navigator.clipboard.writeText(addr).catch((error) => console.warn('Clipboard write failed:', error));
     setCopiedId(id);
   };
 
@@ -357,7 +357,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
 
   const handleCopyTx = () => {
     if (!settledReceipt) return;
-    navigator.clipboard.writeText(settledReceipt.txHash);
+    void navigator.clipboard.writeText(settledReceipt.txHash).catch((error) => console.warn('Clipboard write failed:', error));
     setCopiedTx(true);
   };
 
@@ -435,7 +435,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
                   max={verifiedAvailableUsd ?? 0}
                   step="0.01"
                   value={amount}
-                  onChange={(e) => setAmount(Number.parseFloat(e.target.value) || 0)}
+                  onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-20 py-3 text-sm font-mono text-white focus:outline-none focus:border-emerald-500"
                   placeholder="0.00"
                 />

@@ -43,8 +43,8 @@ export const LiveEconomicData: React.FC = () => {
         if (active) setError(e?.message || 'Live economic data unavailable');
       }
     };
-    load();
-    const interval = window.setInterval(load, 30000);
+    void load();
+    const interval = window.setInterval(() => { void load(); }, 30000);
     return () => { active = false; window.clearInterval(interval); };
   }, []);
 

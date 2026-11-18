@@ -84,7 +84,7 @@ AI-generated responses, when available, are advisory and require human review.`
   ]);
 
   const handleCopyText = (text: string, label: string) => {
-    navigator.clipboard.writeText(text);
+    void navigator.clipboard.writeText(text).catch((error) => console.warn('Clipboard write failed:', error));
     setCopiedSection(label);
     setTimeout(() => setCopiedSection(null), 2500);
   };

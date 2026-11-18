@@ -14,8 +14,8 @@ export const EconomicOperatingSystemPanel: React.FC = () => {
         if(!cancelled) setData(p.snapshot);
       }catch(e:any){if(!cancelled)setError(e?.message||'Economic OS unavailable');}
     };
-    load();
-    const t=window.setInterval(load,15000);
+    void load();
+    const t=window.setInterval(() => { void load(); }, 15000);
     return()=>{cancelled=true;window.clearInterval(t);}
   },[]);
   const c=data?.counts||{};

@@ -84,7 +84,7 @@ export const GmailGovernanceTab: React.FC<GmailGovernanceTabProps> = ({
 
   useEffect(() => {
     if (currentUser && hasAccessToken && messages.length === 0) {
-      fetchEmails();
+      void fetchEmails();
     }
   }, [currentUser, hasAccessToken]);
 

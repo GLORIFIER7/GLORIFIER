@@ -76,7 +76,7 @@ export const PatentDisclosureDossier: React.FC<PatentDisclosureDossierProps> = (
 
   // Copy to clipboard helper
   const handleCopyText = (text: string, sectionKey: string) => {
-    navigator.clipboard.writeText(text);
+    void navigator.clipboard.writeText(text).catch((error) => console.warn('Clipboard write failed:', error));
     setCopiedSection(sectionKey);
   };
 
