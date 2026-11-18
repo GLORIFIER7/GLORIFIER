@@ -60,7 +60,7 @@ def test_cloudflare_validation_smoke_tests_pyodide_with_asyncpg_without_ml_drive
         "cloudflare-neural-uv-lock",
         "uv sync --locked --no-build --group dev --no-install-project --no-install-package glorifier-neural-app",
         "uv pip install --python .venv/bin/python --only-binary=:all: setuptools==83.0.0 wheel==0.45.1",
-        "uv pip install --python .venv/bin/python --no-build-isolation --no-deps neural_app",
+        "uv pip install --python .venv/bin/python --no-build-isolation --no-deps ./neural_app",
         "Prepare Neural application source as local Worker dependency",
         "python prepare_worker.py",
         "uv run --no-sync --locked --no-build pywrangler dev --ip 127.0.0.1 --port 8787",
