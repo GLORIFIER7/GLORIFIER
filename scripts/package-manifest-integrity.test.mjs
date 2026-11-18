@@ -90,3 +90,9 @@ test("duplicateJsonKeys detects duplicates inside nested arrays", () => {
 test("duplicateJsonKeys rejects malformed JSON", () => {
   assert.throws(() => duplicateJsonKeys('{"value": truX}'), SyntaxError);
 });
+
+test("npm package includes the locally maintained Picomatch override and its provenance", () => {
+  const manifest = JSON.parse(packageJsonText);
+  assert.equal(manifest.overrides?.picomatch, "file:vendor/picomatch");
+  assert.ok(manifest.files?.includes("vendor/picomatch"));
+});
