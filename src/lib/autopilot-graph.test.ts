@@ -131,3 +131,25 @@ test('a running mutation prevents another mutation from entering the same execut
 
   assert.deepEqual(getReadyAutopilotGraphWave(graph, statuses, 2), []);
 });
+
+
+test('read-only concurrency bounds include nodes already running in a prior wave', () => {
+  const graph = normalizeAutopilotGraph([
+    node('inspect-a', [], 'read-only'),
+    node('inspect-b', [], 'read-only'),
+    node('inspect-c', [], 'read-only'),
+  ]);
+  const twoRunning = new Map([
+    ['inspect-a', 'running' as const],
+    ['inspect-b', 'running' as const],
+    ['inspect-c', 'pending' as const],
+  ]);
+  assert.deepEqual(getReadyAutopilotGraphWave(graph, twoRunning, 2), []);
+
+  const oneRunning = new Map([
+    ['inspect-a', 'running' as const],
+    ['inspect-b', 'pending' as const],
+    ['inspect-c', 'pending' as const],
+  ]);
+  assert.deepEqual(getReadyAutopilotGraphWave(graph, oneRunning, 2).map((step) => step.id), ['inspect-b']);
+});
