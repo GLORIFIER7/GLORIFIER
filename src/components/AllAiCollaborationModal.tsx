@@ -88,7 +88,10 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
       }
       const first = items[0];
       const last = items[items.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
+      if (!dialog.contains(document.activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && document.activeElement === first) {
         event.preventDefault();
         last.focus();
       } else if (!event.shiftKey && document.activeElement === last) {
@@ -96,9 +99,9 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
         first.focus();
       }
     };
-    dialog?.addEventListener('keydown', handleKeyDown);
+    document.addEventListener('keydown', handleKeyDown);
     return () => {
-      dialog?.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('keydown', handleKeyDown);
       previouslyFocused?.focus();
     };
   }, [isOpen, onClose]);
