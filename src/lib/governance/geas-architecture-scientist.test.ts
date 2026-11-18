@@ -758,6 +758,13 @@ if (shouldReuseSourceObservation({ configuredUrl: 'https://example.org/new', cac
 if (shouldReuseSourceObservation({ configuredUrl: 'https://example.org', cachedUrl: 'https://example.org', ok: false, ...failedCacheMetadata, cadenceHours: 336, observedAt: new Date(0).toISOString(), nowMs: 60 * 60 * 1000 })) throw new Error('failed source observations must retry after one hour');
 if (!shouldReuseSourceObservation({ configuredUrl: 'https://example.org', cachedUrl: 'https://example.org', ok: false, ...failedCacheMetadata, cadenceHours: 336, observedAt: new Date(0).toISOString(), nowMs: 30 * 60 * 1000 })) throw new Error('failed source observations should remain cached before retry interval');
 if (stripHtml('<main>  alpha &amp; beta </main>') !== 'alpha and beta') throw new Error('HTML normalization failed');
+if (stripHtml('before<script>hidden</script data="x">after<style>hidden</style data="x">tail') !== 'before after tail') {
+  throw new Error('script/style removal must preserve the existing single-space replacement semantics');
+}
+const unclosedScriptHtml = '<script' + '<'.repeat(512 * 1024);
+if (stripHtml(unclosedScriptHtml) !== unclosedScriptHtml) {
+  throw new Error('an unclosed script tag must preserve the input without scanning the remaining page repeatedly');
+}
 
 const semanticEvidenceHtml = [
   '<header><nav>Security Reliability Cost Sign in</nav></header>',
