@@ -30,11 +30,15 @@ capture_sig() {
 read_field() {
   local field_name="$1"
   awk -F: -v field_name="${field_name}" '
-    tolower($1) == tolower(field_name) {
-      sub(/^[^:]*:[[:space:]]*/, "")
-      gsub(/^[[:space:]]+|[[:space:]]+$/, "")
-      print
-      exit
+    {
+      label = $1
+      gsub(/^[[:space:]]+|[[:space:]]+$/, "", label)
+      if (tolower(label) == tolower(field_name)) {
+        sub(/^[^:]*:[[:space:]]*/, "")
+        gsub(/^[[:space:]]+|[[:space:]]+$/, "")
+        print
+        exit
+      }
     }
   '
 }
