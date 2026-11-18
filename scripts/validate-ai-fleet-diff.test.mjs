@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
+import { runInNewContext } from 'node:vm';
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -10,10 +11,85 @@ const gateScript = fileURLToPath(new URL('./validate-ai-fleet-diff.mjs', import.
 const tsxLoader = import.meta.resolve('tsx/esm');
 const gateSource = readFileSync(gateScript, 'utf8');
 
-test('PR gate uses a fixed platform-specific Git executable', () => {
-  assert.match(gateSource, /const GIT_EXECUTABLE = process\.platform === 'win32'/);
-  assert.ok(gateSource.includes('C:\\\\Program Files\\\\Git\\\\cmd\\\\git.exe'));
-  assert.ok(gateSource.includes("'/usr/bin/git'"));
+function extractBalancedFunction(source, signature) {
+  const start = source.indexOf(signature);
+  if (start < 0) return null;
+  const openingBrace = source.indexOf('{', start + signature.length);
+  if (openingBrace < 0) return null;
+  let depth = 0;
+  let quote = null;
+  let escaped = false;
+  let lineComment = false;
+  let blockComment = false;
+  for (let index = openingBrace; index < source.length; index += 1) {
+    const character = source[index];
+    const next = source[index + 1];
+    if (lineComment) {
+      if (character === '\n') lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      if (character === '*' && next === '/') { blockComment = false; index += 1; }
+      continue;
+    }
+    if (quote) {
+      if (escaped) { escaped = false; continue; }
+      if (character === '\\') { escaped = true; continue; }
+      if (character === quote) quote = null;
+      continue;
+    }
+    if (character === '/' && next === '/') { lineComment = true; index += 1; continue; }
+    if (character === '/' && next === '*') { blockComment = true; index += 1; continue; }
+    if (character === "'" || character === '"' || character === '`') { quote = character; continue; }
+    if (character === '{') depth += 1;
+    if (character === '}') {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, index + 1);
+    }
+  }
+  return null;
+}
+
+test('function extraction handles nested blocks and braces inside strings', () => {
+  const fixture = [
+    'function nested() {',
+    "  const close = '}';",
+    '  if (true) {',
+    '    try {',
+    '      return { value: 1 };',
+    '    } catch (error) {',
+    '      return { value: 2 };',
+    '    }',
+    '  }',
+    '}',
+  ].join('\n');
+  assert.equal(extractBalancedFunction(fixture, 'function nested()'), fixture);
+});
+
+
+test('PR gate invokes the fixed platform-specific Git executable', () => {
+  const declaration = gateSource.match(/^const GIT_EXECUTABLE = .*;$/m)?.[0];
+  const gitRawFunction = extractBalancedFunction(gateSource, 'function gitRaw(args)');
+  assert.ok(declaration, 'the gate must declare its platform-specific Git executable');
+  assert.ok(gitRawFunction, 'the gate must expose the gitRaw implementation for the behavioral check');
+
+  for (const [platform, expectedExecutable] of [
+    ['linux', '/usr/bin/git'],
+    ['win32', 'C:\\Program Files\\Git\\cmd\\git.exe'],
+  ]) {
+    const calls = [];
+    runInNewContext(`${declaration}\n${gitRawFunction}\ngitRaw(['--version']);`, {
+      process: { platform },
+      execFileSync: (executable, args, options) => {
+        calls.push({ executable, args: Array.from(args), options });
+        return 'git version test';
+      },
+    });
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].executable, expectedExecutable);
+    assert.deepEqual(calls[0].args, ['--version']);
+    assert.equal(calls[0].options.encoding, 'utf8');
+  }
 });
 
 function runGit(cwd, args) {
