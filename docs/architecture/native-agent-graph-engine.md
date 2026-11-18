@@ -1,7 +1,7 @@
 # GLORIFIER Native Agent Graph Engine
 
-**Implementation branch:** `research/open-source-agent-orchestration-2026-11-18`  
-**Base:** current repository `main` at `48b5ad60e34974d925e27a407571402a28ec00db`  
+**Implementation branch:** `fix/autopilot-graph-legacy-write-serialization-20261118`  
+**Base:** repository `main` at `1dbd72cfa406b2c26bbb09e807380f0d0ca8aa1a`  
 **Design:** native DAG execution inside the existing Autopilot mission ledger  
 **Runtime verification:** pending branch CI and deployment/runtime observation
 
@@ -20,7 +20,7 @@ Each planned step has:
 - optional typed tool arguments validated by the existing concrete adapter;
 - `dependsOn`, a list of prerequisite step IDs.
 
-The graph is limited to six steps, consistent with the Autopilot mission-plan limit. Validation rejects invalid/duplicate IDs, malformed dependency lists, duplicate dependencies, self-dependencies, unknown nodes, cycles, and unsupported effect values. A stable topological order is produced for reproducible planning and audit traces.
+New dependency-graph plans are limited to six steps. This is intentionally stricter than the 30-step ceiling retained for pre-graph sequential mission records. Legacy records with no `dependsOn` fields remain a linear chain and must stay claimable up to 30 steps; the scheduler's legacy path validates that persisted ceiling separately. Validation rejects invalid/duplicate IDs, malformed dependency lists, duplicate dependencies, self-dependencies, unknown nodes, cycles, and unsupported effect values. A stable topological order is produced for reproducible planning and audit traces.
 
 For backward compatibility, a mission plan with no `dependsOn` declarations is normalized as a linear chain in its original order. New AI CEO plans are prompted to declare dependencies explicitly. Once a plan contains explicit dependency declarations, omitted `dependsOn` values mean no prerequisites; the graph is still checked for cycles and unknown references.
 
@@ -58,6 +58,6 @@ npm run test:autopilot-mission-control
 npm run lint
 ```
 
-Tests cover stable topological ordering, legacy linear normalization, unknown/self/duplicate dependencies, cycle rejection, bounded graph size, read-only concurrency waves, serialized writes, blocked downstream work, durable dependency persistence, and safe repository-write fan-in.
+Tests cover stable topological ordering, legacy linear normalization and claimability, unknown/self/duplicate dependencies, cycle rejection, bounded graph size, read-only concurrency limits, prevention of concurrent mutations, blocked downstream work, store-interface dependency persistence, and safe repository-write fan-in. The mission-control persistence tests use an in-memory store; database-backed persistence and production mission execution remain unverified.
 
-**Evidence status:** source implementation and tests have been added on the research branch. A local test/build run was not available in the editing environment; successful GitHub CI and runtime execution must be observed before marking this engine verified or enabling it in production.
+**Evidence status:** the source implementation is on `main`; this repair branch adds regression coverage for legacy mission claimability and mutation serialization. Local execution is unavailable in the current editing environment because it provides Node 22.16.0 while the repository requires Node `>=24.12.0`, and dependencies cannot be installed without network access. Exact-head GitHub CI, code scanning, and code-quality results must pass before the repair can be considered validated. No production mission execution or inference is claimed.

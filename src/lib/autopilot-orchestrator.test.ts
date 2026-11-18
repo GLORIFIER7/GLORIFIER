@@ -477,3 +477,30 @@ test('Autopilot requires graph prerequisites for each repository update and fina
     expectedSourceHashes: { 'src/lib/a.ts': hashA, 'src/lib/b.ts': hashB },
   }), /depend on every repository update/);
 });
+
+
+test('Autopilot rejects repository plans missing branch-to-read and read-to-update graph edges', () => {
+  const branch = 'autopilot/mission-graph-edges';
+  const expectedHash = 'a'.repeat(64);
+  const makeSteps = (readDependsOn: string[], updateDependsOn: string[]) => [
+    { id: 'branch', dependsOn: [], capability: 'github.create_branch', objective: 'Create the isolated branch.', arguments: { branch, base_ref: 'main' } },
+    { id: 'inspect', dependsOn: readDependsOn, capability: 'github.read_file', objective: 'Read the approved source.', arguments: { path: 'src/lib/service.ts', ref: branch } },
+    { id: 'update', dependsOn: updateDependsOn, capability: 'github.update_file', objective: 'Update only the inspected source.', arguments: { branch, path: 'src/lib/service.ts', content: 'patched', message: 'fix: patch service', expectedContentSha256: expectedHash } },
+    { id: 'pr', dependsOn: ['update'], capability: 'github.create_pull_request', objective: 'Open a draft PR after the update.', arguments: { branch, title: 'Fix service', body: 'Review required.' } },
+  ];
+  const options = {
+    expectedBranch: branch,
+    allowWrites: true,
+    inspectedPaths: ['src/lib/service.ts'],
+    expectedSourceHashes: { 'src/lib/service.ts': expectedHash },
+  };
+
+  assert.throws(
+    () => validateAutopilotPlan(JSON.stringify({ steps: makeSteps([], ['inspect']) }), options),
+    /Every repository source read must depend on completion of the mission-scoped branch creation/,
+  );
+  assert.throws(
+    () => validateAutopilotPlan(JSON.stringify({ steps: makeSteps(['branch'], ['branch']) }), options),
+    /Every repository update must depend on its own source-read step/,
+  );
+});

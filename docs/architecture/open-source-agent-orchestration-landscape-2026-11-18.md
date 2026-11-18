@@ -142,7 +142,7 @@ This review is based on upstream project descriptions/repositories and source in
 
 **Not performed:** no upstream repository was cloned or vendored; no framework package was installed; no production runtime, external agent, MCP server, or new A2A peer was configured; no inference request or paid service was used; no migration, deployment, signing, transaction, or production write was performed. No execution or interoperability capability is marked newly verified by this document.
 
-**Next engineering gate:** implement and test the typed DAG contract and bounded scheduler inside the existing Autopilot mission system. Keep external frameworks as optional adapters and reference implementations until a measured gap justifies them.
+**Next engineering gate:** the typed DAG contract and bounded scheduler now exist in the Autopilot source. Validate legacy sequential mission compatibility, mutation serialization, database-backed persistence, and end-to-end trace provenance on the exact candidate before enabling any production execution. Keep external frameworks as optional adapters and reference implementations until a measured gap justifies them.
 
 ## Upstream discovery references
 

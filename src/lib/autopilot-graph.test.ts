@@ -69,6 +69,7 @@ test('parallel waves never group repository writes and respect concurrency bound
   const graph = normalizeAutopilotGraph([
     node('inspect-a'),
     node('inspect-b'),
+    node('inspect-c'),
     node('write-a', [], 'reversible'),
     node('write-b', [], 'reversible'),
   ]);
@@ -93,4 +94,76 @@ test('failed or uncertain dependencies never release downstream nodes', () => {
     ]);
     assert.deepEqual(getReadyAutopilotGraphWave(graph, states, 2), []);
   }
+});
+
+
+test('legacy sequential missions above six steps remain normalizable and schedulable', () => {
+  const legacy = Array.from({ length: 7 }, (_, index) => node(`legacy-${index + 1}`));
+  const graph = normalizeAutopilotGraph(legacy, 30);
+
+  assert.equal(graph.length, 7);
+  assert.deepEqual(graph.map((step) => step.dependsOn), [
+    [],
+    ['legacy-1'],
+    ['legacy-2'],
+    ['legacy-3'],
+    ['legacy-4'],
+    ['legacy-5'],
+    ['legacy-6'],
+  ]);
+
+  const statuses = new Map(graph.map((step, index) => [
+    step.id,
+    index === 6 ? 'pending' as const : 'completed' as const,
+  ]));
+  assert.deepEqual(getReadyAutopilotGraphWave(graph, statuses, 2, 30).map((step) => step.id), ['legacy-7']);
+});
+
+test('a running mutation prevents another mutation from entering the same execution wave', () => {
+  const graph = normalizeAutopilotGraph([
+    node('write-a', [], 'reversible'),
+    node('write-b', [], 'reversible'),
+  ]);
+  const statuses = new Map([
+    ['write-a', 'running' as const],
+    ['write-b', 'pending' as const],
+  ]);
+
+  assert.deepEqual(getReadyAutopilotGraphWave(graph, statuses, 2), []);
+});
+
+
+test('read-only concurrency bounds include nodes already running in a prior wave', () => {
+  const graph = normalizeAutopilotGraph([
+    node('inspect-a', [], 'read-only'),
+    node('inspect-b', [], 'read-only'),
+    node('inspect-c', [], 'read-only'),
+  ]);
+  const twoRunning = new Map([
+    ['inspect-a', 'running' as const],
+    ['inspect-b', 'running' as const],
+    ['inspect-c', 'pending' as const],
+  ]);
+  assert.deepEqual(getReadyAutopilotGraphWave(graph, twoRunning, 2), []);
+
+  const oneRunning = new Map([
+    ['inspect-a', 'running' as const],
+    ['inspect-b', 'pending' as const],
+    ['inspect-c', 'pending' as const],
+  ]);
+  assert.deepEqual(getReadyAutopilotGraphWave(graph, oneRunning, 2).map((step) => step.id), ['inspect-b']);
+});
+
+
+test('mutating work waits until an in-flight read-only wave has drained', () => {
+  const graph = normalizeAutopilotGraph([
+    node('inspect-a', [], 'read-only'),
+    node('write-a', [], 'reversible'),
+  ]);
+  const statuses = new Map([
+    ['inspect-a', 'running' as const],
+    ['write-a', 'pending' as const],
+  ]);
+
+  assert.deepEqual(getReadyAutopilotGraphWave(graph, statuses, 2), []);
 });

@@ -8,7 +8,7 @@ import { estimateRepositoryInputTokenUpperBound, reserveRepositoryProviderReques
 import { createA2ATaskForProtocol, executeA2ATask, getA2ARuntimeStatus } from './a2a-runtime';
 import { authorizeCapability } from './capability-authorization';
 import { evaluateGeasPolicy } from './governance/geas-policy-engine';
-import { getAutopilotGraphAncestors, getReadyAutopilotGraphWave, normalizeAutopilotGraph } from './autopilot-graph';
+import { MAX_LEGACY_MISSION_STEPS, getAutopilotGraphAncestors, getReadyAutopilotGraphWave, normalizeAutopilotGraph } from './autopilot-graph';
 import { executeAutopilotToolStep, normalizeGithubToolInvocation } from './autopilot-execution-fabric';
 import { isAllowedAutopilotWritePath, normalizeAutopilotWriteBranch } from './autopilot-github-write';
 import { hasGithubAppWriteConfiguration, type GithubAppWriterIdentity } from './github-app-auth';
@@ -777,6 +777,7 @@ export async function processNextAutopilotMission(
         currentMission.steps,
         statuses,
         MAX_PARALLEL_READ_STEPS,
+        MAX_LEGACY_MISSION_STEPS,
       );
       if (readyWave.length === 0) {
         const unresolved = currentMission.steps

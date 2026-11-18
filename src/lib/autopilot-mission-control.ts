@@ -5,7 +5,7 @@ import { aiOrchestrator } from './ai/orchestrator';
 import { getProviderEndpointUrl } from './ai/registry';
 import { getRepositoryFreeContributorPolicy, normalizeRepositoryProviderEndpoint } from './ai/repository-contributor-policy.mjs';
 import { hasGithubAppWriteConfiguration } from './github-app-auth';
-import { normalizeAutopilotGraph } from './autopilot-graph';
+import { MAX_GRAPH_NODES, MAX_LEGACY_MISSION_STEPS, normalizeAutopilotGraph } from './autopilot-graph';
 
 export type AutopilotMissionStatus =
   | 'queued'
@@ -316,7 +316,7 @@ function parseMission(value: unknown): AutopilotMission {
 
 const MAX_OBJECTIVE_LENGTH = 20_000;
 const MAX_TITLE_LENGTH = 160;
-const MAX_STEPS = 30;
+const MAX_STEPS = MAX_LEGACY_MISSION_STEPS;
 const MIN_LEASE_MS = 30_000;
 const MAX_LEASE_MS = 30 * 60_000;
 
@@ -509,7 +509,14 @@ export async function recordAutopilotMissionPlan(
   if (!Array.isArray(plan) || plan.length < 1 || plan.length > MAX_STEPS) {
     throw new Error(`mission plan must contain between 1 and ${MAX_STEPS} steps.`);
   }
-  const normalizedPlan = normalizeAutopilotGraph(plan);
+  const hasExplicitDependencies = plan.some((step) => step.dependsOn !== undefined);
+  if (hasExplicitDependencies && plan.length > MAX_GRAPH_NODES) {
+    throw new Error(`New dependency graphs are limited to ${MAX_GRAPH_NODES} steps; legacy sequential missions may contain up to ${MAX_STEPS} steps.`);
+  }
+  const normalizedPlan = normalizeAutopilotGraph(
+    plan,
+    hasExplicitDependencies ? MAX_GRAPH_NODES : MAX_STEPS,
+  );
   const ids = new Set<string>();
   const steps: AutopilotMissionStep[] = normalizedPlan.map((step) => {
     const id = requireNonEmpty(step.id, 'step id', 128);
@@ -570,7 +577,7 @@ export async function claimAutopilotMissionStep(
   if (index < 0) throw new Error('Autopilot mission step not found.');
   const step = mission.steps[index];
   if (step.status !== 'pending') throw new Error('mission step is not pending and cannot be replayed.');
-  const graph = normalizeAutopilotGraph(mission.steps);
+  const graph = normalizeAutopilotGraph(mission.steps, MAX_STEPS);
   const graphStep = graph.find((entry) => entry.id === step.id);
   if (!graphStep) throw new Error('Autopilot mission step is missing from its validated dependency graph.');
   const unresolvedDependencies = graphStep.dependsOn.filter((dependency) => {
