@@ -157,6 +157,7 @@ jobs:
 
           # Transaction-history verifier: offline regression tests against a finalized Devnet fixture.
           python3 solana/verify-token2022-devnet-history.test.py
+          npm run test:solana-resume-recovery
           # Fully verified identity with real receipts must pass; a placeholder receipt must fail closed.
           jq '.transaction_semantics_verified = true
               | .creation_transaction = "2DcwdGwopPmTJwvSXG6ahDbNumM8FAJTbJwfYdV92t9h4wpDW7WP5SKzbAGw23rSGZHMLTEssysxK5H7ynvC7j5r"
