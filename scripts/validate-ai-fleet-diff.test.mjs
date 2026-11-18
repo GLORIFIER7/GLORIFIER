@@ -10,9 +10,10 @@ const gateScript = fileURLToPath(new URL('./validate-ai-fleet-diff.mjs', import.
 const tsxLoader = import.meta.resolve('tsx/esm');
 const gateSource = readFileSync(gateScript, 'utf8');
 
-test('PR gate resolves Git from PATH instead of a Linux-specific absolute path', () => {
-  assert.match(gateSource, /const GIT_EXECUTABLE = ['"]git['"]/);
-  assert.equal(gateSource.includes('/usr/bin/git'), false);
+test('PR gate uses a fixed platform-specific Git executable', () => {
+  assert.match(gateSource, /const GIT_EXECUTABLE = process\\.platform === 'win32'/);
+  assert.ok(gateSource.includes('C:\\\\Program Files\\\\Git\\\\cmd\\\\git.exe'));
+  assert.ok(gateSource.includes("'/usr/bin/git'"));
 });
 
 function runGit(cwd, args) {
