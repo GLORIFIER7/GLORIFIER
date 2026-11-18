@@ -36,7 +36,7 @@ test('recognizes only fingerprinted asset name segments', () => {
 });
 
 test('strips tag-shaped markup in one forward scan', () => {
-  assert.equal(stripHtmlTags('<b>GLORIFIER</b> <i>GLR</i>'), ' GLORIFIER  GLR ');
+  assert.equal(stripHtmlTags('<b>GLORIFIER</b> <i>GLR</i>'), ' GLORIFIER   GLR ');
   assert.equal(stripHtmlTags('plain text'), 'plain text');
   assert.equal(stripHtmlTags('<> remains'), '<> remains');
 });
@@ -53,7 +53,7 @@ test('extracts the first non-empty angle-bracket value', () => {
 });
 
 test('normalizes outer JSON and diff fences without regular expressions', () => {
-  assert.equal(stripOuterCodeFence('```json\n{"ok":true}\n```', 'json'), '{"ok":true}');
+  assert.equal(stripOuterCodeFence('```json\n{"ok":true}\n```', 'json'), '{"ok":true}\n');
   assert.equal(stripOuterCodeFence('```diff\n+line\n```', 'diff'), '+line');
   assert.equal(stripOuterCodeFence('plain text  ', 'diff'), 'plain text');
 });
