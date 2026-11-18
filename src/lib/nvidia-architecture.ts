@@ -8,6 +8,7 @@ export interface NVIDIAArchitectureSnapshot {
     governance: string[];
     intelligence: string[];
     inference: string[];
+    training: string[];
     orchestration: string[];
     observability: string[];
     execution: string[];
@@ -17,6 +18,7 @@ export interface NVIDIAArchitectureSnapshot {
     nim: { role: string; configured: boolean; verified: boolean };
     nemotron: { role: string; configured: boolean; verified: boolean };
     dynamo: { role: string; configured: boolean; verified: boolean };
+    megatron: { role: string; configured: boolean; verified: boolean };
     nemoAgentToolkit: { role: string; configured: boolean; verified: boolean };
     runai: { role: string; configured: boolean; verified: boolean };
     missionControl: { role: string; configured: boolean; verified: boolean };
@@ -34,17 +36,23 @@ export interface NVIDIAArchitectureSnapshot {
   };
 }
 
-const configured = (name: string) => Boolean((process.env[name] || '').trim());
+type ArchitectureEnvironment = Readonly<Record<string, string | undefined>>;
 
-export function getNVIDIAArchitectureSnapshot(): NVIDIAArchitectureSnapshot {
-  const nimConfigured = configured('NVIDIA_API_KEY') || configured('NVIDIA_NIM_BASE_URL');
-  const nemotronConfigured = configured('NVIDIA_API_KEY') || configured('NVIDIA_MODEL');
-  const dynamoConfigured = configured('NVIDIA_DYNAMO_URL');
-  const agentToolkitConfigured = configured('NVIDIA_AGENT_TOOLKIT_URL');
-  const runaiConfigured = configured('NVIDIA_RUNAI_URL');
-  const missionControlConfigured = configured('NVIDIA_MISSION_CONTROL_URL');
-  const prometheusConfigured = configured('FACTORY_PROMETHEUS_URL');
-  const grafanaConfigured = configured('FACTORY_GRAFANA_URL');
+const configured = (environment: ArchitectureEnvironment, name: string) =>
+  Boolean((environment[name] || '').trim());
+
+export function getNVIDIAArchitectureSnapshot(
+  environment: ArchitectureEnvironment = process.env,
+): NVIDIAArchitectureSnapshot {
+  const nimConfigured = configured(environment, 'NVIDIA_API_KEY') || configured(environment, 'NVIDIA_NIM_BASE_URL');
+  const nemotronConfigured = configured(environment, 'NVIDIA_API_KEY') || configured(environment, 'NVIDIA_MODEL');
+  const dynamoConfigured = configured(environment, 'NVIDIA_DYNAMO_URL');
+  const megatronConfigured = (environment.NVIDIA_MEGATRON_ENABLED || '').trim().toLowerCase() === 'true';
+  const agentToolkitConfigured = configured(environment, 'NVIDIA_AGENT_TOOLKIT_URL');
+  const runaiConfigured = configured(environment, 'NVIDIA_RUNAI_URL');
+  const missionControlConfigured = configured(environment, 'NVIDIA_MISSION_CONTROL_URL');
+  const prometheusConfigured = configured(environment, 'FACTORY_PROMETHEUS_URL');
+  const grafanaConfigured = configured(environment, 'FACTORY_GRAFANA_URL');
 
   return {
     architecture: 'GLORIFIER_NVIDIA_GOVERNED_AI_FACTORY',
@@ -64,6 +72,7 @@ export function getNVIDIAArchitectureSnapshot(): NVIDIAArchitectureSnapshot {
       governance: ['GLORIFIER Governance Kernel', 'GEAS', 'Identity/Authority', 'Policy'],
       intelligence: ['AI CEO', 'Permanent Orchestrator', 'Specialist Council', 'Provider Registry'],
       inference: ['NVIDIA NIM', 'Nemotron', 'other authorized GLORIFIER providers'],
+      training: ['NVIDIA Megatron Core (optional distributed model training)'],
       orchestration: ['GLORIFIER execution control', 'Kubernetes when authorized', 'NVIDIA Dynamo when scale requires it', 'Run:ai when GPU scheduling is required'],
       observability: ['Prometheus', 'Grafana', 'GPU telemetry', 'application telemetry'],
       execution: ['governed tools', 'agents', 'workloads', 'human-approved mutations'],
@@ -73,6 +82,7 @@ export function getNVIDIAArchitectureSnapshot(): NVIDIAArchitectureSnapshot {
       nim: { role: 'production inference serving boundary', configured: nimConfigured, verified: false },
       nemotron: { role: 'NVIDIA reasoning/model capability behind the inference boundary', configured: nemotronConfigured, verified: false },
       dynamo: { role: 'optional high-scale distributed inference runtime', configured: dynamoConfigured, verified: false },
+      megatron: { role: 'optional distributed model-training framework; separate GPU training plane, not an inference provider', configured: megatronConfigured, verified: false },
       nemoAgentToolkit: { role: 'optional agent development/runtime integration; not the GLORIFIER governance brain', configured: agentToolkitConfigured, verified: false },
       runai: { role: 'optional GPU workload scheduling and utilization layer', configured: runaiConfigured, verified: false },
       missionControl: { role: 'optional AI factory infrastructure/workload operations layer', configured: missionControlConfigured, verified: false },
@@ -104,6 +114,8 @@ export function getNVIDIAArchitecturePolicy() {
     promotionRule: 'configured -> connected -> authenticated -> observed -> verified',
     failoverRule: 'NVIDIA failure must produce a truthful degraded state and may route only through an explicitly authorized eligible provider.',
     executionRule: 'NVIDIA inference may generate decisions or tool plans, but GLORIFIER governance determines whether execution is authorized.',
+    trainingExecutionRule: 'Megatron training must remain disabled until a separate GPU runner, approved dataset, pinned runtime, resource ceiling, and explicit owner authorization are in place.',
+    checkpointPromotionRule: 'Training completion never promotes a checkpoint; require provenance, integrity, security, quality, and inference-compatibility checks before registry promotion.',
     dependencyRule: 'No NVIDIA component is a hard dependency for the GLORIFIER control plane.'
   } as const;
 }

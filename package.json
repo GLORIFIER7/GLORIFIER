@@ -28,7 +28,7 @@
     "test:provider-model-selection": "node --import tsx/esm --test src/lib/ai/registry.model-selection.test.ts",
     "test:provider-discovery": "node --import tsx/esm --test src/lib/ai/provider-discovery.test.ts",
     "test:gemini-model-policy": "node --import tsx/esm --test src/lib/ai/gemini-model-policy.test.ts",
-    "test:architecture": "node --import tsx/esm --test src/lib/governance/architecture-core.test.ts",
+    "test:architecture": "node --import tsx/esm --test src/lib/governance/architecture-core.test.ts src/lib/nvidia-architecture.test.ts",
     "test:geas-reconciliation": "node --import tsx/esm --test src/lib/governance/geas-reconciliation.test.ts",
     "test:permanent-stack": "node --import tsx/esm --test src/lib/governance/permanent-stack.test.ts",
     "test:agent-miner": "node --import tsx/esm --test src/lib/agent-miner.test.ts",
