@@ -4,7 +4,6 @@ export type AutopilotGraphNode = {
   id: string;
   dependsOn?: readonly string[];
   effect?: AutopilotGraphEffect;
-  [key: string]: unknown;
 };
 
 export type AutopilotGraphNodeStatus =
@@ -139,4 +138,26 @@ export function getReadyAutopilotGraphWave<T extends AutopilotGraphNode>(
   return ready
     .filter((node) => node.effect === 'read-only')
     .slice(0, maxConcurrency) as T[];
+}
+
+/** Returns every transitive prerequisite in deterministic topological order. */
+export function getAutopilotGraphAncestors<T extends AutopilotGraphNode>(
+  graph: readonly T[],
+  nodeId: string,
+): string[] {
+  const normalized = normalizeAutopilotGraph(graph);
+  const selected = normalized.find((node) => node.id === nodeId);
+  if (!selected) throw new Error(`Autopilot graph node '${nodeId}' does not exist.`);
+
+  const ancestors = new Set<string>();
+  const visit = (id: string): void => {
+    const current = normalized.find((node) => node.id === id);
+    for (const dependency of current?.dependsOn ?? []) {
+      if (ancestors.has(dependency)) continue;
+      ancestors.add(dependency);
+      visit(dependency);
+    }
+  };
+  visit(selected.id);
+  return normalized.filter((node) => ancestors.has(node.id)).map((node) => node.id);
 }
