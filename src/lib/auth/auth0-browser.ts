@@ -1,3 +1,4 @@
+import { stripBase64Padding } from '../linear-string.js';
 export type Auth0BrowserPrincipal = { uid: string; email: string | null; displayName: string | null };
 
 const ACCESS_TOKEN_KEY = 'glorifier_auth0_access_token';
@@ -22,7 +23,7 @@ export function isAuth0BrowserConfigured(): boolean {
 function base64Url(bytes: Uint8Array): string {
   let binary = '';
   bytes.forEach((byte) => { binary += String.fromCharCode(byte); });
-  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  return stripBase64Padding(btoa(binary).replace(/\+/g, '-').replace(/\//g, '_'));
 }
 
 function randomValue(): string {
