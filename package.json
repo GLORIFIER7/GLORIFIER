@@ -15,7 +15,7 @@
     "lint": "tsc --noEmit",
     "test:broker-console-truthfulness": "node --test scripts/broker-console-truthfulness.test.mjs",
     "test:token-economizer-integration": "node --test scripts/token-economizer-install.test.mjs",
-    "prebuild:frontend": "npm run test:package-manifest-integrity && npm run test:brand-assets && npm run test:service-worker-cache && npm run test:firebase-hosting-config && npm run test:picomatch-redos && npm run test:dependency-security-exceptions && npm run test:linear-string-normalization",
+    "prebuild:frontend": "npm run test:package-manifest-integrity && npm run test:brand-assets && npm run test:service-worker-cache && npm run test:firebase-hosting-config && npm run test:picomatch-redos && npm run test:dependency-security-exceptions && npm run test:linear-string-normalization && npm run test:accessible-dialog",
     "test:service-worker-cache": "node --test scripts/service-worker-cache.test.mjs",
     "build:frontend": "vite build",
     "prebuild:android": "npm run test:package-manifest-integrity && npm run test:brand-assets",
@@ -142,7 +142,8 @@
     "test:picomatch-redos": "node --test scripts/picomatch-redos-regression.test.mjs",
     "test:dependency-security-exceptions": "node --test scripts/dependency-security-exceptions.test.mjs",
     "test:autopilot-graph": "node --import tsx/esm --test src/lib/autopilot-graph.test.ts",
-    "test:linear-string-normalization": "node --test scripts/linear-string.test.mjs && node --import tsx/esm --test src/lib/linear-string.test.ts"
+    "test:linear-string-normalization": "node --test scripts/linear-string.test.mjs && node --import tsx/esm --test src/lib/linear-string.test.ts",
+    "test:accessible-dialog": "node --import tsx/esm --test src/lib/accessible-dialog.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",
