@@ -185,9 +185,9 @@ test('main branch protection has one always-present aggregate CI check', () => {
     '      - agent-state-postgres-integration',
     '      - supabase-default-privileges-integration',
   ].join('\n')));
-  assert.ok(requiredCi.includes('needs.build.result'));
-  assert.ok(requiredCi.includes('needs.agent-state-postgres-integration.result'));
-  assert.ok(requiredCi.includes('needs.supabase-default-privileges-integration.result'));
+  assert.ok(requiredCi.includes('BUILD_RESULT: ${{ needs.build.result }}'));
+  assert.ok(requiredCi.includes('AGENT_STATE_POSTGRES_RESULT: ${{ needs.agent-state-postgres-integration.result }}'));
+  assert.ok(requiredCi.includes('SUPABASE_DEFAULT_PRIVILEGES_RESULT: ${{ needs.supabase-default-privileges-integration.result }}'));
   assert.ok(requiredCi.includes('[[ "$BUILD_RESULT" == "success" ]]'));
   assert.ok(requiredCi.includes('[[ "$AGENT_STATE_POSTGRES_RESULT" == "success" ]]'));
   assert.ok(requiredCi.includes('[[ "$SUPABASE_DEFAULT_PRIVILEGES_RESULT" == "success" ]]'));
