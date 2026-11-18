@@ -81,16 +81,8 @@ jobs:
       - uses: gradle/actions/setup-gradle@8da46b539cd8fe6ab27ca75128919a18d757604c # v6
         with:
           gradle-version: "8.10.2"
-      - name: Test native Kotlin SDK and generate dependency locks
-        run: gradle --no-daemon --write-locks -p sdk/kotlin test
-      - name: Upload generated Kotlin dependency lock
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: glorifier-sdk-kotlin-lock
-          path: sdk/kotlin/gradle.lockfile
-          if-no-files-found: warn
-          retention-days: 7
+      - name: Test native Kotlin SDK
+        run: gradle --no-daemon -p sdk/kotlin test
 
   dotnet:
     name: .NET SDK (8.0)
@@ -156,16 +148,7 @@ jobs:
         working-directory: sdk/dart
         run: |
           dart pub get
-          dart pub get --enforce-lockfile
           dart test
-      - name: Upload generated Dart dependency lock
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: glorifier-sdk-dart-lock
-          path: sdk/dart/pubspec.lock
-          if-no-files-found: warn
-          retention-days: 7
 
   javascript:
     name: JavaScript / TypeScript SDK (Node.js 24)
