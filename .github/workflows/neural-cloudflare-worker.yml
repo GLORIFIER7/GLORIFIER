@@ -70,7 +70,7 @@ jobs:
         run: "uv pip install --python .venv/bin/python --only-binary=:all: setuptools==83.0.0 wheel==0.45.1"
       - name: Install staged Neural application without build isolation
         working-directory: services/neural/cloudflare
-        run: uv pip install --python .venv/bin/python --no-build-isolation --no-deps -e neural_app
+        run: uv pip install --python .venv/bin/python --no-build-isolation --no-deps neural_app
       - name: Run Workers AI free-only and Autopilot readiness unit tests
         working-directory: services/neural/cloudflare
         env:
@@ -168,7 +168,7 @@ jobs:
         run: "uv pip install --python .venv/bin/python --only-binary=:all: setuptools==83.0.0 wheel==0.45.1"
       - name: Install staged Neural application without build isolation
         working-directory: services/neural/cloudflare
-        run: uv pip install --python .venv/bin/python --no-build-isolation --no-deps -e neural_app
+        run: uv pip install --python .venv/bin/python --no-build-isolation --no-deps neural_app
       - name: Prepare isolated Worker bundle and validate without deployment
         working-directory: services/neural/cloudflare
         run: |
