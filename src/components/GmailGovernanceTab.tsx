@@ -229,6 +229,10 @@ export const GmailGovernanceTab: React.FC<GmailGovernanceTabProps> = ({
                 {messages.map((item) => (
                   <div
                     key={item.id}
+                    role="button"
+                    tabIndex={0}
+                    aria-pressed={selectedItem?.id === item.id}
+                    onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedItem(item); } }}
                     onClick={() => setSelectedItem(item)}
                     className={`p-4 rounded-xl border transition-all cursor-pointer ${
                       selectedItem?.id === item.id
