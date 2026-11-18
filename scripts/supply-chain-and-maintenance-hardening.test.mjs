@@ -198,6 +198,20 @@ const nvidiaTriageWorkflow = readFileSync(
   'utf8',
 );
 
+test('NVIDIA workflows serialize blank run-ID dispatches against the same latest-failure target', () => {
+  for (const [name, source, expectedPrefix] of [
+    ['assisted maintenance', nvidiaMaintenanceWorkflow, 'nvidia-assisted-maintenance-'],
+    ['CI triage', nvidiaTriageWorkflow, 'nvidia-ci-triage-'],
+  ]) {
+    const group = source.match(/^  group:\\s*(.+)$/m)?.[1] ?? '';
+    assert.ok(group.startsWith(expectedPrefix), name + ' must declare its own concurrency group');
+    assert.ok(group.includes("inputs.run_id || 'latest'"),
+      name + ' must use one shared key when no explicit run ID is supplied');
+    assert.doesNotMatch(group, /github\\.run_id/,
+      name + ' must not give every blank-ID dispatch a distinct concurrency key');
+  }
+});
+
 test('NVIDIA maintenance rejects malformed explicit run IDs before selecting the latest failure', () => {
   const guardStart = nvidiaMaintenanceWorkflow.indexOf(
     'if [[ -n "$candidate" && ! "$candidate" =~ ^[0-9]+$ ]]; then',
