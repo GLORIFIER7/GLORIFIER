@@ -70,7 +70,7 @@
     "test:huggingface-space-deploy": "node scripts/huggingface-space-deploy.test.cjs",
     "test:protected-api-paths": "tsx src/lib/auth/protected-api-paths.test.ts",
     "test:asap-bridge": "node --import tsx/esm --test src/lib/asap-bridge.test.ts",
-    "test:solana-provenance": "tsx scripts/validate-solana-provenance.ts",
+    "test:solana-provenance": "tsx scripts/validate-solana-provenance.ts && npm run test:solana-resume-recovery-contract",
     "test:llama-cloud": "tsx src/lib/llama-cloud.test.ts",
     "test:nvidia-provider": "tsx src/lib/ai/providers/nvidia-provider.test.ts",
     "test:new-id": "node --import tsx/esm --test src/lib/new-id.test.ts",
@@ -143,7 +143,8 @@
     "test:dependency-security-exceptions": "node --test scripts/dependency-security-exceptions.test.mjs",
     "test:autopilot-graph": "node --import tsx/esm --test src/lib/autopilot-graph.test.ts",
     "test:linear-string-normalization": "node --test scripts/linear-string.test.mjs && node --import tsx/esm --test src/lib/linear-string.test.ts",
-    "test:accessible-dialog": "node --import tsx/esm --test src/lib/accessible-dialog.test.ts"
+    "test:accessible-dialog": "node --import tsx/esm --test src/lib/accessible-dialog.test.ts",
+    "test:solana-resume-recovery-contract": "node --test scripts/solana-resume-recovery-contract.test.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",
