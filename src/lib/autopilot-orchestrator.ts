@@ -757,6 +757,7 @@ export async function processNextAutopilotMission(
       writerIdentity: GithubAppWriterIdentity | null;
     }> = [];
 
+    // Bound only independent read-only graph work; all repository mutations stay serial.
     const MAX_PARALLEL_READ_STEPS = 2;
     while (true) {
       const currentMission = await store.get(planned.id);
