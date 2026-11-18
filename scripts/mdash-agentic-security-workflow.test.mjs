@@ -49,7 +49,7 @@ test('Microsoft credentials and CLI digest come only from the protected environm
 });
 
 test('the Defender CLI binary is SHA-256 verified before chmod and execution', () => {
-  const downloadIndex = scanJob.indexOf('curl --fail');
+  const downloadIndex = scanJob.indexOf("curl --proto '=https' --proto-redir '=https' --fail --location");
   const verifyIndex = scanJob.indexOf('sha256sum --check --status');
   const chmodIndex = scanJob.indexOf('chmod 700');
   const executeIndex = scanJob.indexOf('"$defender" scan ai-scan submit');
