@@ -203,7 +203,7 @@ test('NVIDIA workflows serialize blank run-ID dispatches against the same latest
     ['assisted maintenance', nvidiaMaintenanceWorkflow, 'nvidia-assisted-maintenance-'],
     ['CI triage', nvidiaTriageWorkflow, 'nvidia-ci-triage-'],
   ]) {
-    const group = source.match(/^  group:\\s*(.+)$/m)?.[1] ?? '';
+    const group = source.match(/^  group:\s*(.+)$/m)?.[1] ?? '';
     assert.ok(group.startsWith(expectedPrefix), name + ' must declare its own concurrency group');
     assert.ok(group.includes("inputs.run_id || 'latest'"),
       name + ' must use one shared key when no explicit run ID is supplied');
