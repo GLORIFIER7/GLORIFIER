@@ -121,7 +121,7 @@
     "test:brand-assets": "node --test scripts/brand-asset-integrity.test.mjs",
     "test:autopilot-observation-intake": "node --import tsx/esm --test src/lib/autopilot-observation-intake.test.ts",
     "test:autopilot-mission-control": "node --import tsx/esm --test src/lib/autopilot-mission-control.test.ts",
-    "test:autopilot-orchestrator": "node --import tsx/esm --test src/lib/autopilot-orchestrator.test.ts",
+    "test:autopilot-orchestrator": "node --import tsx/esm --test src/lib/autopilot-orchestrator.test.ts src/lib/autopilot-graph.test.ts",
     "test:autopilot-execution-fabric": "node --import tsx/esm --test src/lib/autopilot-execution-fabric.test.ts",
     "test:autopilot-evidence-verifier": "node --import tsx/esm --test src/lib/autopilot-evidence-verifier.test.ts",
     "test:autopilot-github-write": "node --import tsx/esm --test src/lib/autopilot-github-write.test.ts",
@@ -140,7 +140,8 @@
     "test:mphr-hosting": "npm run test:frontend-static-server && node --test scripts/mphr-hosting-contract.test.mjs",
     "test:firebase-hosting-config": "node --test scripts/firebase-hosting-config.test.mjs",
     "test:picomatch-redos": "node --test scripts/picomatch-redos-regression.test.mjs",
-    "test:dependency-security-exceptions": "node --test scripts/dependency-security-exceptions.test.mjs"
+    "test:dependency-security-exceptions": "node --test scripts/dependency-security-exceptions.test.mjs",
+    "test:autopilot-graph": "node --import tsx/esm --test src/lib/autopilot-graph.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",
