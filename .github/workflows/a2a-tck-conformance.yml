@@ -182,7 +182,7 @@ jobs:
         working-directory: .a2a-tck
         run: |
           set -euo pipefail
-          uv sync --locked
+          uv sync --locked --no-build
 
       - name: Run full declared JSON-RPC transport conformance
         working-directory: .a2a-tck
