@@ -54,13 +54,18 @@ test("standalone build entry points run package integrity and relevant prebuild 
   );
   assert.equal(
     manifest.scripts?.["prebuild:frontend"],
-    sharedPrebuild + " && npm run test:service-worker-cache && npm run test:firebase-hosting-config",
+    sharedPrebuild + " && npm run test:service-worker-cache && npm run test:firebase-hosting-config && npm run test:picomatch-redos",
     "frontend builds must verify retired service-worker cache cleanup and Firebase Hosting configuration",
   );
   assert.equal(
     manifest.scripts?.["test:service-worker-cache"],
     "node --test scripts/service-worker-cache.test.mjs",
     "the service-worker cache migration test must be runnable independently",
+  );
+  assert.equal(
+    manifest.scripts?.["test:picomatch-redos"],
+    "node --test scripts/picomatch-redos-regression.test.mjs",
+    "the locally patched Picomatch ReDoS regression test must be runnable independently",
   );
   assert.equal(
     manifest.scripts?.["test:firebase-hosting-config"],
