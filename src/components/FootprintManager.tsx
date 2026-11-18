@@ -271,6 +271,10 @@ export const FootprintManager: React.FC<FootprintManagerProps> = ({
                         ].map((tierOption) => (
                           <div
                             key={tierOption.id}
+                            role="button"
+                            tabIndex={0}
+                            aria-pressed={fp.privacyTier === tierOption.id}
+                            onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onUpdatePrivacyTier(fp.id, tierOption.id as PrivacyTier, fp.privacyEpsilon); } }}
                             onClick={() => onUpdatePrivacyTier(fp.id, tierOption.id as PrivacyTier, fp.privacyEpsilon)}
                             className={`cursor-pointer rounded-lg p-2.5 border text-left transition-all ${
                               fp.privacyTier === tierOption.id
