@@ -104,21 +104,56 @@ verify_finalized_transaction() {
       and .result != null
       and .result.meta.err == null
       and .result.transaction.signatures[0] == $signature
-      and any(.result.transaction.message.accountKeys[]?;
-        (if type == "object" then .pubkey else . end) == $mint)
       and any(.result.transaction.message.instructions[]?;
         .programId == $program
         and (.parsed as $parsed
           | $parsed != null
           and ($expected_types | index($parsed.type)) != null
-          and ($expected_authority_type == "" or $parsed.info.authorityType == $expected_authority_type)))
+          and (
+            $parsed.info.mint == $mint
+            or $parsed.info.metadata == $mint
+            or $parsed.info.metadataAddress == $mint
+          )
+          and (
+            $expected_authority_type == ""
+            or ($parsed.type == "updateTokenMetadataAuthority" and $parsed.info.newAuthority == null)
+            or ($parsed.type == "updateMetadataPointerAuthority" and $parsed.info.newAuthority == null)
+            or $parsed.info.authorityType == $expected_authority_type
+          )))
     ' <<< "$response" >/dev/null || {
       echo "::error::The ${label} signature is not a finalized successful transaction for this mint and expected Token-2022 operation."
       exit 1
     }
 }
 
+require_receipt() {
+  local receipt="$1"
+  local label="$2"
+  if [[ "$label" == "freeze authority revocation" && "$receipt" == "NOT_APPLICABLE_NEVER_SET" ]]; then
+    return
+  fi
+  require_signature "$receipt" "$label"
+}
 
+reconcile_receipt() {
+  local signature_variable="$1"
+  local history_field="$2"
+  local label="$3"
+  local supplied_receipt="${!signature_variable}"
+  local verified_receipt
+  verified_receipt="$(jq -er --arg field "$history_field" '.[$field] // empty' "$HISTORY_FILE")" || {
+    echo "::error::Finalized transaction history is missing the required ${label} receipt."
+    exit 1
+  }
+  if [[ -n "$supplied_receipt" && "$supplied_receipt" != "$verified_receipt" ]]; then
+    echo "::error::The supplied ${label} receipt does not match finalized transaction history."
+    exit 1
+  fi
+  require_receipt "$verified_receipt" "$label"
+  printf -v "$signature_variable" '%s' "$verified_receipt"
+}
+
+CREATION_TX=""
 METADATA_TX=""
 ACCOUNT_TX=""
 MINT_TX=""
@@ -133,18 +168,25 @@ if [[ -f "${EVIDENCE_FILE}" ]]; then
   jq -e --arg mint "${MINT}" --arg program "${TOKEN_2022_PROGRAM}" '
     .network == "solana-devnet" and .mint == $mint and .programId == $program
     and all([
+      .creationTransaction,
       .metadataTransaction,
       .tokenAccountCreationTransaction,
       .mintTransaction,
       .mintAuthorityRevocationTransaction,
-      .freezeAuthorityRevocationTransaction,
       .metadataUpdateAuthorityRevocationTransaction,
       .metadataPointerAuthorityRevocationTransaction
-    ][]; . == null or (type == "string" and test("^[1-9A-HJ-NP-Za-km-z]{64,90}$")))
+    ][]; . == null or . == "" or (type == "string" and test("^[1-9A-HJ-NP-Za-km-z]{64,88}$")))
+    and (
+      .freezeAuthorityRevocationTransaction == null
+      or .freezeAuthorityRevocationTransaction == ""
+      or .freezeAuthorityRevocationTransaction == "NOT_APPLICABLE_NEVER_SET"
+      or (.freezeAuthorityRevocationTransaction | type == "string" and test("^[1-9A-HJ-NP-Za-km-z]{64,88}$"))
+    )
   ' "${EVIDENCE_FILE}" >/dev/null || {
     echo "::error::Existing recovery evidence is malformed or belongs to a different mint/program."
     exit 1
   }
+  CREATION_TX="$(jq -r '.creationTransaction // empty' "${EVIDENCE_FILE}")"
   METADATA_TX="$(jq -r '.metadataTransaction // empty' "${EVIDENCE_FILE}")"
   ACCOUNT_TX="$(jq -r '.tokenAccountCreationTransaction // empty' "${EVIDENCE_FILE}")"
   MINT_TX="$(jq -r '.mintTransaction // empty' "${EVIDENCE_FILE}")"
@@ -152,11 +194,12 @@ if [[ -f "${EVIDENCE_FILE}" ]]; then
   FREEZE_AUTH_TX="$(jq -r '.freezeAuthorityRevocationTransaction // empty' "${EVIDENCE_FILE}")"
   METADATA_AUTH_TX="$(jq -r '.metadataUpdateAuthorityRevocationTransaction // empty' "${EVIDENCE_FILE}")"
   POINTER_AUTH_TX="$(jq -r '.metadataPointerAuthorityRevocationTransaction // empty' "${EVIDENCE_FILE}")"
+  [[ -z "${CREATION_TX}" ]] || verify_finalized_transaction "${CREATION_TX}" "mint creation" '["initializeMint","initializeMint2"]'
   [[ -z "${METADATA_TX}" ]] || verify_finalized_transaction "${METADATA_TX}" "metadata initialization" '["initializeTokenMetadata","initializeMetadata"]'
   [[ -z "${ACCOUNT_TX}" ]] || verify_finalized_transaction "${ACCOUNT_TX}" "token-account creation" '["initializeAccount","initializeAccount2","initializeAccount3"]'
   [[ -z "${MINT_TX}" ]] || verify_finalized_transaction "${MINT_TX}" "supply mint" '["mintTo","mintToChecked"]'
   [[ -z "${MINT_AUTH_TX}" ]] || verify_finalized_transaction "${MINT_AUTH_TX}" "mint authority revocation" '["setAuthority"]' "mintTokens"
-  [[ -z "${FREEZE_AUTH_TX}" ]] || verify_finalized_transaction "${FREEZE_AUTH_TX}" "freeze authority revocation" '["setAuthority"]' "freezeAccount"
+  [[ -z "${FREEZE_AUTH_TX}" || "${FREEZE_AUTH_TX}" == "NOT_APPLICABLE_NEVER_SET" ]] || verify_finalized_transaction "${FREEZE_AUTH_TX}" "freeze authority revocation" '["setAuthority"]' "freezeAccount"
   [[ -z "${METADATA_AUTH_TX}" ]] || verify_finalized_transaction "${METADATA_AUTH_TX}" "metadata update-authority revocation" '["updateTokenMetadataAuthority","setAuthority"]' "metadata"
   [[ -z "${POINTER_AUTH_TX}" ]] || verify_finalized_transaction "${POINTER_AUTH_TX}" "metadata pointer-authority revocation" '["updateMetadataPointerAuthority","setAuthority"]' "metadataPointer"
 fi
@@ -193,7 +236,7 @@ else
     echo "::error::Existing metadata does not exactly match the canonical GLORIFIER/GLR name, symbol, and URI; refusing to continue."
     exit 1
   fi
-  require_signature "${METADATA_TX}" "metadata initialization"
+  [[ -z "${METADATA_TX}" ]] || verify_finalized_transaction "${METADATA_TX}" "metadata initialization" '["initializeTokenMetadata","initializeMetadata"]'
 fi
 [[ "${NAME}" == "GLORIFIER" && "${SYMBOL}" == "GLR" && "${URI}" == "${METADATA_URI}" ]] || {
   echo "::error::Canonical metadata verification failed."
@@ -212,15 +255,14 @@ if [[ "${SUPPLY_NOW}" == "0" ]]; then
     ACCOUNT_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"
     verify_finalized_transaction "${ACCOUNT_TX}" "token-account creation" '["initializeAccount","initializeAccount2","initializeAccount3"]'
   else
-    verify_finalized_transaction "${ACCOUNT_TX}" "existing token-account creation" '["initializeAccount","initializeAccount2","initializeAccount3"]'
+    : # Finalized-history reconciliation below recovers and proves the existing token-account receipt.
   fi
   OUTPUT="$(spl-token --program-2022 mint "${MINT}" "${SUPPLY}")"
   printf '%s\n' "${OUTPUT}"
   MINT_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"
   verify_finalized_transaction "${MINT_TX}" "supply mint" '["mintTo","mintToChecked"]'
 elif [[ "${SUPPLY_NOW}" == "${SUPPLY}" ]]; then
-  require_signature "${ACCOUNT_TX}" "token-account creation"
-  require_signature "${MINT_TX}" "supply mint"
+  : # Finalized-history reconciliation below recovers and validates prior receipts.
 else
   echo "::error::Recovered mint has unexpected supply ${SUPPLY_NOW}; refusing to alter it."
   exit 1
@@ -236,7 +278,6 @@ revoke_authority() {
   prior_signature="${!signature_variable}"
 
   if is_disabled "${current_authority}"; then
-    require_signature "${prior_signature}" "${field_name} revocation"
     return
   fi
   [[ "${current_authority}" == "${SIGNER}" ]] || {
@@ -261,7 +302,7 @@ if [[ -z "${METADATA_AUTHORITY}" ]]; then
   METADATA_AUTHORITY="$(printf '%s\n' "${DISPLAY}" | read_field 'Metadata Update Authority')"
 fi
 if is_disabled "${METADATA_AUTHORITY}"; then
-  verify_finalized_transaction "${METADATA_AUTH_TX}" "metadata update-authority revocation" '["updateTokenMetadataAuthority","setAuthority"]' "metadata"
+  [[ -z "${METADATA_AUTH_TX}" ]] || verify_finalized_transaction "${METADATA_AUTH_TX}" "metadata update-authority revocation" '["updateTokenMetadataAuthority","setAuthority"]' "metadata"
 else
   [[ "${METADATA_AUTHORITY}" == "${SIGNER}" ]] || {
     echo "::error::Metadata update authority does not match the deployment signer."
@@ -270,13 +311,13 @@ else
   OUTPUT="$(spl-token --program-2022 authorize "${MINT}" metadata --disable)"
   printf '%s\n' "${OUTPUT}"
   METADATA_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"
-  require_signature "${METADATA_AUTH_TX}" "metadata update-authority revocation"
+  verify_finalized_transaction "${METADATA_AUTH_TX}" "metadata update-authority revocation" '["updateTokenMetadataAuthority","setAuthority"]' "metadata"
   DISPLAY="$(spl-token --program-2022 display "${MINT}")"
 fi
 
 CURRENT_POINTER_AUTH="$(printf '%s\n' "${DISPLAY}" | read_pointer_authority)"
 if is_disabled "${CURRENT_POINTER_AUTH}"; then
-  verify_finalized_transaction "${POINTER_AUTH_TX}" "metadata pointer-authority revocation" '["updateMetadataPointerAuthority","setAuthority"]' "metadataPointer"
+  [[ -z "${POINTER_AUTH_TX}" ]] || verify_finalized_transaction "${POINTER_AUTH_TX}" "metadata pointer-authority revocation" '["updateMetadataPointerAuthority","setAuthority"]' "metadataPointer"
 else
   [[ "${CURRENT_POINTER_AUTH}" == "${SIGNER}" ]] || {
     echo "::error::Metadata pointer authority does not match the deployment signer."
@@ -285,7 +326,7 @@ else
   OUTPUT="$(spl-token --program-2022 authorize "${MINT}" metadata-pointer --disable)"
   printf '%s\n' "${OUTPUT}"
   POINTER_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"
-  require_signature "${POINTER_AUTH_TX}" "metadata pointer-authority revocation"
+  verify_finalized_transaction "${POINTER_AUTH_TX}" "metadata pointer-authority revocation" '["updateMetadataPointerAuthority","setAuthority"]' "metadataPointer"
 fi
 
 FINAL="$(spl-token --program-2022 display "${MINT}")"
@@ -303,13 +344,30 @@ is_disabled "${FINAL_METADATA_AUTHORITY}"
 is_disabled "$(printf '%s\n' "${FINAL}" | read_pointer_authority)"
 [[ "$(spl-token --program-2022 supply "${MINT}" | awk 'NR==1 {print $1}' | tr -d '\r')" == "${SUPPLY}" ]]
 
-require_signature "${METADATA_TX}" "metadata initialization"
-require_signature "${ACCOUNT_TX}" "token-account creation"
-require_signature "${MINT_TX}" "supply mint"
-require_signature "${MINT_AUTH_TX}" "mint authority revocation"
-require_signature "${FREEZE_AUTH_TX}" "freeze authority revocation"
-require_signature "${METADATA_AUTH_TX}" "metadata update-authority revocation"
-require_signature "${POINTER_AUTH_TX}" "metadata pointer-authority revocation"
+# Rebuild every lifecycle receipt from a read-only, finalized RPC history scan.
+# This recovers stages omitted by earlier partial-run artifacts and rejects unrelated
+# signatures before any recovery evidence is published.
+HISTORY_FILE="solana/reconciliation-tx-history.json"
+python3 solana/verify-token2022-devnet-history.py "${MINT}"
+jq -e --arg mint "${MINT}" --arg program "${TOKEN_2022_PROGRAM}" '
+  .network == "solana-devnet"
+  and .mint == $mint
+  and .programId == $program
+  and .transactionSemanticsVerified == true
+  and .historyComplete == true
+' "${HISTORY_FILE}" >/dev/null || {
+  echo "::error::Finalized transaction history does not prove the complete canonical GLORIFIER/GLR lifecycle."
+  exit 1
+}
+
+reconcile_receipt CREATION_TX creationTransaction "mint creation"
+reconcile_receipt METADATA_TX metadataTransaction "metadata initialization"
+reconcile_receipt ACCOUNT_TX tokenAccountCreationTransaction "token-account creation"
+reconcile_receipt MINT_TX mintTransaction "supply mint"
+reconcile_receipt MINT_AUTH_TX mintAuthorityRevocationTransaction "mint authority revocation"
+reconcile_receipt FREEZE_AUTH_TX freezeAuthorityRevocationTransaction "freeze authority revocation"
+reconcile_receipt METADATA_AUTH_TX metadataUpdateAuthorityRevocationTransaction "metadata update-authority revocation"
+reconcile_receipt POINTER_AUTH_TX metadataPointerAuthorityRevocationTransaction "metadata pointer-authority revocation"
 
 mkdir -p "$(dirname "${EVIDENCE_FILE}")"
 TEMP_EVIDENCE="$(mktemp "${EVIDENCE_FILE}.tmp.XXXXXX")"
@@ -317,6 +375,7 @@ trap 'rm -f "${TEMP_EVIDENCE:-}"' EXIT
 jq -n \
   --arg mint "${MINT}" \
   --arg programId "${TOKEN_2022_PROGRAM}" \
+  --arg creationTransaction "${CREATION_TX}" \
   --arg metadataTransaction "${METADATA_TX}" \
   --arg tokenAccountCreationTransaction "${ACCOUNT_TX}" \
   --arg mintTransaction "${MINT_TX}" \
@@ -328,9 +387,10 @@ jq -n \
   --arg workflowRunUrl "${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}" \
   '{
     network:"solana-devnet",
-    status:"READY_FOR_RECONCILIATION",
+    status:"VERIFIED_ON_CHAIN",
     mint:$mint,
     programId:$programId,
+    creationTransaction:$creationTransaction,
     metadataTransaction:$metadataTransaction,
     tokenAccountCreationTransaction:$tokenAccountCreationTransaction,
     mintTransaction:$mintTransaction,
@@ -340,16 +400,22 @@ jq -n \
     metadataPointerAuthorityRevocationTransaction:$metadataPointerAuthorityRevocationTransaction,
     workflowRunId:$workflowRunId,
     workflowRunUrl:$workflowRunUrl,
-    verifiedFinalState:true
+    verifiedFinalState:true,
+    transactionSemanticsVerified:true
   }' > "${TEMP_EVIDENCE}"
 
 jq -e --arg mint "${MINT}" --arg program "${TOKEN_2022_PROGRAM}" '
-  .network == "solana-devnet" and .status == "READY_FOR_RECONCILIATION"
+  .network == "solana-devnet" and .status == "VERIFIED_ON_CHAIN"
   and .mint == $mint and .programId == $program and .verifiedFinalState == true
-  and ([.metadataTransaction, .tokenAccountCreationTransaction, .mintTransaction,
-        .mintAuthorityRevocationTransaction, .freezeAuthorityRevocationTransaction,
-        .metadataUpdateAuthorityRevocationTransaction, .metadataPointerAuthorityRevocationTransaction]
-       | all(.[]; type == "string" and test("^[1-9A-HJ-NP-Za-km-z]{64,90}$")))
+  and .transactionSemanticsVerified == true
+  and ([.creationTransaction, .metadataTransaction, .tokenAccountCreationTransaction, .mintTransaction,
+        .mintAuthorityRevocationTransaction, .metadataUpdateAuthorityRevocationTransaction,
+        .metadataPointerAuthorityRevocationTransaction]
+       | all(.[]; type == "string" and test("^[1-9A-HJ-NP-Za-km-z]{64,88}$")))
+  and (
+    .freezeAuthorityRevocationTransaction == "NOT_APPLICABLE_NEVER_SET"
+    or (.freezeAuthorityRevocationTransaction | type == "string" and test("^[1-9A-HJ-NP-Za-km-z]{64,88}$"))
+  )
 ' "${TEMP_EVIDENCE}" >/dev/null
 mv -f "${TEMP_EVIDENCE}" "${EVIDENCE_FILE}"
 trap - EXIT
