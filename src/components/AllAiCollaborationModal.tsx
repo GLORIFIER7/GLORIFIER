@@ -175,6 +175,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close collaboration modal"
             className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
           >
             <X className="w-5 h-5" />
