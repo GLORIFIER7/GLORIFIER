@@ -153,3 +153,17 @@ test('read-only concurrency bounds include nodes already running in a prior wave
   ]);
   assert.deepEqual(getReadyAutopilotGraphWave(graph, oneRunning, 2).map((step) => step.id), ['inspect-b']);
 });
+
+
+test('mutating work waits until an in-flight read-only wave has drained', () => {
+  const graph = normalizeAutopilotGraph([
+    node('inspect-a', [], 'read-only'),
+    node('write-a', [], 'reversible'),
+  ]);
+  const statuses = new Map([
+    ['inspect-a', 'running' as const],
+    ['write-a', 'pending' as const],
+  ]);
+
+  assert.deepEqual(getReadyAutopilotGraphWave(graph, statuses, 2), []);
+});
