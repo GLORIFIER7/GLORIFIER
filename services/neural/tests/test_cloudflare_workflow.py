@@ -48,7 +48,7 @@ def test_cloudflare_validation_smoke_tests_pyodide_with_asyncpg_without_ml_drive
     package_project = (repository_root / "cloudflare" / "neural_app" / "pyproject.toml").read_text(encoding="utf-8")
     preparation_script = (repository_root / "cloudflare" / "prepare_worker.py").read_text(encoding="utf-8")
 
-    assert 'glorifier-neural-app = { path = "neural_app", editable = false }' in cloudflare_project
+    assert 'glorifier-neural-app = { path = "neural_app", editable = true }' in cloudflare_project
     assert 'include = ["app*"]' in package_project
     assert '"asyncpg==0.31.0"' in cloudflare_project
     assert 'WORKER_APP = WORKER_ROOT / "neural_app" / "app"' in preparation_script
@@ -71,9 +71,9 @@ def test_cloudflare_validation_smoke_tests_pyodide_with_asyncpg_without_ml_drive
         'importlib.util.find_spec("torch") is None',
         "http://127.0.0.1:8787/health",
         "bash ./worker-build.sh --prepare-only",
-        "npm install --global --no-audit --no-fund wrangler@4.164.0",
+        "npm install --global --ignore-scripts --no-audit --no-fund wrangler@4.164.0",
         "test \"$(wrangler --version)\" = \"4.164.0\"",
-        "npm install --global --no-audit --no-fund wrangler@4.164.0",
+        "npm install --global --ignore-scripts --no-audit --no-fund wrangler@4.164.0",
         "test \"$(wrangler --version)\" = \"4.164.0\"",
         "wrangler deploy --dry-run",
         "bash ./worker-build.sh deploy",
@@ -105,7 +105,7 @@ def test_cloudflare_build_script_removes_host_venvs_before_wrangler_upload():
     script = script_path.read_text(encoding="utf-8")
 
     assert "python prepare_worker.py" in script
-    assert "uv run --locked --no-build pywrangler sync" in script
+    assert "uv run --no-sync --locked --no-build pywrangler sync" in script
     assert "rm -rf -- .venv .venv-workers" in script
     assert 'exec wrangler "$mode"' in script
     assert "preview|deploy|--prepare-only" in script
