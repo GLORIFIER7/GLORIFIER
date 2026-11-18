@@ -89,6 +89,15 @@ test('rejects an SDK capability with an unknown evidence status', () => {
 
 const sdkReadme = await readFile(new URL('../sdk/README.md', import.meta.url), 'utf8');
 const architectureGuide = await readFile(new URL('../docs/architecture/language-neutral-interoperability.md', import.meta.url), 'utf8');
+const polyglotWorkflow = await readFile(new URL('../.github/workflows/polyglot-sdk.yml', import.meta.url), 'utf8');
+const kotlinBuild = await readFile(new URL('../sdk/kotlin/build.gradle.kts', import.meta.url), 'utf8');
+
+test('does not claim dependency-lock enforcement without committed lockfiles', () => {
+  assert.doesNotMatch(kotlinBuild, /dependencyLocking\\s*\\{/);
+  assert.doesNotMatch(polyglotWorkflow, /--write-locks|--enforce-lockfile|Upload generated (?:Kotlin|Dart) dependency lock/);
+  assert.match(polyglotWorkflow, /gradle --no-daemon -p sdk\\/kotlin test/);
+  assert.match(polyglotWorkflow, /dart pub get\\s+dart test/);
+});
 
 function tableColumnCount(line) {
   return line.split('|').filter((cell) => cell.trim().length > 0).length;
