@@ -15,7 +15,7 @@ def test_worker_dsn_percent_encoded_credentials_are_decoded_before_pg8000():
 
     connect_worker_database(
         pg8000,
-        "postgresql://agent%40service:p%3Ass%2Fword%25@db.example.test:5432/glorifier",
+        "postgresql://agent%40service:p%3Ass%2Fword%25@db.example.test:5432/glorifier",  # NOSONAR - FakePg8000 prevents network access
         None,
         5.0,
     )
