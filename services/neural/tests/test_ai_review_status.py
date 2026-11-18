@@ -493,7 +493,9 @@ def test_monorepo_neural_trusted_status_publisher_is_scheduled_from_main():
     # The NEURAL CI cron runs validation only; trusted review diagnostics
     # are published by a separate default-branch workflow.
     assert 'cron: "*/15 * * * *"' in workflow
-    assert 'workflows: ["NEURAL Service CI"]' in workflow
+    assert "push:" in workflow
+    assert "branches: [main]" in workflow
+    assert "workflow_run:" not in workflow
     assert "pull-requests: read" in workflow
     assert "statuses: write" in workflow
     assert "ref: main" in workflow
