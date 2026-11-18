@@ -184,7 +184,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
   };
 
   const isCurrentAddressValid = () => {
-    if (payoutCategory === 'gcash') return /^09\\d{9}$/.test(gcashAccount.replace(/\\s|-/g, ''));
+    if (payoutCategory === 'gcash') return /^09\d{9}$/.test(gcashAccount.replace(/\s|-/g, ''));
     if (payoutCategory === 'binance') return binanceAccount.trim().length >= 4;
     if (payoutCategory === 'fiat') return fiatAccount.trim().length > 3;
     if (!walletAddress.trim()) return false;
@@ -294,7 +294,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
       setPayoutError(
         payoutCategory === 'crypto'
           ? 'Select or enter a valid destination address.'
-          : payoutCategory === 'gcash'
+    if (payoutCategory === 'gcash') return /^09\d{9}$/.test(gcashAccount.replace(/\s|-/g, ''));
             ? 'Enter a valid GCash mobile number (09XXXXXXXXX).'
             : payoutCategory === 'binance'
               ? 'Enter a valid Binance Pay ID, Binance UID, or approved account identifier.'
@@ -308,14 +308,14 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
     try {
       const method = payoutCategory === 'crypto'
         ? `stablecoin_${selectedToken.toLowerCase()}_${selectedNetwork.toLowerCase()}`
-        : payoutCategory === 'gcash'
+    if (payoutCategory === 'gcash') return /^09\d{9}$/.test(gcashAccount.replace(/\s|-/g, ''));
           ? 'gcash'
           : payoutCategory === 'binance'
             ? 'binance'
             : fiatMethod;
       const destination = payoutCategory === 'crypto'
         ? walletAddress
-        : payoutCategory === 'gcash'
+    if (payoutCategory === 'gcash') return /^09\d{9}$/.test(gcashAccount.replace(/\s|-/g, ''));
           ? gcashAccount.replace(/\\s|-/g, '')
           : payoutCategory === 'binance'
             ? binanceAccount.trim()
@@ -337,7 +337,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
         tokenSymbol: payoutCategory === 'crypto' ? selectedToken : 'USD',
         network: payoutCategory === 'crypto'
           ? selectedNetwork
-          : payoutCategory === 'gcash'
+    if (payoutCategory === 'gcash') return /^09\d{9}$/.test(gcashAccount.replace(/\s|-/g, ''));
             ? 'GCash'
             : payoutCategory === 'binance'
               ? 'Binance'
@@ -430,6 +430,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
               <div className="relative">
                 <span className="absolute left-3 top-2.5 text-slate-400 text-sm font-mono">$</span>
                 <input
+                  id="glorifier-WithdrawModal-tsx-1"
                   type="number"
                   min="0.01"
                   max={verifiedAvailableUsd ?? 0}
@@ -476,6 +477,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
                 <div>
                   <label className="text-xs font-semibold text-slate-300 block mb-1.5" htmlFor="glorifier-WithdrawModal-tsx-2">Saved Wallet Destination · ownership NOT VERIFIED</label>
                   <select
+                    id="glorifier-WithdrawModal-tsx-2"
                     value={walletAddress}
                     onChange={(e) => {
                       const value=e.target.value;
@@ -498,6 +500,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
                   <div>
                     <label className="text-xs font-semibold text-slate-300 block mb-1.5" htmlFor="glorifier-WithdrawModal-tsx-3">Token</label>
                     <select
+                      id="glorifier-WithdrawModal-tsx-3"
                       value={selectedToken}
                       onChange={(e) => setSelectedToken(e.target.value as StablecoinType)}
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-xs text-white"
@@ -508,6 +511,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
                   <div>
                     <label className="text-xs font-semibold text-slate-300 block mb-1.5" htmlFor="glorifier-WithdrawModal-tsx-4">Network</label>
                     <select
+                      id="glorifier-WithdrawModal-tsx-4"
                       value={selectedNetwork}
                       onChange={(e) => setSelectedNetwork(e.target.value as CryptoNetwork)}
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-xs text-white"
@@ -529,10 +533,11 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
-            ) : payoutCategory === 'gcash' ? (
+    if (payoutCategory === 'gcash') return /^09\d{9}$/.test(gcashAccount.replace(/\s|-/g, ''));
               <div>
                 <label className="text-xs font-semibold text-slate-300 block mb-1.5" htmlFor="glorifier-WithdrawModal-tsx-5">GCash Number</label>
                 <input
+                  id="glorifier-WithdrawModal-tsx-5"
                   type="tel"
                   inputMode="numeric"
                   value={gcashAccount}
@@ -546,6 +551,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
               <div>
                 <label className="text-xs font-semibold text-slate-300 block mb-1.5" htmlFor="glorifier-WithdrawModal-tsx-6">Binance Pay ID / UID</label>
                 <input
+                  id="glorifier-WithdrawModal-tsx-6"
                   type="text"
                   value={binanceAccount}
                   onChange={(e) => setBinanceAccount(e.target.value)}
@@ -558,6 +564,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
               <div>
                 <label className="text-xs font-semibold text-slate-300 block mb-1.5" htmlFor="glorifier-WithdrawModal-tsx-7">Payout Account</label>
                 <input
+                  id="glorifier-WithdrawModal-tsx-7"
                   type="text"
                   value={fiatAccount}
                   onChange={(e) => setFiatAccount(e.target.value)}
