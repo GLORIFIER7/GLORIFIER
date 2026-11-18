@@ -57,6 +57,9 @@ jobs:
       - name: GitHub Actions governance regression tests
         run: node --test scripts/github-actions-governance.test.mjs
 
+      - name: MDASH agentic security workflow contract regression tests
+        run: node --test scripts/mdash-agentic-security-workflow.test.mjs
+
       - name: Provider collaboration UI truthfulness regression tests
         run: node --test scripts/provider-collaboration-truthfulness.test.mjs
 
@@ -100,6 +103,8 @@ jobs:
 
       - name: Audit locked npm dependencies
         run: npm audit --audit-level=low
+      - name: Enforce time-boxed dependency advisory exceptions
+        run: npm run test:dependency-security-exceptions
 
       - name: Test read-only production verifier security and isolation
         run: node --test scripts/verify-issue-432-readonly.test.cjs

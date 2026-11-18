@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "exceptions": [
+    {
+      "advisoryId": "GHSA-fc5q-39xc-vjpf",
+      "package": "picomatch",
+      "registryAffectedVersion": "4.0.7",
+      "localMitigationVersion": "4.0.8-glorifier.1",
+      "status": "temporary-local-mitigation",
+      "createdAt": "2026-11-18",
+      "expiresAt": "2026-12-18",
+      "mitigationPath": "vendor/picomatch",
+      "upstreamPatchReference": "https://github.com/micromatch/picomatch/pull/235",
+      "disclosure": "The repository-local file override is not a registry-published Picomatch release. npm audit does not provide registry-advisory coverage for this local package, so a green npm audit result must not be read as withdrawal of GHSA-fc5q-39xc-vjpf or as an official upstream fix. This exception preserves the advisory as an active, time-boxed risk while the local mitigation and regression tests are maintained.",
+      "reviewRequirements": [
+        "Re-check the upstream advisory and official Picomatch release before expiry.",
+        "Keep the repeated-extglob and backslash-cleanup regression tests required by CI.",
+        "Remove this exception only after an official patched release is adopted or the advisory is withdrawn with evidence."
+      ]
+    }
+  ]
+}

@@ -38,6 +38,8 @@ jobs:
 
       - name: Audit npm dependencies
         run: npm audit --audit-level=low
+      - name: Enforce time-boxed dependency advisory exceptions
+        run: npm run test:dependency-security-exceptions
 
       - name: TypeScript static check
         run: npm run lint

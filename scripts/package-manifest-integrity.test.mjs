@@ -54,13 +54,18 @@ test("standalone build entry points run package integrity and relevant prebuild 
   );
   assert.equal(
     manifest.scripts?.["prebuild:frontend"],
-    sharedPrebuild + " && npm run test:service-worker-cache && npm run test:firebase-hosting-config",
+    sharedPrebuild + " && npm run test:service-worker-cache && npm run test:firebase-hosting-config && npm run test:picomatch-redos && npm run test:dependency-security-exceptions",
     "frontend builds must verify retired service-worker cache cleanup and Firebase Hosting configuration",
   );
   assert.equal(
     manifest.scripts?.["test:service-worker-cache"],
     "node --test scripts/service-worker-cache.test.mjs",
     "the service-worker cache migration test must be runnable independently",
+  );
+  assert.equal(
+    manifest.scripts?.["test:picomatch-redos"],
+    "node --test scripts/picomatch-redos-regression.test.mjs",
+    "the locally patched Picomatch ReDoS regression test must be runnable independently",
   );
   assert.equal(
     manifest.scripts?.["test:firebase-hosting-config"],
@@ -84,4 +89,20 @@ test("duplicateJsonKeys detects duplicates inside nested arrays", () => {
 
 test("duplicateJsonKeys rejects malformed JSON", () => {
   assert.throws(() => duplicateJsonKeys('{"value": truX}'), SyntaxError);
+});
+
+test("local Picomatch override is explicit, locked, disclosed, and excluded from the npm tarball", async () => {
+  const manifest = JSON.parse(packageJsonText);
+  const lock = JSON.parse(packageLockText);
+  const patchDocumentation = await readFile(
+    new URL("../vendor/picomatch/SECURITY-PATCH.md", import.meta.url),
+    "utf8",
+  );
+
+  assert.equal(manifest.overrides?.picomatch, "file:vendor/picomatch");
+  assert.equal(manifest.devDependencies?.picomatch, "file:vendor/picomatch");
+  assert.equal(lock.packages?.[""]?.devDependencies?.picomatch, "file:vendor/picomatch");
+  assert.equal(lock.packages?.["node_modules/picomatch"]?.resolved, "file:vendor/picomatch");
+  assert.ok(patchDocumentation.includes("not an official Picomatch release"));
+  assert.ok(!manifest.files?.includes("vendor/picomatch"), "the local fork must not be shipped in the npm tarball");
 });
