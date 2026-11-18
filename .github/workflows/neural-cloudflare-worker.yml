@@ -64,7 +64,13 @@ jobs:
         run: uv lock
       - name: Install Cloudflare Worker dependencies
         working-directory: services/neural/cloudflare
-        run: uv sync --locked --no-build --group dev --no-install-project
+        run: uv sync --locked --no-build --group dev --no-install-project --no-install-package glorifier-neural-app
+      - name: Install pinned Neural package build tools
+        working-directory: services/neural/cloudflare
+        run: uv pip install --python .venv/bin/python --only-binary=:all: setuptools==83.0.0 wheel==0.45.1
+      - name: Install staged Neural application without build isolation
+        working-directory: services/neural/cloudflare
+        run: uv pip install --python .venv/bin/python --no-build-isolation --no-deps -e neural_app
       - name: Run Workers AI free-only and Autopilot readiness unit tests
         working-directory: services/neural/cloudflare
         env:
@@ -156,7 +162,13 @@ jobs:
         run: python prepare_worker.py
       - name: Install locked Cloudflare Worker dependencies
         working-directory: services/neural/cloudflare
-        run: uv sync --locked --no-build --group dev --no-install-project
+        run: uv sync --locked --no-build --group dev --no-install-project --no-install-package glorifier-neural-app
+      - name: Install pinned Neural package build tools
+        working-directory: services/neural/cloudflare
+        run: uv pip install --python .venv/bin/python --only-binary=:all: setuptools==83.0.0 wheel==0.45.1
+      - name: Install staged Neural application without build isolation
+        working-directory: services/neural/cloudflare
+        run: uv pip install --python .venv/bin/python --no-build-isolation --no-deps -e neural_app
       - name: Prepare isolated Worker bundle and validate without deployment
         working-directory: services/neural/cloudflare
         run: |
