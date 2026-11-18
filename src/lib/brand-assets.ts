@@ -6,6 +6,7 @@ export const GLORIFIER_OFFICIAL_BRAND_ASSET = {
   chainId: 1,
   contractAddress: '0xd62EB4963423f6e224Af0BccCabF75f566Fb9ad7',
   tokenId: '1',
+  // Public ERC-721 IPFS metadata address; it is content metadata, not a credential. // NOSONAR
   tokenMetadataUri: 'ipfs://Qme1tGfPb4g8xJQKnvtHbSdVUZXAHCAVgahKciUQ9JUqst/1',
   canonicalImageUri: 'ipfs://bafkreidnoy2bugujfuc5prawef3onhrxihyo3inoi5s73dhlrm2f5bnxsa',
   webImageUrl: '/glorifier-services-official-logo-001.png',
