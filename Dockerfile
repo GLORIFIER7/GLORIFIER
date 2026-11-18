@@ -9,8 +9,9 @@ ENV NODE_ENV=production \
 
 WORKDIR /app
 COPY package.json package-lock.json ./
+COPY vendor/picomatch ./vendor/picomatch
 RUN node -e 'const [major, minor] = process.versions.node.split(".").map(Number); if (major < 24 || (major === 24 && minor < 12)) process.exit(1)' \
- && npm ci --include=dev --ignore-scripts --no-audit --no-fund
+ && npm ci --include=dev --ignore-scripts --no-audit --no-fund --install-links
 
 COPY . .
 # Bundle the TypeScript server while esbuild is still installed.
