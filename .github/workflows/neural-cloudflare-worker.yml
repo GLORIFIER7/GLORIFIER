@@ -68,9 +68,17 @@ jobs:
       - name: Install pinned Neural package build tools
         working-directory: services/neural/cloudflare
         run: "uv pip install --python .venv/bin/python --only-binary=:all: setuptools==83.0.0 wheel==0.45.1"
-      - name: Install staged Neural application without build isolation
+      - name: Build trusted Neural wheel and install it without build scripts
         working-directory: services/neural/cloudflare
-        run: uv pip install --python .venv/bin/python --no-build-isolation --no-deps ./neural_app
+        run: |
+          set -euo pipefail
+          uv build --wheel --no-build-isolation --python .venv/bin/python --out-dir /tmp/glorifier-neural-wheel ./neural_app
+          NEURAL_WHEEL="$(find /tmp/glorifier-neural-wheel -maxdepth 1 -type f -name 'glorifier_neural_app-*.whl' -print -quit)"
+          test -n "$NEURAL_WHEEL" || {
+            echo "::error::Trusted Neural wheel build did not produce the expected wheel."
+            exit 1
+          }
+          uv pip install --python .venv/bin/python --only-binary=:all: --no-build --no-deps "$NEURAL_WHEEL"
       - name: Run Workers AI free-only and Autopilot readiness unit tests
         working-directory: services/neural/cloudflare
         env:
@@ -166,9 +174,17 @@ jobs:
       - name: Install pinned Neural package build tools
         working-directory: services/neural/cloudflare
         run: "uv pip install --python .venv/bin/python --only-binary=:all: setuptools==83.0.0 wheel==0.45.1"
-      - name: Install staged Neural application without build isolation
+      - name: Build trusted Neural wheel and install it without build scripts
         working-directory: services/neural/cloudflare
-        run: uv pip install --python .venv/bin/python --no-build-isolation --no-deps ./neural_app
+        run: |
+          set -euo pipefail
+          uv build --wheel --no-build-isolation --python .venv/bin/python --out-dir /tmp/glorifier-neural-wheel ./neural_app
+          NEURAL_WHEEL="$(find /tmp/glorifier-neural-wheel -maxdepth 1 -type f -name 'glorifier_neural_app-*.whl' -print -quit)"
+          test -n "$NEURAL_WHEEL" || {
+            echo "::error::Trusted Neural wheel build did not produce the expected wheel."
+            exit 1
+          }
+          uv pip install --python .venv/bin/python --only-binary=:all: --no-build --no-deps "$NEURAL_WHEEL"
       - name: Prepare isolated Worker bundle and validate without deployment
         working-directory: services/neural/cloudflare
         run: |
