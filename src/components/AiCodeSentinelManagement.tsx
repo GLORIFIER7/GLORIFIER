@@ -333,11 +333,19 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               return (
                 <div
                   key={err.id}
-                  role="button"
+                  role="group"
                   tabIndex={0}
-                  aria-pressed={isSelected}
-                  onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedError(err); } }}
-                  onClick={() => setSelectedError(err)}
+                  aria-current={isSelected ? 'true' : undefined}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return;
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setSelectedError(err);
+                    }
+                  }}
+                  onClick={(event) => {
+                    if (event.target === event.currentTarget) setSelectedError(err);
+                  }}
                   className={`cursor-pointer rounded-xl border p-4 transition-all ${
                     isSelected
                       ? 'bg-slate-850 border-emerald-500/60 shadow-lg shadow-emerald-950/20'
@@ -633,6 +641,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               <div>
                 <label className="block text-slate-400 mb-1" htmlFor="glorifier-AiCodeSentinelManagement-tsx-1">Error Message / Description</label>
                 <textarea
+                  id="glorifier-AiCodeSentinelManagement-tsx-1"
                   value={editMessage}
                   onChange={(e) => setEditMessage(e.target.value)}
                   rows={2}
@@ -643,6 +652,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               <div>
                 <label className="block text-slate-400 mb-1" htmlFor="glorifier-AiCodeSentinelManagement-tsx-2">Patch Diff Snippet</label>
                 <textarea
+                  id="glorifier-AiCodeSentinelManagement-tsx-2"
                   value={editPatch}
                   onChange={(e) => setEditPatch(e.target.value)}
                   rows={5}
@@ -653,6 +663,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               <div>
                 <label className="block text-slate-400 mb-1" htmlFor="glorifier-AiCodeSentinelManagement-tsx-3">Lifecycle Status</label>
                 <select
+                  id="glorifier-AiCodeSentinelManagement-tsx-3"
                   value={editStatus}
                   onChange={(e) => setEditStatus(e.target.value as ErrorLifecycleStatus)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
@@ -701,6 +712,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               <div>
                 <label className="block text-slate-400 mb-1" htmlFor="glorifier-AiCodeSentinelManagement-tsx-4">Error Code Identifier</label>
                 <input
+                  id="glorifier-AiCodeSentinelManagement-tsx-4"
                   type="text"
                   value={newErrorCode}
                   onChange={(e) => setNewErrorCode(e.target.value)}
@@ -711,6 +723,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               <div>
                 <label className="block text-slate-400 mb-1" htmlFor="glorifier-AiCodeSentinelManagement-tsx-5">Source Component / File</label>
                 <input
+                  id="glorifier-AiCodeSentinelManagement-tsx-5"
                   type="text"
                   value={newErrorSource}
                   onChange={(e) => setNewErrorSource(e.target.value)}
@@ -721,6 +734,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               <div>
                 <label className="block text-slate-400 mb-1" htmlFor="glorifier-AiCodeSentinelManagement-tsx-6">Error Message / Symptom</label>
                 <textarea
+                  id="glorifier-AiCodeSentinelManagement-tsx-6"
                   value={newErrorMessage}
                   onChange={(e) => setNewErrorMessage(e.target.value)}
                   rows={2}
@@ -731,6 +745,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               <div>
                 <label className="block text-slate-400 mb-1" htmlFor="glorifier-AiCodeSentinelManagement-tsx-7">Severity</label>
                 <select
+                  id="glorifier-AiCodeSentinelManagement-tsx-7"
                   value={newErrorSeverity}
                   onChange={(e) => setNewErrorSeverity(e.target.value as ErrorSeverity)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
