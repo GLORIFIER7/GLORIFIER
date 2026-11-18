@@ -103,6 +103,8 @@ jobs:
 
       - name: Audit locked npm dependencies
         run: npm audit --audit-level=low
+      - name: Enforce time-boxed dependency advisory exceptions
+        run: npm run test:dependency-security-exceptions
 
       - name: Test read-only production verifier security and isolation
         run: node --test scripts/verify-issue-432-readonly.test.cjs
