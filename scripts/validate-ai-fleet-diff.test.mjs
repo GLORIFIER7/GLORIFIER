@@ -12,7 +12,7 @@ const gateSource = readFileSync(gateScript, 'utf8');
 
 test('PR gate resolves Git from PATH instead of a Linux-specific absolute path', () => {
   assert.match(gateSource, /const GIT_EXECUTABLE = ['"]git['"]/);
-  assert.doesNotMatch(gateSource, /\\/usr\\/bin\\/git/);
+  assert.equal(gateSource.includes('/usr/bin/git'), false);
 });
 
 function runGit(cwd, args) {
