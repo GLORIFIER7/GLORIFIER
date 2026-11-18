@@ -3,7 +3,6 @@
 
 const {
   REGEX_BACKSLASH,
-  REGEX_REMOVE_BACKSLASH,
   REGEX_SPECIAL_CHARS,
   REGEX_SPECIAL_CHARS_GLOBAL
 } = require('./constants');
@@ -28,9 +27,44 @@ exports.isWindows = () => {
 };
 
 exports.removeBackslashes = str => {
-  return str.replace(REGEX_REMOVE_BACKSLASH, match => {
-    return match === '\\' ? '' : match;
-  });
+  let output = '';
+  let index = 0;
+  let preserveBracketClasses = true;
+
+  while (index < str.length) {
+    if (preserveBracketClasses && str[index] === '\\' && str[index + 1] === '[') {
+      let close = index + 3;
+
+      // Preserve a complete escaped-opening bracket class only when its closing
+      // bracket is preceded by a non-backslash character, matching the old
+      // parser contract without using a backtracking regular expression.
+      while (close < str.length && (str[close] !== ']' || str[close - 1] === '\\')) {
+        close++;
+      }
+
+      if (close < str.length) {
+        output += str.slice(index, close + 1);
+        index = close + 1;
+        continue;
+      }
+
+      // No closing class exists after this opener. No later opener can form a
+      // complete class either, so finish with a simple linear escape pass.
+      preserveBracketClasses = false;
+      index++;
+      continue;
+    }
+
+    if (str[index] === '\\' && index + 1 < str.length) {
+      index++;
+      continue;
+    }
+
+    output += str[index];
+    index++;
+  }
+
+  return output;
 };
 
 exports.escapeLast = (input, char, lastIdx) => {
