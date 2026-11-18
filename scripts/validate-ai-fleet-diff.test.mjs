@@ -8,6 +8,12 @@ import test from 'node:test';
 
 const gateScript = fileURLToPath(new URL('./validate-ai-fleet-diff.mjs', import.meta.url));
 const tsxLoader = import.meta.resolve('tsx/esm');
+const gateSource = readFileSync(gateScript, 'utf8');
+
+test('PR gate resolves Git from PATH instead of a Linux-specific absolute path', () => {
+  assert.match(gateSource, /const GIT_EXECUTABLE = ['"]git['"]/);
+  assert.doesNotMatch(gateSource, /\\/usr\\/bin\\/git/);
+});
 
 function runGit(cwd, args) {
   return execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
