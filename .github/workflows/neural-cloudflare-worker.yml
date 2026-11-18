@@ -78,7 +78,7 @@ jobs:
             echo "::error::Trusted Neural wheel build did not produce the expected wheel."
             exit 1
           }
-          uv pip install --python .venv/bin/python --only-binary=:all: --no-build --no-deps "$NEURAL_WHEEL"
+          uv pip install --python .venv/bin/python --only-binary=:all: --no-deps "$NEURAL_WHEEL"
       - name: Run Workers AI free-only and Autopilot readiness unit tests
         working-directory: services/neural/cloudflare
         env:
@@ -184,7 +184,7 @@ jobs:
             echo "::error::Trusted Neural wheel build did not produce the expected wheel."
             exit 1
           }
-          uv pip install --python .venv/bin/python --only-binary=:all: --no-build --no-deps "$NEURAL_WHEEL"
+          uv pip install --python .venv/bin/python --only-binary=:all: --no-deps "$NEURAL_WHEEL"
       - name: Prepare isolated Worker bundle and validate without deployment
         working-directory: services/neural/cloudflare
         run: |
