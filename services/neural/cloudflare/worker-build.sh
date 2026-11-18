@@ -18,7 +18,7 @@ python prepare_worker.py
 
 # Pywrangler vendors the production Pyodide packages into python_modules/.
 # Its host virtual environments are build tools, not Worker runtime modules.
-uv run --locked --no-build pywrangler sync
+uv run --no-sync --locked --no-build pywrangler sync
 
 for expected in python_modules/app/api.py python_modules/app/database/neon.py; do
   if [[ ! -f "$expected" ]]; then
