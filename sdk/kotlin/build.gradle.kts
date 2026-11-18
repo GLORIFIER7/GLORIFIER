@@ -14,9 +14,6 @@ dependencies {
 
 kotlin { jvmToolchain(17) }
 
-dependencyLocking {
-    lockAllConfigurations()
-}
 
 tasks.test { useJUnitPlatform() }
 
