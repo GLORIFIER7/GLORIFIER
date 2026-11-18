@@ -612,6 +612,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
                       setCustomAgenda('');
                     }}
                     role="button"
+                    aria-pressed={selectedTopic === item.title && !customAgenda}
                     tabIndex={0}
                     onKeyDown={(event) => {
                       if (event.key === 'Enter' || event.key === ' ') {
