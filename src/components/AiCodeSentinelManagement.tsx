@@ -333,6 +333,10 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               return (
                 <div
                   key={err.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={isSelected}
+                  onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedError(err); } }}
                   onClick={() => setSelectedError(err)}
                   className={`cursor-pointer rounded-xl border p-4 transition-all ${
                     isSelected
@@ -366,10 +370,10 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
                     </div>
 
                     {/* Quick CRUD Action Buttons */}
-                    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-1.5">
                       {err.status !== 'resolved' && (
                         <button
-                          onClick={() => onAutoFixError(err.id)}
+                          onClick={(event) => { event.stopPropagation(); onAutoFixError(err.id); }}
                           className="px-2.5 py-1 rounded bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold flex items-center gap-1 transition-colors"
                           title="Apply Collaborative Auto-Fix"
                         >
@@ -379,7 +383,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
                       )}
 
                       <button
-                        onClick={() => handleRunGptCollaboration(err)}
+                        onClick={(event) => { event.stopPropagation(); handleRunGptCollaboration(err); }}
                         className="px-2.5 py-1 rounded bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold flex items-center gap-1 transition-colors"
                         title="Work together with OpenAI GPT-4o and Gemini to diagnose and fix this error"
                       >
@@ -388,7 +392,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
                       </button>
 
                       <button
-                        onClick={() => handleOpenEdit(err)}
+                        onClick={(event) => { event.stopPropagation(); handleOpenEdit(err); }}
                         className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition-colors"
                         title="Edit Error / Patch"
                       >
@@ -396,7 +400,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
                       </button>
 
                       <button
-                        onClick={() => onDeleteError(err.id)}
+                        onClick={(event) => { event.stopPropagation(); onDeleteError(err.id); }}
                         className="p-1 rounded bg-slate-800 hover:bg-rose-950/40 text-slate-400 hover:text-rose-400 border border-slate-700 hover:border-rose-500/30 transition-colors"
                         title="Delete / Dismiss Error"
                       >
