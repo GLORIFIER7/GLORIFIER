@@ -292,7 +292,7 @@ export const FootprintManager: React.FC<FootprintManagerProps> = ({
                     {/* Differential Privacy Epsilon Fine-tuning Slider */}
                     <div>
                       <div className="flex items-center justify-between mb-1.5">
-                        <label className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider" htmlFor="glorifier-FootprintManager-tsx-1">
+                        <label className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider" htmlFor={`glorifier-FootprintManager-${fp.id}`}>
                           Epsilon target (configuration only): ε = {fp.privacyEpsilon}
                         </label>
                         <span className="text-[10px] font-mono text-emerald-400">
@@ -301,6 +301,7 @@ export const FootprintManager: React.FC<FootprintManagerProps> = ({
                       </div>
 
                       <input
+                        id={`glorifier-FootprintManager-${fp.id}`}
                         type="range"
                         min="0.1"
                         max="1.2"
