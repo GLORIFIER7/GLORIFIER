@@ -9,7 +9,7 @@ readonly EXPECTED_METADATA_URI="https://raw.githubusercontent.com/GLORIFIER7/GLO
 readonly EXCLUDED_EXISTING_MINT="FrJhrVGjNRiB1eZpg5PTqLp9VSQS5rpwMp7jxNtEmV9G"
 readonly COMMITMENT="finalized"
 MINT="$1"
-test -n "$MINT"
+[[ -n "$MINT" ]]
 [[ "$MINT" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]]
 [[ "$MINT" != "$EXCLUDED_EXISTING_MINT" ]]
 mkdir -p solana
@@ -22,12 +22,12 @@ spl-token --program-2022 display "$MINT" | tee solana/reconciliation-mint-state.
 ACTUAL_SUPPLY="$(awk 'NR==1 {print $1}' solana/reconciliation-supply.txt | tr -d '\r')"
 
 if ! grep -Eq "^[[:space:]]*Name:[[:space:]]*$EXPECTED_NAME[[:space:]]*$" solana/reconciliation-mint-state.txt \
-  || ! grep -Eq "^[[:space:]]*Symbol:[[:space:]]*$EXPECTED_SYMBOL[[:space:]]*$" solana/reconciliation-mint-state.txt \
-  || ! grep -Eiq 'Decimals[[:space:]]*:[[:space:]]*9' solana/reconciliation-mint-state.txt \
-  || ! grep -Eiq 'Mint[[:space:]]+Authority.*(None|\(not set\))' solana/reconciliation-mint-state.txt \
-  || ! grep -Eiq 'Freeze[[:space:]]+Authority.*(None|\(not set\))' solana/reconciliation-mint-state.txt \
-  || ! grep -Fq "$EXPECTED_METADATA_URI" solana/reconciliation-mint-state.txt \
-  || [[ "$ACTUAL_SUPPLY" != "$EXPECTED_SUPPLY" ]]; then
+  | ! grep -Eq "^[[:space:]]*Symbol:[[:space:]]*$EXPECTED_SYMBOL[[:space:]]*$" solana/reconciliation-mint-state.txt \
+  | ! grep -Eiq 'Decimals[[:space:]]*:[[:space:]]*9' solana/reconciliation-mint-state.txt \
+  | ! grep -Eiq 'Mint[[:space:]]+Authority.*(None|\(not set\))' solana/reconciliation-mint-state.txt \
+  | ! grep -Eiq 'Freeze[[:space:]]+Authority.*(None|\(not set\))' solana/reconciliation-mint-state.txt \
+  | ! grep -Fq "$EXPECTED_METADATA_URI" solana/reconciliation-mint-state.txt \
+  | [[ "$ACTUAL_SUPPLY" != "$EXPECTED_SUPPLY" ]]; then
   cat > solana/reconciliation-evidence.json <<EOF
 {
   "network":"solana-devnet",
@@ -131,17 +131,17 @@ PY
   for pat in "${pats[@]}"; do
     if jq -r '.result.meta.logMessages[]? // empty' <<<"$json" | grep -Eiq "$pat"; then matched=1; break; fi
   done
-  test "$matched" -eq 1
+  [[ "$matched" -eq 1 ]]
   printf '%s\n' "$json" > "solana/reconciliation-tx-$label.json"
 }
 
-test -f solana/deployment-provenance.json
+[[ -f solana/deployment-provenance.json ]]
 PROVENANCE_SOURCE="$(jq -r '.provenanceSource // empty' solana/deployment-provenance.json)"
 PROVENANCE_MINT="$(jq -r '.mint // empty' solana/deployment-provenance.json)"
 PROVENANCE_STATUS="$(jq -r '.status // empty' solana/deployment-provenance.json)"
-test "$PROVENANCE_MINT" = "$MINT"
-test "$PROVENANCE_STATUS" = "READY_FOR_VERIFICATION"
-test "$PROVENANCE_SOURCE" = "IMMUTABLE_GITHUB_ACTIONS_ARTIFACT" || test "$PROVENANCE_SOURCE" = "IMMUTABLE_GITHUB_ACTIONS_JOB_LOG_PLUS_RESUME_EVIDENCE"
+[[ "$PROVENANCE_MINT" = "$MINT" ]]
+[[ "$PROVENANCE_STATUS" = "READY_FOR_VERIFICATION" ]]
+[[ "$PROVENANCE_SOURCE" = "IMMUTABLE_GITHUB_ACTIONS_ARTIFACT" ]]| [[ "$PROVENANCE_SOURCE" = "IMMUTABLE_GITHUB_ACTIONS_JOB_LOG_PLUS_RESUME_EVIDENCE" ]]
 
 CREATION_TX="$(jq -r '.creationTransaction // empty' solana/deployment-provenance.json)"
 METADATA_TX="$(jq -r '.metadataTransaction // empty' solana/deployment-provenance.json)"
@@ -153,7 +153,7 @@ METADATA_AUTH_TX="$(jq -r '.metadataUpdateAuthorityRevocationTransaction // empt
 METADATA_POINTER_AUTH_TX="$(jq -r '.metadataPointerAuthorityRevocationTransaction // empty' solana/deployment-provenance.json)"
 
 TRANSACTION_SEMANTICS_VERIFIED=false
-if [[ -n "$CREATION_TX" && -n "$METADATA_TX" && -n "$ACCOUNT_TX" && -n "$MINT_TX" && -n "$MINT_AUTH_TX" && -n "$FREEZE_AUTH_TX" && -n "$METADATA_AUTH_TX" && -n "$METADATA_POINTER_AUTH_TX" ]]; then
+if [[ -n "$CREATION_TX" & -n "$METADATA_TX" & -n "$ACCOUNT_TX" & -n "$MINT_TX" & -n "$MINT_AUTH_TX" & -n "$FREEZE_AUTH_TX" & -n "$METADATA_AUTH_TX" & -n "$METADATA_POINTER_AUTH_TX" ]]; then
   verify_tx "creation" "$CREATION_TX" 'InitializeMint|InitializeMint2|CreateAccount'
   verify_tx "metadata" "$METADATA_TX" 'InitializeTokenMetadata|InitializeMetadata'
   verify_tx "token-account" "$ACCOUNT_TX" 'InitializeAccount|InitializeAccount3|Create'
