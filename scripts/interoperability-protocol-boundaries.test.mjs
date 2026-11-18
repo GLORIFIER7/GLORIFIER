@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 
 const read = (path) => readFile(new URL(`../${path}`, import.meta.url), 'utf8');
 
-const [registryText, schemaText, gapRegister, mcpPlan, mcpSource, workerSource, a2aSource, workerTests] = await Promise.all([
+const [registryText, schemaText, gapRegister, mcpPlan, mcpSource, workerSource, a2aSource, workerTests, eddiAdoption] = await Promise.all([
   read('docs/architecture/interoperability-capabilities.json'),
   read('docs/architecture/interoperability-capabilities.schema.json'),
   read('docs/architecture/interoperability-gap-register.md'),
@@ -13,6 +13,7 @@ const [registryText, schemaText, gapRegister, mcpPlan, mcpSource, workerSource, 
   read('src/worker.ts'),
   read('src/lib/a2a-v1.ts'),
   read('src/worker.test.ts'),
+  read('docs/architecture/eddi-agent-workforce-adoption.md'),
 ]);
 
 const registry = JSON.parse(registryText);
@@ -136,4 +137,45 @@ test('governance and exact target metadata are preserved', () => {
 test('MCP discovery documents supported capabilities without claiming capability negotiation', () => {
   assert.match(mcpPlan, /its supported capabilities/);
   assert.doesNotMatch(mcpPlan, /negotiated capabilities/);
+});
+
+test('EDDI is inventoried as an optional external workforce and remains NOT VERIFIED', () => {
+  const capability = registry.capabilities.find((item) => item.id === 'integration.eddi-agent-workforce');
+  assert.ok(capability, 'EDDI capability record must exist');
+  assert.equal(capability.status, 'NOT VERIFIED');
+  assert.match(capability.scope, /documentation assessment only/);
+  assert.ok(capability.targetEnvironments.some((item) => item.includes('4255562f6aa0f773851ff1689ddbafb1eec6922b')));
+  assert.ok(capability.evidence.some((item) =>
+    item.kind === 'documentation' && item.reference.endsWith('/docs/mcp-server.md')));
+  assert.ok(capability.evidence.some((item) =>
+    item.kind === 'documentation' && item.reference.endsWith('/docs/a2a-protocol.md')));
+  assert.ok(capability.evidence.some((item) =>
+    item.kind === 'documentation' && item.reference.endsWith('/docs/tenant-quotas.md')));
+  assert.match(capability.boundary, /GEAS-governed/);
+  assert.match(capability.limitations.join('\n'), /general-purpose external MCP client/);
+  assert.match(capability.limitations.join('\n'), /OIDC/);
+});
+
+test('EDDI adoption keeps GLORIFIER governance, credentials, memory and economic evidence separate', () => {
+  assert.match(eddiAdoption, /GLORIFIER remains the system of authority/);
+  assert.match(eddiAdoption, /quarkus\.oidc\.tenant-enabled=true/);
+  assert.match(eddiAdoption, /No credential forwarding/i);
+  assert.match(eddiAdoption, /Keep memory stores separate by default/i);
+  assert.match(eddiAdoption, /Reconcile spend independently/i);
+  assert.match(eddiAdoption, /embedding calls.*not currently metered/i);
+  assert.match(eddiAdoption, /unpriced model calls can meter at \$0/i);
+  assert.match(eddiAdoption, /Do not automatically retry non-idempotent calls/i);
+  assert.match(eddiAdoption, /No external MCP\/A2A request is made/);
+  assert.match(gapRegister, /INT-016 \| EDDI external agent workforce/);
+});
+
+test('EDDI upstream evidence references are pinned to an immutable repository commit', () => {
+  const capability = registry.capabilities.find((item) => item.id === 'integration.eddi-agent-workforce');
+  const upstreamReferences = capability.evidence
+    .filter((item) => item.reference.includes('github.com/labsai/EDDI/'));
+  assert.ok(upstreamReferences.length >= 3);
+  for (const item of upstreamReferences) {
+    assert.match(item.reference, /\/blob\/4255562f6aa0f773851ff1689ddbafb1eec6922b\//);
+    assert.doesNotMatch(item.reference, /\/blob\/main\//);
+  }
 });

@@ -584,3 +584,12 @@ The production endpoint was reached by the official runner and passed legacy too
 No independent external MCP client handshake, A2A TCK, authenticated two-agent exchange, Linux-host enrollment, provider inference, paid action, Worker deployment, or production setting mutation was performed during these runs. The overall `protocol.a2a-mcp-adapters` capability remains **NOT VERIFIED**.
 
 **Decision:** Issue #471 remains OPEN. The test-order false-negative is being repaired in PR #902; the actual MCP full-server conformance, A2A interoperability, Linux host, identity, NEURAL execution, GPU/provider, and economic evidence gates remain separate and incomplete.
+
+
+## EDDI external workforce assessment — 2026-11-18
+
+| ID | Area | Observed evidence | Gap / required remediation | Acceptance evidence |
+|---|---|---|---|---|
+| INT-016 | EDDI external agent workforce | Pinned upstream `labsai/EDDI` documentation describes config-driven agent orchestration, A2A, a Streamable HTTP MCP server, persistent memory/RAG, group conversations, structured artifacts, human oversight, a secrets vault and tenant spend controls. GLORIFIER main already has GEAS, Specialist Council, A2A source and a fixed-scope GitHub MCP server. | No GLORIFIER general-purpose external MCP client, authenticated EDDI endpoint, EDDI-specific A2A task exchange, OIDC trust configuration, tool allowlist or spend reconciliation has been verified. EDDI's documented OIDC default is disabled until `quarkus.oidc.tenant-enabled=true`; its MCP surface is broad and includes non-idempotent write operations. | Pin an EDDI release/image digest; verify OIDC and role mapping; run an authorized staging Agent Card and MCP handshake; test a minimal read-only tool allowlist and authenticated A2A task exchange; verify origin/redirect, schema, size, timeout, rate-limit, retry, audit, tenant and spend controls. Keep all external conformance NOT VERIFIED until these tests pass. |
+
+Assessment source: [EDDI adoption boundary](eddi-agent-workforce-adoption.md), pinned to upstream commit `4255562f6aa0f773851ff1689ddbafb1eec6922b`. No endpoint was configured or contacted and no code from EDDI was imported.
