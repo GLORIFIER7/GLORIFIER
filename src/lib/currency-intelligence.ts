@@ -1,3 +1,4 @@
+import { stripTrailingZeros } from './linear-string.js';
 /**
  * GLORIFIER Currency Intelligence Engine — pure, read-only domain primitives.
  *
@@ -89,7 +90,7 @@ function formatDecimal(units: bigint, scale: number): string {
   if (scale <= 0) return units.toString();
   const digits = units.toString().padStart(scale + 1, '0');
   const whole = digits.slice(0, -scale);
-  const fraction = digits.slice(-scale).replace(/0+$/, '');
+  const fraction = stripTrailingZeros(digits.slice(-scale));
   return fraction ? `${whole}.${fraction}` : whole;
 }
 
