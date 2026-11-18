@@ -12,7 +12,7 @@ const node = (id: string, dependsOn?: string[], effect: 'read-only' | 'reversibl
   objective: `Execute ${id}`,
   effect,
   ...(dependsOn === undefined ? {} : { dependsOn }),
-});
+} as AutopilotGraphNode);
 
 test('normalizes a graph into a stable topological order', () => {
   const graph = normalizeAutopilotGraph([
@@ -34,7 +34,6 @@ test('preserves legacy plan order when no explicit dependencies were supplied', 
 
 test('rejects missing, duplicate, and self-referential dependencies', () => {
   assert.throws(() => normalizeAutopilotGraph([node('first', ['missing'])]), /unknown dependency/);
-  assert.throws(() => normalizeAutopilotGraph([node('first', ['first'])]), /cannot depend on itself/);
   assert.throws(() => normalizeAutopilotGraph([node('first', ['first'])]), /cannot depend on itself/);
   assert.throws(() => normalizeAutopilotGraph([node('first'), node('second', ['first', 'first'])]), /duplicate dependency/);
 });
