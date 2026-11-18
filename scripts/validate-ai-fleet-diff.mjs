@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { authorizeCapability, getCapabilityPolicy } from '../src/lib/capability-authorization.ts';
 import { validateAiFleetDiff } from './ai-fleet-diff-policy.mjs';
 
-const GIT_EXECUTABLE = 'git';
+const GIT_EXECUTABLE = process.platform === 'win32' ? 'C:\\Program Files\\Git\\cmd\\git.exe' : '/usr/bin/git';
 
 function gitRaw(args) {
   return execFileSync(GIT_EXECUTABLE, args, {
