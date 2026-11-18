@@ -1994,7 +1994,7 @@ app.post('/api/compute/task', async (req: Request, res: Response) => {
       return res.status(400).json({ error: 'objective is required' });
     }
     const result = await executeComputeTask({
-      id: `compute-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      id: `compute-${Date.now()}-${randomUUID()}`,
       objective: objective.trim(),
       taskType: ['inference', 'batch', 'embedding', 'code', 'data'].includes(taskType) ? taskType : 'inference',
       preferredModel: typeof preferredModel === 'string' && preferredModel.trim() ? preferredModel.trim() : undefined,
