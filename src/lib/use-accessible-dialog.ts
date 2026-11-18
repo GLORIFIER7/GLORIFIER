@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 
+const activeDialogStack: HTMLElement[] = [];
+
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
@@ -9,11 +11,15 @@ export function installAccessibleDialogBehavior(
   ownerDocument: Document = dialog.ownerDocument,
 ): () => void {
   const previouslyFocused = ownerDocument.activeElement as HTMLElement | null;
+  const previousStackIndex = activeDialogStack.indexOf(dialog);
+  if (previousStackIndex >= 0) activeDialogStack.splice(previousStackIndex, 1);
+  activeDialogStack.push(dialog);
   const focusableItems = () => Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
   const initialItems = focusableItems();
   (initialItems[0] ?? dialog).focus();
 
   const handleKeyDown = (event: KeyboardEvent) => {
+    if (activeDialogStack[activeDialogStack.length - 1] !== dialog) return;
     if (event.key === 'Escape') {
       event.preventDefault();
       onClose();
@@ -47,6 +53,8 @@ export function installAccessibleDialogBehavior(
   ownerDocument.addEventListener('keydown', handleKeyDown);
   return () => {
     ownerDocument.removeEventListener('keydown', handleKeyDown);
+    const stackIndex = activeDialogStack.lastIndexOf(dialog);
+    if (stackIndex >= 0) activeDialogStack.splice(stackIndex, 1);
     if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
       previouslyFocused.focus();
     }
