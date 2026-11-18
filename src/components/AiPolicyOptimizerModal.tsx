@@ -185,6 +185,7 @@ export const AiPolicyOptimizerModal: React.FC<AiPolicyOptimizerModalProps> = ({
           <button
             type="button"
             onClick={onClose}
+            aria-label="Close policy preset comparator"
             className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
             title="Close"
           >
