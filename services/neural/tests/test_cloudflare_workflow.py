@@ -73,6 +73,8 @@ def test_cloudflare_validation_smoke_tests_pyodide_with_asyncpg_without_ml_drive
         "bash ./worker-build.sh --prepare-only",
         "npm install --global --no-audit --no-fund wrangler@4.164.0",
         "test \"$(wrangler --version)\" = \"4.164.0\"",
+        "npm install --global --no-audit --no-fund wrangler@4.164.0",
+        "test \"$(wrangler --version)\" = \"4.164.0\"",
         "wrangler deploy --dry-run",
         "bash ./worker-build.sh deploy",
     )
