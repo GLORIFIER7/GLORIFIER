@@ -227,7 +227,7 @@ jq -e --arg mint "${MINT}" '
  and (.metadataPointerAuthorityRevocationTransaction|type=="string" and length>=64)
  and .verifiedFinalState==true
 ' solana/devnet-resume-evidence.json >/dev/null
-; then
+if ! printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*Symbol:[[:space:]]+GLR[[:space:]]*$'; then
   OUTPUT="$(spl-token --program-2022 initialize-metadata "${MINT}" "GLORIFIER" "GLR" "${METADATA_URI}")"
   printf '%s\n' "${OUTPUT}"
   METADATA_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"
