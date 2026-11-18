@@ -311,7 +311,7 @@ export const MarketplaceOffers: React.FC<MarketplaceOffersProps> = ({
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="flex-1">
-                      <label className="text-[10px] text-slate-400 block mb-1">
+                      <label className="text-[10px] text-slate-400 block mb-1" htmlFor="glorifier-MarketplaceOffers-tsx-1">
                         Proposed Compensation Rate ($/month)
                       </label>
                       <input
