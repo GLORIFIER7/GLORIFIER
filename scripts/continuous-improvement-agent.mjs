@@ -1,5 +1,5 @@
-import { stripOuterCodeFence, stripTrailingSlashes } from './linear-string.mjs';
 #!/usr/bin/env node
+import { stripOuterCodeFence, stripTrailingSlashes } from './linear-string.mjs';
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { applyUnifiedDiff } from './apply-unified-diff.mjs';
