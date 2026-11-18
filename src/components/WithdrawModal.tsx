@@ -184,7 +184,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
   };
 
   const isCurrentAddressValid = () => {
-            ? 'GCash'
+    if (payoutCategory === 'gcash') return /^09\d{9}$/.test(gcashAccount.replace(/\s|-/g, ''));
     if (payoutCategory === 'binance') return binanceAccount.trim().length >= 4;
     if (payoutCategory === 'fiat') return fiatAccount.trim().length > 3;
     if (!walletAddress.trim()) return false;
@@ -337,7 +337,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
         tokenSymbol: payoutCategory === 'crypto' ? selectedToken : 'USD',
         network: payoutCategory === 'crypto'
           ? selectedNetwork
-    if (payoutCategory === 'gcash') return /^09\d{9}$/.test(gcashAccount.replace(/\s|-/g, ''));
+          : payoutCategory === 'gcash'
             ? 'GCash'
             : payoutCategory === 'binance'
               ? 'Binance'
@@ -533,7 +533,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
-    if (payoutCategory === 'gcash') return /^09\d{9}$/.test(gcashAccount.replace(/\s|-/g, ''));
+
               <div>
                 <label className="text-xs font-semibold text-slate-300 block mb-1.5" htmlFor="glorifier-WithdrawModal-tsx-5">GCash Number</label>
                 <input
