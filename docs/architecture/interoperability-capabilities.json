@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-16T12:01:15Z",
+  "updatedAt": "2026-11-18T05:37:42.341Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -2055,6 +2055,57 @@
         "Universal Linux distribution and architecture compatibility is not claimed; the recorded Linux source/container matrix remains limited to Ubuntu 22.04/24.04 x86_64.",
         "A claim-specific 256-bit lease token is required for each result; stale claims cannot submit a result after lease rotation.",
         "PR #809 and the Linux host-agent contract implementation are merged on main; the green offline CI does not establish live host enrollment, heartbeat, task receipt, expiry, or revocation."
+      ]
+    },
+    {
+      "id": "integration.eddi-agent-workforce",
+      "title": "Optional EDDI external agent workforce",
+      "boundary": "Future GLORIFIER GEAS-governed integration gateway to an independently operated labsai/EDDI deployment",
+      "scope": "pinned upstream documentation assessment only; no endpoint, MCP client handshake, A2A task exchange, authenticated connection, or runtime integration",
+      "status": "NOT VERIFIED",
+      "targetEnvironments": [
+        "GLORIFIER7/GLORIFIER main commit 586784078fde064f4e0c9d602fb5770ed6656fda; adoption boundary only",
+        "Upstream labsai/EDDI main commit 4255562f6aa0f773851ff1689ddbafb1eec6922b; documentation snapshot only; no owner-authorized endpoint supplied"
+      ],
+      "evidence": [
+        {
+          "kind": "documentation",
+          "reference": "https://github.com/labsai/EDDI/blob/4255562f6aa0f773851ff1689ddbafb1eec6922b/README.md",
+          "targetEnvironment": "Upstream labsai/EDDI commit 4255562f6aa0f773851ff1689ddbafb1eec6922b; public repository documentation",
+          "observedAt": null,
+          "notes": "The README describes EDDI as config-driven multi-agent orchestration middleware with a Java 25/Quarkus application, manager/chat UI, MCP, A2A, memory, RAG and Apache 2.0 licensing. Upstream claims only; no independent runtime verification."
+        },
+        {
+          "kind": "documentation",
+          "reference": "https://github.com/labsai/EDDI/blob/4255562f6aa0f773851ff1689ddbafb1eec6922b/docs/a2a-protocol.md",
+          "targetEnvironment": "Upstream labsai/EDDI commit 4255562f6aa0f773851ff1689ddbafb1eec6922b; public A2A documentation",
+          "observedAt": null,
+          "notes": "Documents EDDI A2A Agent Card discovery and authenticated JSON-RPC task endpoints. This is a protocol description, not proof of an interoperable live GLORIFIER-to-EDDI task exchange."
+        },
+        {
+          "kind": "documentation",
+          "reference": "https://github.com/labsai/EDDI/blob/4255562f6aa0f773851ff1689ddbafb1eec6922b/docs/mcp-server.md",
+          "targetEnvironment": "Upstream labsai/EDDI commit 4255562f6aa0f773851ff1689ddbafb1eec6922b; public MCP documentation",
+          "observedAt": null,
+          "notes": "Documents Streamable HTTP MCP server at /mcp, a broad tool surface, role tiers and non-idempotent create operations. Exact release tool inventory, authorization, handshake and external client interoperability remain to be tested."
+        },
+        {
+          "kind": "documentation",
+          "reference": "docs/architecture/eddi-agent-workforce-adoption.md",
+          "targetEnvironment": "GLORIFIER7/GLORIFIER adoption design; source-only",
+          "observedAt": null,
+          "notes": "Defines extraction decisions, GLORIFIER/GEAS authority boundaries, security constraints, staged acceptance gates and explicit non-actions. No EDDI runtime or external request is enabled."
+        }
+      ],
+      "limitations": [
+        "No EDDI runtime, endpoint, OIDC client, tenant, credential, user or database has been configured or contacted.",
+        "GLORIFIER's fixed-scope GitHub MCP server is not a general-purpose external MCP client; EDDI interoperability is NOT VERIFIED.",
+        "EDDI's inspected architecture documentation states OIDC authentication is disabled until quarkus.oidc.tenant-enabled=true; secure and verify OIDC before exposing any remote surface.",
+        "EDDI Agent Cards are documented as anonymously discoverable; discovery metadata is not identity trust or authorization.",
+        "The inspected EDDI MCP documentation describes a broad tool set including non-idempotent create operations; pin a release, review tools/list and allowlist read-only tools before any invocation.",
+        "Remote EDDI roles, approvals, memory, costs and audit events do not grant GEAS authority or replace GLORIFIER's evidence and economic ledgers.",
+        "No external MCP conformance, A2A conformance, authenticated task exchange, production health, data-boundary test or spend reconciliation has been performed.",
+        "No EDDI source, Java/Quarkus runtime, database, NATS cluster, Keycloak, vector store or dashboard is imported or provisioned."
       ]
     }
   ]
