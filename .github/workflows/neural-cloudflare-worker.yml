@@ -67,7 +67,7 @@ jobs:
         run: uv sync --locked --no-build --group dev --no-install-project --no-install-package glorifier-neural-app
       - name: Install pinned Neural package build tools
         working-directory: services/neural/cloudflare
-        run: uv pip install --python .venv/bin/python --only-binary=:all: setuptools==83.0.0 wheel==0.45.1
+        run: "uv pip install --python .venv/bin/python --only-binary=:all: setuptools==83.0.0 wheel==0.45.1"
       - name: Install staged Neural application without build isolation
         working-directory: services/neural/cloudflare
         run: uv pip install --python .venv/bin/python --no-build-isolation --no-deps -e neural_app
@@ -165,7 +165,7 @@ jobs:
         run: uv sync --locked --no-build --group dev --no-install-project --no-install-package glorifier-neural-app
       - name: Install pinned Neural package build tools
         working-directory: services/neural/cloudflare
-        run: uv pip install --python .venv/bin/python --only-binary=:all: setuptools==83.0.0 wheel==0.45.1
+        run: "uv pip install --python .venv/bin/python --only-binary=:all: setuptools==83.0.0 wheel==0.45.1"
       - name: Install staged Neural application without build isolation
         working-directory: services/neural/cloudflare
         run: uv pip install --python .venv/bin/python --no-build-isolation --no-deps -e neural_app
