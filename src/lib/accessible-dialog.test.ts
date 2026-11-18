@@ -5,7 +5,7 @@ import { installAccessibleDialogBehavior } from './use-accessible-dialog.js';
 type KeyHandler = (event: KeyboardEvent) => void;
 
 function createDialogHarness(focusableCount = 2) {
-  const handlers = new Map<string, KeyHandler>();
+  const handlers = new Map<string, Set<KeyHandler>>();
   const documentLike = {
     activeElement: null as HTMLElement | null,
     addEventListener: (type: string, listener: EventListenerOrEventListenerObject) => {
@@ -35,8 +35,8 @@ function createDialogHarness(focusableCount = 2) {
     contains: (node: Node | null) => node === dialog || items.includes(node as HTMLElement),
     focus: () => { documentLike.activeElement = dialog as unknown as HTMLElement; },
   } as unknown as HTMLElement;
-  const previous = { focused: false, focus() { this.focused = true; } } as unknown as HTMLElement;
-  documentLike.activeElement = previous;
+  const previous = { focused: false, focus() { this.focused = true; } };
+  documentLike.activeElement = previous as unknown as HTMLElement;
 
   const dispatch = (key: string, shiftKey = false) => {
     let prevented = false;
@@ -110,14 +110,16 @@ test('only the topmost open dialog handles the shared document key event', () =>
     () => undefined,
     harness.documentLike as unknown as Document,
   );
-  const secondItem = {
-    focus: () => { harness.documentLike.activeElement = secondItem as unknown as HTMLElement; },
+  let secondItem: HTMLElement;
+  secondItem = {
+    focus: () => { harness.documentLike.activeElement = secondItem; },
   } as unknown as HTMLElement;
-  const secondDialog = {
+  let secondDialog: HTMLElement;
+  secondDialog = {
     ownerDocument: harness.documentLike,
     querySelectorAll: () => [secondItem],
     contains: (node: Node | null) => node === secondDialog || node === secondItem,
-    focus: () => { harness.documentLike.activeElement = secondDialog as unknown as HTMLElement; },
+    focus: () => { harness.documentLike.activeElement = secondDialog; },
   } as unknown as HTMLElement;
   const secondCleanup = installAccessibleDialogBehavior(
     secondDialog,
