@@ -231,6 +231,7 @@ export const GmailGovernanceTab: React.FC<GmailGovernanceTabProps> = ({
                     key={item.id}
                     onClick={() => setSelectedItem(item)}
                     role="button"
+                    aria-pressed={selectedItem?.id === item.id}
                     tabIndex={0}
                     onKeyDown={(event) => {
                       if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
