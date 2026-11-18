@@ -240,7 +240,10 @@ export const GmailGovernanceTab: React.FC<GmailGovernanceTabProps> = ({
                       }
                     }}
                     onClick={(event) => {
-                      if (event.target === event.currentTarget) setSelectedItem(item);
+                      const target = event.target;
+                      if (!(target instanceof Element) || !target.closest('button, a, input, select, textarea')) {
+                        setSelectedItem(item);
+                      }
                     }}
                     className={`p-4 rounded-xl border transition-all cursor-pointer ${
                       selectedItem?.id === item.id
