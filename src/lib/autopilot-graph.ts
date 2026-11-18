@@ -143,7 +143,10 @@ export function getReadyAutopilotGraphWave<T extends AutopilotGraphNode>(
 
   if (ready.length === 0) return [];
   const first = ready[0];
-  if (first.effect !== 'read-only') return [first];
+  if (first.effect !== 'read-only') {
+    if (runningReadOnlyCount > 0) return [];
+    return [first];
+  }
   if (availableReadOnlySlots === 0) return [];
 
   return ready
