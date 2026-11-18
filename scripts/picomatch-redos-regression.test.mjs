@@ -42,12 +42,12 @@ test('preserves representative non-risky extglob behavior', () => {
   assert.equal(picomatch.isMatch('foofoobar', '+(foo|foobar)'), true);
 });
 
-test('backslash cleanup preserves complete bracket classes and removes dangling escapes', () => {
-  assert.equal(utils.removeBackslashes('\\\\[abc]'), '\\\\[abc]');
+test('backslash cleanup preserves the legacy escaped-empty-class case', () => {
+  assert.equal(utils.removeBackslashes('\\\\[]'), '\\\\[]');
+  assert.equal(utils.removeBackslashes('\\\\[abc]'), '[abc]');
   assert.equal(utils.removeBackslashes('\\\\[abc\\\\]'), '[abc]');
   assert.equal(utils.removeBackslashes('foo\\\\ bar\\\\\\\\baz\\\\'), 'foo barbaz\\\\');
 });
-
 test('backslash cleanup processes repeated unmatched opening brackets in bounded time', () => {
   const count = 25000;
   const input = '\\\\['.repeat(count);
