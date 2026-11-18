@@ -399,16 +399,7 @@ export const DriveGovernanceTab: React.FC<DriveGovernanceTabProps> = ({
                 {filteredFiles.map((file) => (
                   <div
                     key={file.id}
-                    onClick={() => setSelectedFile(file)}
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(event) => {
-                      if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
-                        event.preventDefault();
-                        setSelectedFile(file);
-                      }
-                    }}
-                    className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                                        className={`p-4 rounded-xl border transition-all cursor-pointer ${
                       selectedFile?.id === file.id
                         ? 'bg-slate-900 border-cyan-500/50 shadow-md ring-1 ring-cyan-500/20'
                         : 'bg-slate-900/60 hover:bg-slate-900 border-slate-800'
@@ -420,9 +411,14 @@ export const DriveGovernanceTab: React.FC<DriveGovernanceTabProps> = ({
                           <span className="p-1 rounded bg-slate-800">
                             {getFileCategoryIcon(file.category)}
                           </span>
-                          <span className="text-xs font-bold text-white truncate max-w-[280px]">
+                          <button
+                            type="button"
+                            aria-pressed={selectedFile?.id === file.id}
+                            onClick={() => setSelectedFile(file)}
+                            className="text-xs font-bold text-white truncate max-w-[280px] text-left hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-cyan-400"
+                          >
                             {file.name}
-                          </span>
+                          </button>
                           {file.shared && (
                             <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1">
                               <Share2 className="w-3 h-3" />
