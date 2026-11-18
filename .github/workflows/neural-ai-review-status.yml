@@ -8,10 +8,6 @@ on:
       - ".github/workflows/neural-ai-review-status.yml"
   schedule:
     - cron: "*/15 * * * *"
-  workflow_run:
-    workflows: ["NEURAL Service CI"]
-    types: [completed]
-    branches: [main]
 
 permissions:
   contents: read
