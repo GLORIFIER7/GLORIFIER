@@ -254,7 +254,7 @@ export const AuthPanel: React.FC<AuthPanelProps> = ({ currentUser }) => {
                 </div>
               )}
 
-              <button disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-slate-950 hover:bg-emerald-400 disabled:opacity-50">
+              <button type="submit" disabled={busy} className="flex w-full items-center justify-center gap-2 rounded-xl bg-emerald-500 px-4 py-3 text-sm font-bold text-slate-950 hover:bg-emerald-400 disabled:opacity-50">
                 {mode === 'login' ? <LogIn className="h-4 w-4" /> : <UserPlus className="h-4 w-4" />}
                 {busy ? 'Please wait...' : mode === 'login' ? 'Sign in to Command Center' : 'Create account'}
               </button>
