@@ -426,7 +426,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-slate-300 block mb-1.5">Amount</label>
+              <label className="text-xs font-semibold text-slate-300 block mb-1.5" htmlFor="glorifier-WithdrawModal-tsx-1">Amount</label>
               <div className="relative">
                 <span className="absolute left-3 top-2.5 text-slate-400 text-sm font-mono">$</span>
                 <input
@@ -474,7 +474,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
             {payoutCategory === 'crypto' ? (
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1.5">Saved Wallet Destination · ownership NOT VERIFIED</label>
+                  <label className="text-xs font-semibold text-slate-300 block mb-1.5" htmlFor="glorifier-WithdrawModal-tsx-2">Saved Wallet Destination · ownership NOT VERIFIED</label>
                   <select
                     value={walletAddress}
                     onChange={(e) => {
@@ -496,7 +496,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-xs font-semibold text-slate-300 block mb-1.5">Token</label>
+                    <label className="text-xs font-semibold text-slate-300 block mb-1.5" htmlFor="glorifier-WithdrawModal-tsx-3">Token</label>
                     <select
                       value={selectedToken}
                       onChange={(e) => setSelectedToken(e.target.value as StablecoinType)}
@@ -506,7 +506,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-300 block mb-1.5">Network</label>
+                    <label className="text-xs font-semibold text-slate-300 block mb-1.5" htmlFor="glorifier-WithdrawModal-tsx-4">Network</label>
                     <select
                       value={selectedNetwork}
                       onChange={(e) => setSelectedNetwork(e.target.value as CryptoNetwork)}
@@ -531,7 +531,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
               </div>
             ) : payoutCategory === 'gcash' ? (
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1.5">GCash Number</label>
+                <label className="text-xs font-semibold text-slate-300 block mb-1.5" htmlFor="glorifier-WithdrawModal-tsx-5">GCash Number</label>
                 <input
                   type="tel"
                   inputMode="numeric"
@@ -544,7 +544,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
               </div>
             ) : payoutCategory === 'binance' ? (
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1.5">Binance Pay ID / UID</label>
+                <label className="text-xs font-semibold text-slate-300 block mb-1.5" htmlFor="glorifier-WithdrawModal-tsx-6">Binance Pay ID / UID</label>
                 <input
                   type="text"
                   value={binanceAccount}
@@ -556,7 +556,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
               </div>
             ) : (
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1.5">Payout Account</label>
+                <label className="text-xs font-semibold text-slate-300 block mb-1.5" htmlFor="glorifier-WithdrawModal-tsx-7">Payout Account</label>
                 <input
                   type="text"
                   value={fiatAccount}
