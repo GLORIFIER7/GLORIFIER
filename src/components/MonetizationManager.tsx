@@ -211,6 +211,7 @@ export const MonetizationManager: React.FC<MonetizationManagerProps> = ({ policy
           </div>
           <label className="mt-5 block text-xs text-slate-400" htmlFor="glorifier-MonetizationManager-tsx-1">Operating mode</label>
           <select
+            id="glorifier-MonetizationManager-tsx-1"
             value={policy.brokerMode}
             onChange={(event) => onUpdatePolicy({ brokerMode: event.target.value as MonetizationPolicy['brokerMode'] })}
             className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200"
@@ -222,6 +223,7 @@ export const MonetizationManager: React.FC<MonetizationManagerProps> = ({ policy
 
           <label className="mt-5 block text-xs text-slate-400" htmlFor="glorifier-MonetizationManager-tsx-2">Proposed minimum monthly floor · not a buyer offer</label>
           <input
+            id="glorifier-MonetizationManager-tsx-2"
             type="number"
             min="0"
             max="100"
