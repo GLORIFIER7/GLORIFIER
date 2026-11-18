@@ -17,7 +17,8 @@ export type AutopilotGraphNodeStatus =
 export type NormalizedAutopilotGraphNode<T extends AutopilotGraphNode = AutopilotGraphNode> =
   Omit<T, 'dependsOn'> & { dependsOn: string[] };
 
-const MAX_GRAPH_NODES = 6;
+export const MAX_GRAPH_NODES = 6;
+export const MAX_LEGACY_MISSION_STEPS = 30;
 const MAX_DEPENDENCIES_PER_NODE = MAX_GRAPH_NODES - 1;
 
 /**
@@ -30,8 +31,8 @@ export function normalizeAutopilotGraph<T extends AutopilotGraphNode>(
   input: readonly T[],
   maxNodes = MAX_GRAPH_NODES,
 ): Array<NormalizedAutopilotGraphNode<T>> {
-  if (!Number.isSafeInteger(maxNodes) || maxNodes < 1 || maxNodes > MAX_GRAPH_NODES) {
-    throw new Error(`Autopilot graph maxNodes must be between 1 and ${MAX_GRAPH_NODES}.`);
+  if (!Number.isSafeInteger(maxNodes) || maxNodes < 1 || maxNodes > MAX_LEGACY_MISSION_STEPS) {
+    throw new Error(`Autopilot graph maxNodes must be between 1 and ${MAX_LEGACY_MISSION_STEPS}.`);
   }
   if (!Array.isArray(input) || input.length < 1 || input.length > maxNodes) {
     throw new Error(`Autopilot graph must contain between 1 and ${maxNodes} nodes.`);
@@ -120,12 +121,17 @@ export function getReadyAutopilotGraphWave<T extends AutopilotGraphNode>(
   graph: readonly T[],
   statuses: ReadonlyMap<string, AutopilotGraphNodeStatus>,
   maxConcurrency = 2,
+  maxNodes = MAX_GRAPH_NODES,
 ): Array<NormalizedAutopilotGraphNode<T>> {
   if (!Number.isSafeInteger(maxConcurrency) || maxConcurrency < 1 || maxConcurrency > MAX_GRAPH_NODES) {
     throw new Error(`Autopilot graph concurrency must be between 1 and ${MAX_GRAPH_NODES}.`);
   }
 
-  const normalized = normalizeAutopilotGraph(graph);
+  const normalized = normalizeAutopilotGraph(graph, maxNodes);
+  if (normalized.some((node) =>
+    node.effect !== 'read-only' && statuses.get(node.id) === 'running',
+  )) return [];
+
   const ready = normalized.filter((node) =>
     (statuses.get(node.id) ?? 'pending') === 'pending' &&
     node.dependsOn.every((dependency) => statuses.get(dependency) === 'completed'),
