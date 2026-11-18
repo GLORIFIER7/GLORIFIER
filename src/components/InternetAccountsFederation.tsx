@@ -189,16 +189,7 @@ export const InternetAccountsFederation: React.FC<InternetAccountsFederationProp
               return (
                 <div
                   key={acc.id}
-                  onClick={() => setSelectedAccount(acc)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(event) => {
-                    if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
-                      event.preventDefault();
-                      setSelectedAccount(acc);
-                    }
-                  }}
-                  className={`cursor-pointer rounded-xl border p-4 transition-all ${
+                                    className={`cursor-pointer rounded-xl border p-4 transition-all ${
                     isSelected
                       ? 'bg-slate-850 border-indigo-500/60 shadow-lg shadow-indigo-950/20'
                       : 'bg-slate-900 hover:bg-slate-850/70 border-slate-800'
@@ -208,7 +199,14 @@ export const InternetAccountsFederation: React.FC<InternetAccountsFederationProp
                     <div className="space-y-1 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         {getCategoryBadge(acc.category)}
-                        <h4 className="font-bold text-sm text-white">{acc.provider}</h4>
+                        <button
+                          type="button"
+                          aria-pressed={isSelected}
+                          onClick={() => setSelectedAccount(acc)}
+                          className="font-bold text-sm text-white text-left hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-indigo-400"
+                        >
+                          {acc.provider}
+                        </button>
                         <span className="font-mono text-xs text-indigo-300">{acc.accountIdentifier}</span>
                       </div>
                       <div className="text-xs text-slate-400">
