@@ -274,6 +274,14 @@ export const FootprintManager: React.FC<FootprintManagerProps> = ({
                           <div
                             key={tierOption.id}
                             onClick={() => onUpdatePrivacyTier(fp.id, tierOption.id as PrivacyTier, fp.privacyEpsilon)}
+                            role="button"
+                            tabIndex={0}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                onUpdatePrivacyTier(fp.id, tierOption.id as PrivacyTier, fp.privacyEpsilon);
+                              }
+                            }}
                             className={`cursor-pointer rounded-lg p-2.5 border text-left transition-all ${
                               fp.privacyTier === tierOption.id
                                 ? 'bg-slate-800 border-emerald-500/70 text-white'
@@ -304,7 +312,7 @@ export const FootprintManager: React.FC<FootprintManagerProps> = ({
                         max="1.2"
                         step="0.05"
                         value={fp.privacyEpsilon}
-                        onChange={(e) => onUpdatePrivacyTier(fp.id, fp.privacyTier, Number.parseFloat(e.target.value))}
+                        onChange={(e) => onUpdatePrivacyTier(fp.id, fp.privacyTier, parseFloat(e.target.value))}
                         className="w-full accent-emerald-500 cursor-pointer h-1.5 bg-slate-805 rounded-lg"
                       />
 

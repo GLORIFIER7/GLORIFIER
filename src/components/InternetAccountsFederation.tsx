@@ -190,6 +190,14 @@ export const InternetAccountsFederation: React.FC<InternetAccountsFederationProp
                 <div
                   key={acc.id}
                   onClick={() => setSelectedAccount(acc)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+                      event.preventDefault();
+                      setSelectedAccount(acc);
+                    }
+                  }}
                   className={`cursor-pointer rounded-xl border p-4 transition-all ${
                     isSelected
                       ? 'bg-slate-850 border-indigo-500/60 shadow-lg shadow-indigo-950/20'
@@ -237,7 +245,7 @@ export const InternetAccountsFederation: React.FC<InternetAccountsFederationProp
                     </div>
 
                     {/* Quick Gatekeeper Switch */}
-                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-2" role="group" aria-label="Account approval actions" onClick={(e) => e.stopPropagation()}>
                       <button
                         onClick={() => handleToggleGatekeeper(acc)}
                         className={`px-2.5 py-1 rounded text-[11px] font-semibold border flex items-center gap-1 transition-colors ${

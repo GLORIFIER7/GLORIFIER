@@ -530,7 +530,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
                       step="5"
                       disabled={!isEnabled}
                       value={node.weight}
-                      onChange={(e) => handleWeightChange(node.id, Number.parseInt(e.target.value))}
+                      onChange={(e) => handleWeightChange(node.id, parseInt(e.target.value))}
                       className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500 disabled:opacity-30"
                     />
                     <div className="flex justify-between text-[10px] text-slate-400 font-mono">
@@ -610,6 +610,15 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
                     onClick={() => {
                       setSelectedTopic(item.title);
                       setCustomAgenda('');
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setSelectedTopic(item.title);
+                        setCustomAgenda('');
+                      }
                     }}
                     className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
                       selectedTopic === item.title && !customAgenda
@@ -767,6 +776,14 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
                 <div
                   key={mode.id}
                   onClick={() => setCollaborationMode(mode.id as any)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setCollaborationMode(mode.id as any);
+                    }
+                  }}
                   className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
                     collaborationMode === mode.id
                       ? 'bg-emerald-950/20 border-emerald-500/50 text-white'
@@ -798,7 +815,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
                 max="100"
                 step="5"
                 value={consensusThreshold}
-                onChange={(e) => setConsensusThreshold(Number.parseInt(e.target.value))}
+                onChange={(e) => setConsensusThreshold(parseInt(e.target.value))}
                 className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-teal-400"
               />
               <div className="flex justify-between text-[10px] text-slate-400 font-mono">

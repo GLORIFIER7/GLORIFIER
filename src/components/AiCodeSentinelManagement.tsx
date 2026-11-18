@@ -334,6 +334,14 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
                 <div
                   key={err.id}
                   onClick={() => setSelectedError(err)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+                      event.preventDefault();
+                      setSelectedError(err);
+                    }
+                  }}
                   className={`cursor-pointer rounded-xl border p-4 transition-all ${
                     isSelected
                       ? 'bg-slate-850 border-emerald-500/60 shadow-lg shadow-emerald-950/20'
@@ -366,7 +374,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
                     </div>
 
                     {/* Quick CRUD Action Buttons */}
-                    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-1.5" role="group" aria-label="Error record actions" onClick={(e) => e.stopPropagation()}>
                       {err.status !== 'resolved' && (
                         <button
                           onClick={() => onAutoFixError(err.id)}

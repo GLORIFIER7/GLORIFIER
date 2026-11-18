@@ -91,7 +91,7 @@ export const DriveGovernanceTab: React.FC<DriveGovernanceTabProps> = ({
 
   useEffect(() => {
     if (currentUser && hasAccessToken && files.length === 0) {
-      void fetchDriveFiles();
+      fetchDriveFiles();
     }
   }, [currentUser, hasAccessToken]);
 
@@ -150,7 +150,7 @@ export const DriveGovernanceTab: React.FC<DriveGovernanceTabProps> = ({
       setExportSuccessLink({ name: result.name, link: result.webViewLink });
       
       // Refresh list
-      void fetchDriveFiles();
+      fetchDriveFiles();
     } catch (err: any) {
       setError(`Failed to export manifest: ${err.message}`);
     } finally {
@@ -400,6 +400,14 @@ export const DriveGovernanceTab: React.FC<DriveGovernanceTabProps> = ({
                   <div
                     key={file.id}
                     onClick={() => setSelectedFile(file)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
+                        event.preventDefault();
+                        setSelectedFile(file);
+                      }
+                    }}
                     className={`p-4 rounded-xl border transition-all cursor-pointer ${
                       selectedFile?.id === file.id
                         ? 'bg-slate-900 border-cyan-500/50 shadow-md ring-1 ring-cyan-500/20'
