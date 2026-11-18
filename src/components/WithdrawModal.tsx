@@ -281,8 +281,9 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
 
   const handleCopyAddress = (id: string, addr: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    navigator.clipboard.writeText(addr);
-    setCopiedId(id);
+    void navigator.clipboard.writeText(addr).then(() => {
+      setCopiedId(id);
+    }).catch((error) => console.warn('Clipboard write failed:', error));
   };
 
   const handleWithdraw = async () => {
@@ -357,8 +358,9 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
 
   const handleCopyTx = () => {
     if (!settledReceipt) return;
-    navigator.clipboard.writeText(settledReceipt.txHash);
-    setCopiedTx(true);
+    void navigator.clipboard.writeText(settledReceipt.txHash).then(() => {
+      setCopiedTx(true);
+    }).catch((error) => console.warn('Clipboard write failed:', error));
   };
 
   const filteredWallets = connectedWallets.filter(w => {
@@ -426,10 +428,11 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-slate-300 block mb-1.5">Amount</label>
+              <label htmlFor="withdraw-amount" className="text-xs font-semibold text-slate-300 block mb-1.5">Amount</label>
               <div className="relative">
                 <span className="absolute left-3 top-2.5 text-slate-400 text-sm font-mono">$</span>
                 <input
+                  id="withdraw-amount"
                   type="number"
                   min="0.01"
                   max={verifiedAvailableUsd ?? 0}
@@ -450,7 +453,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
             </div>
 
             <div>
-              <label className="text-xs font-semibold text-slate-300 block mb-1.5">Payout Method</label>
+              <div className="text-xs font-semibold text-slate-300 block mb-1.5">Payout Method</div>
               <div className="grid grid-cols-2 gap-2">
                 {([
                   ['crypto', 'Crypto', 'USDC / USDT / DAI / PYUSD'],
@@ -474,8 +477,8 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
             {payoutCategory === 'crypto' ? (
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-300 block mb-1.5">Saved Wallet Destination · ownership NOT VERIFIED</label>
-                  <select
+                  <label htmlFor="saved-wallet-destination" className="text-xs font-semibold text-slate-300 block mb-1.5">Saved Wallet Destination · ownership NOT VERIFIED</label>
+                  <select id="saved-wallet-destination"
                     value={walletAddress}
                     onChange={(e) => {
                       const value=e.target.value;
@@ -496,8 +499,8 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
 
                 <div className="grid grid-cols-2 gap-2">
                   <div>
-                    <label className="text-xs font-semibold text-slate-300 block mb-1.5">Token</label>
-                    <select
+                    <label htmlFor="payout-token" className="text-xs font-semibold text-slate-300 block mb-1.5">Token</label>
+                    <select id="payout-token"
                       value={selectedToken}
                       onChange={(e) => setSelectedToken(e.target.value as StablecoinType)}
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-xs text-white"
@@ -506,8 +509,8 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-300 block mb-1.5">Network</label>
-                    <select
+                    <label htmlFor="payout-network" className="text-xs font-semibold text-slate-300 block mb-1.5">Network</label>
+                    <select id="payout-network"
                       value={selectedNetwork}
                       onChange={(e) => setSelectedNetwork(e.target.value as CryptoNetwork)}
                       className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-xs text-white"
@@ -517,7 +520,9 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
                   </div>
                 </div>
 
+                <label htmlFor="custom-wallet-address" className="sr-only">Custom wallet address</label>
                 <input
+                  id="custom-wallet-address"
                   type="text"
                   value={walletAddress}
                   onChange={(e) => {
@@ -531,8 +536,8 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
               </div>
             ) : payoutCategory === 'gcash' ? (
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1.5">GCash Number</label>
-                <input
+                <label htmlFor="gcash-number" className="text-xs font-semibold text-slate-300 block mb-1.5">GCash Number</label>
+                <input id="gcash-number"
                   type="tel"
                   inputMode="numeric"
                   value={gcashAccount}
@@ -544,8 +549,8 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
               </div>
             ) : payoutCategory === 'binance' ? (
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1.5">Binance Pay ID / UID</label>
-                <input
+                <label htmlFor="binance-pay-id" className="text-xs font-semibold text-slate-300 block mb-1.5">Binance Pay ID / UID</label>
+                <input id="binance-pay-id"
                   type="text"
                   value={binanceAccount}
                   onChange={(e) => setBinanceAccount(e.target.value)}
@@ -556,8 +561,8 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
               </div>
             ) : (
               <div>
-                <label className="text-xs font-semibold text-slate-300 block mb-1.5">Payout Account</label>
-                <input
+                <label htmlFor="payout-account" className="text-xs font-semibold text-slate-300 block mb-1.5">Payout Account</label>
+                <input id="payout-account"
                   type="text"
                   value={fiatAccount}
                   onChange={(e) => setFiatAccount(e.target.value)}

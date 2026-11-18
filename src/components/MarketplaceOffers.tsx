@@ -311,13 +311,13 @@ export const MarketplaceOffers: React.FC<MarketplaceOffersProps> = ({
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="flex-1">
-                      <label className="text-[10px] text-slate-400 block mb-1">
+                      <label htmlFor="counter-offer-price" className="text-[10px] text-slate-400 block mb-1">
                         Proposed Compensation Rate ($/month)
                       </label>
-                      <input
+                      <input id="counter-offer-price"
                         type="number"
                         value={counterPrice}
-                        onChange={(e) => setCounterPrice(parseFloat(e.target.value) || 0)}
+                        onChange={(e) => setCounterPrice(Number.parseFloat(e.target.value) || 0)}
                         className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-amber-500"
                       />
                     </div>

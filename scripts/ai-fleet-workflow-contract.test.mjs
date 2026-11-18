@@ -9,9 +9,20 @@ const claudeWorkflow = readFileSync(new URL('../.github/workflows/claude-develop
 const ciWorkflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const neuralCiWorkflow = readFileSync(new URL('../.github/workflows/neural-ci.yml', import.meta.url), 'utf8');
 const geminiCollaboratorWorkflow = readFileSync(new URL('../.github/workflows/gemini-collaborator.yml', import.meta.url), 'utf8');
-const geminiPublishStart = geminiCollaboratorWorkflow.indexOf('\n  publish:\n');
-assert.ok(geminiPublishStart >= 0, 'Gemini collaborator must declare a separate publisher job');
-const geminiPublish = geminiCollaboratorWorkflow.slice(geminiPublishStart);
+function sliceAfterMarker(source, marker) {
+  const start = source.indexOf(marker);
+  return start < 0 ? '' : source.slice(start);
+}
+
+const geminiPublishMarker = '\n  publish:\n';
+const geminiPublish = sliceAfterMarker(geminiCollaboratorWorkflow, geminiPublishMarker);
+test('Gemini collaborator declares a separate publisher job', () => {
+  assert.notEqual(geminiPublish, '', 'Gemini collaborator must declare a separate publisher job');
+});
+
+test('a missing Gemini publisher marker cannot turn the final character into a valid publisher section', () => {
+  assert.equal(sliceAfterMarker('jobs:\n  review:\n    steps: []\n', geminiPublishMarker), '');
+});
 const geminiDevelopmentWorkflow = readFileSync(new URL('../.github/workflows/gemini-development.yml', import.meta.url), 'utf8');
 const geminiPrReviewWorkflow = readFileSync(new URL('../.github/workflows/gemini-pr-review.yml', import.meta.url), 'utf8');
 const nvidiaTriageWorkflow = readFileSync(new URL('../.github/workflows/nvidia-ci-triage.yml', import.meta.url), 'utf8');
@@ -25,13 +36,17 @@ const codingStart = workflow.indexOf('  coding-fleet:\n');
 const publicationWindowStart = workflow.indexOf(publicationWindowMarker);
 const publishStart = workflow.indexOf(publishMarker);
 const dispatchStart = workflow.indexOf(dispatchMarker);
-assert.ok(codingStart >= 0 && publicationWindowStart > codingStart && publishStart > publicationWindowStart && dispatchStart > publishStart,
-  'expected coding-fleet, publication-window, publish-proposal, and dispatch-ci jobs in order');
+test('AI fleet workflow declares jobs in the required order', () => {
+  assert.ok(codingStart >= 0 && publicationWindowStart > codingStart && publishStart > publicationWindowStart && dispatchStart > publishStart,
+    'expected coding-fleet, publication-window, publish-proposal, and dispatch-ci jobs in order');
+});
 const coding = workflow.slice(codingStart, publicationWindowStart);
 const publicationWindow = workflow.slice(publicationWindowStart, publishStart);
 const codexStart = coding.indexOf('      - name: Run Codex without GitHub write permissions');
 const stageStart = coding.indexOf('\n      - name: Stage AI-generated changes for review', codexStart);
-assert.ok(codexStart >= 0 && stageStart > codexStart, 'expected one bounded Codex execution step');
+test('AI fleet coding job contains one bounded Codex execution step', () => {
+  assert.ok(codexStart >= 0 && stageStart > codexStart, 'expected one bounded Codex execution step');
+});
 const codex = coding.slice(codexStart, stageStart);
 const publish = workflow.slice(publishStart, dispatchStart);
 const dispatch = workflow.slice(dispatchStart);

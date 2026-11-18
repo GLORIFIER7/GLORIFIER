@@ -583,9 +583,9 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
 
             {/* Presets Grid */}
             <div className="space-y-2">
-              <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">
+              <div className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">
                 Select Standard Governance Agenda:
-              </label>
+              </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {[
                   {
@@ -611,6 +611,16 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
                       setSelectedTopic(item.title);
                       setCustomAgenda('');
                     }}
+                    role="button"
+                    aria-pressed={selectedTopic === item.title && !customAgenda}
+                    tabIndex={0}
+                    onKeyDown={(event) => {
+                      if (event.key === 'Enter' || event.key === ' ') {
+                        event.preventDefault();
+                        setSelectedTopic(item.title);
+                        setCustomAgenda('');
+                      }
+                    }}
                     className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
                       selectedTopic === item.title && !customAgenda
                         ? 'bg-emerald-950/20 border-emerald-500/50 text-white shadow-sm'
@@ -626,11 +636,11 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
 
             {/* Custom Query Input */}
             <div className="space-y-2 pt-2 border-t border-slate-800">
-              <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">
+              <label htmlFor="custom-multi-model-agenda" className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">
                 Or Enter Custom Multi-Model Agenda Directive:
               </label>
               <div className="flex gap-2">
-                <input
+                <input id="custom-multi-model-agenda"
                   type="text"
                   placeholder="e.g. Audit my developer telemetry licensing for OpenAI and Anthropic research labs with zero-identifiability guarantees"
                   value={customAgenda}
@@ -767,6 +777,14 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
                 <div
                   key={mode.id}
                   onClick={() => setCollaborationMode(mode.id as any)}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      setCollaborationMode(mode.id as any);
+                    }
+                  }}
                   className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
                     collaborationMode === mode.id
                       ? 'bg-emerald-950/20 border-emerald-500/50 text-white'

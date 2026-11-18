@@ -258,7 +258,7 @@ export async function createCommercialContract(input: {
     currency: input.currency || 'USD',
     actor: input.actor || 'human-owner'
   });
-  const status = governance.status === 'blocked' ? 'proposed' : 'proposed';
+  const status = 'proposed';
   const r = await getPostgresPool().query(
     `INSERT INTO glorifier_commercial_contracts
       (id,tenant_id,customer_ref,offer_ref,status,amount,currency,external_ref,evidence_status,evidence_refs,starts_at,ends_at)

@@ -76,8 +76,9 @@ export const PatentDisclosureDossier: React.FC<PatentDisclosureDossierProps> = (
 
   // Copy to clipboard helper
   const handleCopyText = (text: string, sectionKey: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedSection(sectionKey);
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopiedSection(sectionKey);
+    }).catch((error) => console.warn('Clipboard write failed:', error));
   };
 
   // Download raw spec file

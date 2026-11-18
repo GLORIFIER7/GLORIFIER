@@ -45,7 +45,7 @@ export const MonetizationSprint: React.FC<MonetizationSprintProps> = ({ onOpenWi
     } finally { setLoading(false); }
   };
 
-  useEffect(() => { load(); }, [userReference]);
+  useEffect(() => { void load(); }, [userReference]);
 
   const verified = Number(controlPlane?.economicTruth?.verifiedRevenue ?? 0);
   const estimated = Number(snapshot?.estimatedPipelineUsd ?? controlPlane?.machines?.monetization?.estimatedPipeline ?? 0);

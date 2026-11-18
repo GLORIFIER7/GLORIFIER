@@ -209,8 +209,9 @@ export const MonetizationManager: React.FC<MonetizationManagerProps> = ({ policy
             <DollarSign className="w-5 h-5 text-emerald-400" />
             Strategy Controls
           </div>
-          <label className="mt-5 block text-xs text-slate-400">Operating mode</label>
+          <label htmlFor="monetization-operating-mode" className="mt-5 block text-xs text-slate-400">Operating mode</label>
           <select
+            id="monetization-operating-mode"
             value={policy.brokerMode}
             onChange={(event) => onUpdatePolicy({ brokerMode: event.target.value as MonetizationPolicy['brokerMode'] })}
             className="mt-2 w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-slate-200"
@@ -220,8 +221,9 @@ export const MonetizationManager: React.FC<MonetizationManagerProps> = ({ policy
             <option value="autonomous-maximize">Maximize target · runtime NOT VERIFIED</option>
           </select>
 
-          <label className="mt-5 block text-xs text-slate-400">Proposed minimum monthly floor · not a buyer offer</label>
+          <label htmlFor="minimum-monthly-floor-usd" className="mt-5 block text-xs text-slate-400">Proposed minimum monthly floor · not a buyer offer</label>
           <input
+            id="minimum-monthly-floor-usd"
             type="number"
             min="0"
             max="100"

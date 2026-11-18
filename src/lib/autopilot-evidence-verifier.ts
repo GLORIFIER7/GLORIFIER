@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { compareCodeUnits } from './deterministic-string-order';
 import { isAllowedAutopilotWritePath, normalizeAutopilotWriteBranch } from './autopilot-github-write';
 
 const API_ROOT = 'https://api.github.com';
@@ -25,7 +26,7 @@ const isRecord = (value: unknown): value is JsonRecord =>
 const canonicalize = (value: unknown): string => {
   if (Array.isArray(value)) return '[' + value.map(canonicalize).join(',') + ']';
   if (isRecord(value)) {
-    return '{' + Object.keys(value).sort().map(key => JSON.stringify(key) + ':' + canonicalize(value[key])).join(',') + '}';
+    return '{' + Object.keys(value).sort(compareCodeUnits).map(key => JSON.stringify(key) + ':' + canonicalize(value[key])).join(',') + '}';
   }
   const encoded = JSON.stringify(value);
   return encoded === undefined ? 'null' : encoded;

@@ -22,8 +22,8 @@ export const ValuationEnginePanel: React.FC = () => {
   };
 
   useEffect(() => {
-    load();
-    const timer = window.setInterval(load, 60000);
+    void load();
+    const timer = window.setInterval(() => { void load(); }, 60000);
     return () => window.clearInterval(timer);
   }, []);
 

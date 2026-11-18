@@ -41,7 +41,7 @@ export const PrivacyShieldProgressBar: React.FC<PrivacyShieldProgressBarProps> =
       if (!AudioCtx) return;
       const ctx = new AudioCtx();
       if (ctx.state === 'suspended') {
-        ctx.resume();
+        void ctx.resume().catch((error) => console.warn('Audio context resume failed:', error));
       }
       const now = ctx.currentTime;
       // High-resolution melodic chord: C5 -> E5 -> G5 -> C6

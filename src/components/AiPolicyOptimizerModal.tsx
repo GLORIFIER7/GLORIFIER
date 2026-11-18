@@ -145,6 +145,8 @@ export const AiPolicyOptimizerModal: React.FC<AiPolicyOptimizerModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
       <div 
+        role="dialog"
+        aria-labelledby="ai-policy-optimizer-title"
         className="relative w-full max-w-3xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
@@ -159,7 +161,7 @@ export const AiPolicyOptimizerModal: React.FC<AiPolicyOptimizerModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                <h2 id="ai-policy-optimizer-title" className="text-base sm:text-lg font-bold text-white tracking-tight">
                   Policy Preset Comparator
                 </h2>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 flex items-center gap-1">
@@ -187,9 +189,9 @@ export const AiPolicyOptimizerModal: React.FC<AiPolicyOptimizerModalProps> = ({
         <div className="flex-1 overflow-y-auto p-6 space-y-6 scrollbar-thin">
           {/* Risk Tolerance Level Selector */}
           <div>
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-3">
+            <div className="text-xs font-semibold text-slate-300 uppercase tracking-wider block mb-3">
               Step 1: Select Your Sovereign Risk Tolerance
-            </label>
+            </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               {/* Conservative */}
               <button

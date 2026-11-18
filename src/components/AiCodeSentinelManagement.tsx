@@ -333,8 +333,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               return (
                 <div
                   key={err.id}
-                  onClick={() => setSelectedError(err)}
-                  className={`cursor-pointer rounded-xl border p-4 transition-all ${
+                                    className={`cursor-pointer rounded-xl border p-4 transition-all ${
                     isSelected
                       ? 'bg-slate-850 border-emerald-500/60 shadow-lg shadow-emerald-950/20'
                       : 'bg-slate-900 hover:bg-slate-850/70 border-slate-800'
@@ -344,7 +343,14 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
                     <div className="space-y-1.5 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         {getSeverityBadge(err.severity)}
-                        <span className="font-mono text-xs font-bold text-white tracking-wide">{err.code}</span>
+                        <button
+                          type="button"
+                          aria-pressed={isSelected}
+                          onClick={() => setSelectedError(err)}
+                          className="font-mono text-xs font-bold text-white tracking-wide text-left hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400"
+                        >
+                          {err.code}
+                        </button>
                         <span className="text-[11px] text-slate-400 font-mono">({err.source})</span>
                       </div>
                       <p className="text-xs text-slate-300 line-clamp-2">{err.message}</p>
@@ -366,7 +372,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
                     </div>
 
                     {/* Quick CRUD Action Buttons */}
-                    <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-1.5" role="group" aria-label="Error record actions" onClick={(e) => e.stopPropagation()}>
                       {err.status !== 'resolved' && (
                         <button
                           onClick={() => onAutoFixError(err.id)}
@@ -627,8 +633,8 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-400 mb-1">Error Message / Description</label>
-                <textarea
+                <label htmlFor="edit-error-message" className="block text-slate-400 mb-1">Error Message / Description</label>
+                <textarea id="edit-error-message"
                   value={editMessage}
                   onChange={(e) => setEditMessage(e.target.value)}
                   rows={2}
@@ -637,8 +643,8 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Patch Diff Snippet</label>
-                <textarea
+                <label htmlFor="edit-patch-diff" className="block text-slate-400 mb-1">Patch Diff Snippet</label>
+                <textarea id="edit-patch-diff"
                   value={editPatch}
                   onChange={(e) => setEditPatch(e.target.value)}
                   rows={5}
@@ -647,8 +653,8 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Lifecycle Status</label>
-                <select
+                <label htmlFor="edit-lifecycle-status" className="block text-slate-400 mb-1">Lifecycle Status</label>
+                <select id="edit-lifecycle-status"
                   value={editStatus}
                   onChange={(e) => setEditStatus(e.target.value as ErrorLifecycleStatus)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
@@ -695,8 +701,8 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block text-slate-400 mb-1">Error Code Identifier</label>
-                <input
+                <label htmlFor="new-error-code" className="block text-slate-400 mb-1">Error Code Identifier</label>
+                <input id="new-error-code"
                   type="text"
                   value={newErrorCode}
                   onChange={(e) => setNewErrorCode(e.target.value)}
@@ -705,8 +711,8 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Source Component / File</label>
-                <input
+                <label htmlFor="new-error-source" className="block text-slate-400 mb-1">Source Component / File</label>
+                <input id="new-error-source"
                   type="text"
                   value={newErrorSource}
                   onChange={(e) => setNewErrorSource(e.target.value)}
@@ -715,8 +721,8 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Error Message / Symptom</label>
-                <textarea
+                <label htmlFor="new-error-message" className="block text-slate-400 mb-1">Error Message / Symptom</label>
+                <textarea id="new-error-message"
                   value={newErrorMessage}
                   onChange={(e) => setNewErrorMessage(e.target.value)}
                   rows={2}
@@ -725,8 +731,8 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               </div>
 
               <div>
-                <label className="block text-slate-400 mb-1">Severity</label>
-                <select
+                <label htmlFor="new-error-severity" className="block text-slate-400 mb-1">Severity</label>
+                <select id="new-error-severity"
                   value={newErrorSeverity}
                   onChange={(e) => setNewErrorSeverity(e.target.value as ErrorSeverity)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-emerald-500"

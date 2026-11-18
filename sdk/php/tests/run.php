@@ -18,8 +18,11 @@ function check(bool $condition, string $message): void {
 }
 
 foreach (['http://example.com', 'https://evil.example/path', 'https://user:pass@example.com'] as $url) {
-    try { new GlorifierNeuralClient($url); throw new RuntimeException('expected origin rejection'); }
-    catch (InvalidArgumentException) {}
+    try {
+        $client = new GlorifierNeuralClient($url);
+        check($client instanceof GlorifierNeuralClient, 'constructor returned an unexpected client');
+        throw new RuntimeException('expected origin rejection');
+    } catch (InvalidArgumentException) {}
 }
 
 $client = new FakeGlorifierClient('https://glorifier.glorifier.workers.dev', 'caller-token');

@@ -15,10 +15,12 @@ function extractEventSection(source) {
 }
 
 const eventSection = extractEventSection(workflow);
-assert.ok(
-  eventSection !== null,
-  'android-release.yml must declare a top-level event section before its top-level jobs section',
-);
+test('Android release workflow declares its top-level event section', () => {
+  assert.ok(
+    eventSection !== null,
+    'android-release.yml must declare a top-level event section before its top-level jobs section',
+  );
+});
 const prepareStart = workflow.indexOf('      - name: Prepare Android release signing');
 const signedStart = workflow.indexOf('      - name: Build signed Android App Bundle');
 const unsignedStart = workflow.indexOf('      - name: Build unsigned Android App Bundle');

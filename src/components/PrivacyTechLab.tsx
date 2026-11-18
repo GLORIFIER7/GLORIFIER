@@ -34,7 +34,7 @@ export const PrivacyTechLab: React.FC = () => {
     // This is a mathematical preview, not a claim of cryptographic randomness.
     const normalized = ((Math.round(dpTrueAge * 100) + Math.round(dpEpsilon * 1000) + Math.round(dpSensitivity * 100)) % 1000) / 1000 - 0.5;
     const noise = -scale * Math.sign(normalized || 0.25) * Math.log(1 - 2 * Math.abs(normalized || 0.25));
-    const perturbed = parseFloat((dpTrueAge + noise).toFixed(2));
+    const perturbed = Number.parseFloat((dpTrueAge + noise).toFixed(2));
     setDpPerturbedResult(perturbed);
     setDpNoiseHistory(prev => [perturbed, ...prev.slice(0, 5)]);
   };
@@ -72,8 +72,8 @@ export const PrivacyTechLab: React.FC = () => {
 
   const handleTrainFlRound = () => {
     const nextEpoch = flEpoch + 1;
-    const nextLoss = parseFloat((Math.max(0.01, flLocalLoss * 0.88)).toFixed(4));
-    const nextGradient = parseFloat((Math.max(0.002, flGradientNorm * 0.92)).toFixed(4));
+    const nextLoss = Number.parseFloat((Math.max(0.01, flLocalLoss * 0.88)).toFixed(4));
+    const nextGradient = Number.parseFloat((Math.max(0.002, flGradientNorm * 0.92)).toFixed(4));
     setFlEpoch(nextEpoch);
     setFlLocalLoss(nextLoss);
     setFlGradientNorm(nextGradient);
@@ -202,7 +202,7 @@ export const PrivacyTechLab: React.FC = () => {
                   max="1.5"
                   step="0.05"
                   value={dpEpsilon}
-                  onChange={(e) => setDpEpsilon(parseFloat(e.target.value))}
+                  onChange={(e) => setDpEpsilon(Number.parseFloat(e.target.value))}
                   className="w-full accent-emerald-500 h-1.5 bg-slate-800 rounded cursor-pointer"
                 />
                 <div className="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
@@ -220,7 +220,7 @@ export const PrivacyTechLab: React.FC = () => {
                 <input
                   type="number"
                   value={dpTrueAge}
-                  onChange={(e) => setDpTrueAge(parseFloat(e.target.value) || 0)}
+                  onChange={(e) => setDpTrueAge(Number.parseFloat(e.target.value) || 0)}
                   className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-1.5 text-xs text-white font-mono focus:border-emerald-500 outline-none"
                 />
               </div>
@@ -292,22 +292,22 @@ export const PrivacyTechLab: React.FC = () => {
             {/* Inputs & Operation */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] text-slate-400 block mb-1">Plaintext Metric A (e.g. Heart Rate)</label>
-                <input
+                <label htmlFor="fhe-plaintext-metric-a" className="text-[10px] text-slate-400 block mb-1">Plaintext Metric A (e.g. Heart Rate)</label>
+                <input id="fhe-plaintext-metric-a"
                   type="number"
                   value={fhePlainA}
-                  onChange={(e) => setFhePlainA(parseInt(e.target.value) || 0)}
+                  onChange={(e) => setFhePlainA(Number.parseInt(e.target.value) || 0)}
                   className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-1.5 text-xs text-white font-mono"
                 />
                 <div className="text-[10px] font-mono text-slate-500 mt-1 truncate">Enc(A): {fheCipherA}</div>
               </div>
 
               <div>
-                <label className="text-[10px] text-slate-400 block mb-1">Plaintext Metric B (e.g. Peak Vitals)</label>
-                <input
+                <label htmlFor="fhe-plaintext-metric-b" className="text-[10px] text-slate-400 block mb-1">Plaintext Metric B (e.g. Peak Vitals)</label>
+                <input id="fhe-plaintext-metric-b"
                   type="number"
                   value={fhePlainB}
-                  onChange={(e) => setFhePlainB(parseInt(e.target.value) || 0)}
+                  onChange={(e) => setFhePlainB(Number.parseInt(e.target.value) || 0)}
                   className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-1.5 text-xs text-white font-mono"
                 />
                 <div className="text-[10px] font-mono text-slate-500 mt-1 truncate">Enc(B): {fheCipherB}</div>
@@ -315,7 +315,7 @@ export const PrivacyTechLab: React.FC = () => {
             </div>
 
             <div className="flex items-center gap-3">
-              <label className="text-xs text-slate-300">Homomorphic Operation:</label>
+              <span className="text-xs text-slate-300">Homomorphic Operation:</span>
               <button
                 onClick={() => setFheOperation('add')}
                 className={`px-3 py-1 text-xs font-mono rounded ${
@@ -466,22 +466,22 @@ export const PrivacyTechLab: React.FC = () => {
             {/* ZKP Inputs */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] text-slate-400 block mb-1">Secret Private Input (User Vault Only)</label>
-                <input
+                <label htmlFor="zkp-secret-private-input" className="text-[10px] text-slate-400 block mb-1">Secret Private Input (User Vault Only)</label>
+                <input id="zkp-secret-private-input"
                   type="number"
                   value={zkpSecretValue}
-                  onChange={(e) => setZkpSecretValue(parseInt(e.target.value) || 0)}
+                  onChange={(e) => setZkpSecretValue(Number.parseInt(e.target.value) || 0)}
                   className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-1.5 text-xs text-white font-mono"
                 />
                 <div className="text-[10px] text-rose-400 mt-0.5">🔒 Strictly shielded from verifier</div>
               </div>
 
               <div>
-                <label className="text-[10px] text-slate-400 block mb-1">Public Verification Threshold</label>
-                <input
+                <label htmlFor="zkp-public-verification-threshold" className="text-[10px] text-slate-400 block mb-1">Public Verification Threshold</label>
+                <input id="zkp-public-verification-threshold"
                   type="number"
                   value={zkpPublicThreshold}
-                  onChange={(e) => setZkpPublicThreshold(parseInt(e.target.value) || 0)}
+                  onChange={(e) => setZkpPublicThreshold(Number.parseInt(e.target.value) || 0)}
                   className="w-full bg-slate-950 border border-slate-800 rounded px-3 py-1.5 text-xs text-white font-mono"
                 />
                 <div className="text-[10px] text-slate-500 mt-0.5 font-mono">Statement: Secret ≥ Threshold</div>

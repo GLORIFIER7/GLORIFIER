@@ -380,7 +380,7 @@ Treat every response as AI-generated analysis or draft text, not evidence that a
                   <div className="mt-2 pt-2 border-t border-slate-800 flex items-center justify-between">
                     <button
                       onClick={() => {
-                        handleSendMessage(`Explain the recommended next steps for: ${msg.suggestedAction?.label}. This is a request for analysis only; do not claim that the action was executed.`);
+                        void handleSendMessage(`Explain the recommended next steps for: ${msg.suggestedAction?.label}. This is a request for analysis only; do not claim that the action was executed.`);
                       }}
                       className="text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 flex items-center gap-1.5 underline underline-offset-2"
                     >
@@ -427,7 +427,7 @@ Treat every response as AI-generated analysis or draft text, not evidence that a
           {quickPrompts.map((prompt, i) => (
             <button
               key={i}
-              onClick={() => handleSendMessage(prompt)}
+              onClick={() => void handleSendMessage(prompt)}
               className="text-[11px] px-2.5 py-1 rounded-full bg-slate-900 hover:bg-slate-800 text-slate-300 border border-slate-800 whitespace-nowrap transition-colors"
             >
               {prompt}
@@ -440,7 +440,7 @@ Treat every response as AI-generated analysis or draft text, not evidence that a
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              handleSendMessage();
+              void handleSendMessage();
             }}
             className="flex items-center gap-2"
           >
@@ -591,9 +591,9 @@ Treat every response as AI-generated analysis or draft text, not evidence that a
 
             {/* Allowed Buyer Purposes Toggles */}
             <div className="pt-3 border-t border-slate-800 space-y-2.5">
-              <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
                 Buyer-Purpose Preferences (Local Only)
-              </label>
+              </div>
               <p className="text-[10px] text-slate-500">These switches record application preferences only. They do not authorize or block an external data release.</p>
 
               {/* AI Pretraining */}

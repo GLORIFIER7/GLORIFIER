@@ -15,8 +15,8 @@ export const BusinessIntelligenceArchitecturePanel: React.FC = () => {
         if(!cancelled) setData(p.architecture);
       }catch(e:any){ if(!cancelled) setError(e?.message || 'BI architecture unavailable'); }
     };
-    load();
-    const timer=window.setInterval(load,60000);
+    void load();
+    const timer=window.setInterval(() => { void load(); }, 60000);
     return()=>{cancelled=true;window.clearInterval(timer);};
   },[]);
 

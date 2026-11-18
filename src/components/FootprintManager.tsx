@@ -261,9 +261,9 @@ export const FootprintManager: React.FC<FootprintManagerProps> = ({
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {/* Privacy Tier Selector */}
                     <div>
-                      <label className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider block mb-1.5">
+                      <div className="text-[11px] font-semibold text-slate-300 uppercase tracking-wider block mb-1.5">
                         Selected privacy technique (configuration only)
-                      </label>
+                      </div>
                       <div className="grid grid-cols-2 gap-2">
                         {[
                           { id: 'differential-privacy', label: 'Differential Privacy (ε)', desc: 'Selection only; runtime enforcement not verified' },
@@ -274,6 +274,15 @@ export const FootprintManager: React.FC<FootprintManagerProps> = ({
                           <div
                             key={tierOption.id}
                             onClick={() => onUpdatePrivacyTier(fp.id, tierOption.id as PrivacyTier, fp.privacyEpsilon)}
+                            role="button"
+                            aria-pressed={fp.privacyTier === tierOption.id}
+                            tabIndex={0}
+                            onKeyDown={(event) => {
+                              if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                onUpdatePrivacyTier(fp.id, tierOption.id as PrivacyTier, fp.privacyEpsilon);
+                              }
+                            }}
                             className={`cursor-pointer rounded-lg p-2.5 border text-left transition-all ${
                               fp.privacyTier === tierOption.id
                                 ? 'bg-slate-800 border-emerald-500/70 text-white'

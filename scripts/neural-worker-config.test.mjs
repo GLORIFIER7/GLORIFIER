@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
+import { test } from 'node:test';
 import { readFileSync } from 'node:fs';
 
+test('GLORIFIER production Neural origin and preview isolation contract', () => {
 const config = JSON.parse(readFileSync(new URL('../wrangler.jsonc', import.meta.url), 'utf8'));
 assert.ok(config && typeof config === 'object' && !Array.isArray(config),
   'Wrangler configuration must be a JSON object');
@@ -92,3 +94,4 @@ assert.equal(neuralWorkerConfig.vars.GLORIFIER_PAID_INFERENCE_AUTHORIZED, 'false
 assert.equal(neuralWorkerConfig.vars.GLORIFIER_WORKERS_AI_MODEL, '@cf/google/gemma-4-26b-a4b-it');
 
 process.stdout.write('GLORIFIER production Neural origin and preview isolation contract passed.\n');
+});

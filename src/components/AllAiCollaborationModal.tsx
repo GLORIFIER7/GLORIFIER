@@ -135,6 +135,9 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
       <div 
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="all-ai-collaboration-title"
         className="relative w-full max-w-4xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
@@ -149,7 +152,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                <h2 id="all-ai-collaboration-title" className="text-base sm:text-lg font-bold text-white tracking-tight">
                   Configured-Provider AI Council
                 </h2>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 flex items-center gap-1">
@@ -190,9 +193,9 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
         <div className="flex-1 overflow-y-auto p-5 space-y-6 scrollbar-thin">
           {/* Agenda / Topic Input Section */}
           <div className="space-y-3">
-            <label className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">
+            <div className="text-xs font-semibold text-slate-300 uppercase tracking-wider block">
               Council Agenda & Discussion Topic
-            </label>
+            </div>
 
             {/* Quick Agenda Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -227,6 +230,8 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
             <div className="relative mt-2">
               <input
                 type="text"
+                id="all-ai-collaboration-custom-prompt"
+                aria-label="Custom question for configured providers"
                 value={customPrompt}
                 onChange={(e) => setCustomPrompt(e.target.value)}
                 placeholder="Or specify a question for the currently configured providers..."

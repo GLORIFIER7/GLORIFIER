@@ -20,11 +20,11 @@ readonly EXPECTED_METADATA_URI="https://raw.githubusercontent.com/GLORIFIER7/GLO
 readonly EXCLUDED_MINT="FrJhrVGjNRiB1eZpg5PTqLp9VSQS5rpwMp7jxNtEmV9G"
 
 MINT="${MINT:-}"
-test -n "${MINT}" || { echo "::error::Resolved recovered mint is missing."; exit 1; }
+[[ -n "${MINT}" ]]|| { echo "::error::Resolved recovered mint is missing."; exit 1; }
 [[ "${MINT}" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || { echo "::error::Invalid recovered mint."; exit 1; }
 [[ "${MINT}" != "${EXCLUDED_MINT}" ]] || { echo "::error::Recovered mint is explicitly excluded."; exit 1; }
 
-test -f solana/devnet-deployment-recovery.json || { echo "::error::Missing immutable recovery record."; exit 1; }
+[[ -f solana/devnet-deployment-recovery.json ]]|| { echo "::error::Missing immutable recovery record."; exit 1; }
 RECOVERY_MINT="$(jq -r '.mint // empty' solana/devnet-deployment-recovery.json)"
 RECOVERY_CREATION_TX="$(jq -r '.creationTransaction // empty' solana/devnet-deployment-recovery.json)"
 RECOVERY_RUN_ID="$(jq -r '.deploymentWorkflowRunId // empty' solana/devnet-deployment-recovery.json)"
@@ -262,7 +262,7 @@ else
   OUT="$(spl-token --program-2022 initialize-metadata "${MINT}" "${EXPECTED_NAME}" "${EXPECTED_SYMBOL}" "${EXPECTED_METADATA_URI}")"
   printf '%s\n' "${OUT}"
   TX="$(printf '%s\n' "${OUT}" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-  test -n "${TX}" || { echo "::error::Missing metadata transaction signature."; exit 1; }
+  [[ -n "${TX}" ]]|| { echo "::error::Missing metadata transaction signature."; exit 1; }
   set_tx metadataTransaction "${TX}"
 fi
 
@@ -284,8 +284,8 @@ if [[ -z "${ACCOUNT_ADDRESS}" ]]; then
   printf '%s\n' "${OUT}"
   ACCOUNT_ADDRESS="$(printf '%s\n' "${OUT}" | awk '/Creating account / {print $3; exit}')"
   TX="$(printf '%s\n' "${OUT}" | awk -F': ' '/Signature:/ {print $2; exit}')"
-  test -n "${ACCOUNT_ADDRESS}" || { echo "::error::Token account address evidence missing."; exit 1; }
-  test -n "${TX}" || { echo "::error::Token account creation transaction evidence missing."; exit 1; }
+  [[ -n "${ACCOUNT_ADDRESS}" ]]|| { echo "::error::Token account address evidence missing."; exit 1; }
+  [[ -n "${TX}" ]]|| { echo "::error::Token account creation transaction evidence missing."; exit 1; }
   set_tx tokenAccountCreationTransaction "${TX}"
 else
   echo "Existing Token-2022 holder account: ${ACCOUNT_ADDRESS}"
@@ -305,7 +305,7 @@ if (( CURRENT_SUPPLY < EXPECTED_SUPPLY )); then
   OUT="$(spl-token --program-2022 mint "${MINT}" "${REMAINING}")"
   printf '%s\n' "${OUT}"
   TX="$(printf '%s\n' "${OUT}" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-  test -n "${TX}" || { echo "::error::Missing mint transaction signature."; exit 1; }
+  [[ -n "${TX}" ]]|| { echo "::error::Missing mint transaction signature."; exit 1; }
   set_tx mintTransaction "${TX}"
 else
   echo "Canonical supply is already present; no additional GLR will be minted."
@@ -317,7 +317,7 @@ else
 fi
 
 FINAL_SUPPLY="$(spl-token --program-2022 supply "${MINT}" | awk 'NR==1 {print $1}' | tr -d '\r')"
-test "${FINAL_SUPPLY}" = "${EXPECTED_SUPPLY}" || { echo "::error::Final supply is ${FINAL_SUPPLY}; expected ${EXPECTED_SUPPLY}."; exit 1; }
+[[ "${FINAL_SUPPLY}" = "${EXPECTED_SUPPLY}" ]]|| { echo "::error::Final supply is ${FINAL_SUPPLY}; expected ${EXPECTED_SUPPLY}."; exit 1; }
 
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
 if printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*Mint[[:space:]]+Authority:[[:space:]]*(None|\(not set\))[[:space:]]*$'; then
@@ -331,7 +331,7 @@ else
   OUT="$(spl-token --program-2022 authorize "${MINT}" mint --disable)"
   printf '%s\n' "${OUT}"
   TX="$(printf '%s\n' "${OUT}" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-  test -n "${TX}" || { echo "::error::Missing mint-authority revocation signature."; exit 1; }
+  [[ -n "${TX}" ]]|| { echo "::error::Missing mint-authority revocation signature."; exit 1; }
   set_tx mintAuthorityRevocationTransaction "${TX}"
 fi
 
@@ -359,7 +359,7 @@ else
   OUT="$(spl-token --program-2022 authorize "${MINT}" freeze --disable)"
   printf '%s\n' "${OUT}"
   TX="$(printf '%s\n' "${OUT}" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-  test -n "${TX}" || { echo "::error::Missing freeze-authority revocation signature."; exit 1; }
+  [[ -n "${TX}" ]]|| { echo "::error::Missing freeze-authority revocation signature."; exit 1; }
   set_tx freezeAuthorityRevocationTransaction "${TX}"
 fi
 
@@ -376,7 +376,7 @@ else
   OUT="$(spl-token --program-2022 authorize "${MINT}" metadata --disable)"
   printf '%s\n' "${OUT}"
   TX="$(printf '%s\n' "${OUT}" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
-  test -n "${TX}" || { echo "::error::Missing metadata-authority revocation signature."; exit 1; }
+  [[ -n "${TX}" ]]|| { echo "::error::Missing metadata-authority revocation signature."; exit 1; }
   set_tx metadataUpdateAuthorityRevocationTransaction "${TX}"
 fi
 
@@ -390,7 +390,7 @@ printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*Freeze[[:space:]]+Authority
 printf '%s\n' "${DISPLAY}" | grep -Fq "${EXPECTED_METADATA_URI}"
 
 for field in metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction freezeAuthorityRevocationTransaction metadataUpdateAuthorityRevocationTransaction; do
-  test "$(jq -r --arg f "${field}" '.[$f] // empty' "${EVIDENCE}")" != "" || {
+  [[ "$(jq -r --arg f "${field}" '.[$f] // empty' "${EVIDENCE}")" != "" ]]|| {
     echo "::error::Missing resume transaction evidence field: ${field}"
     exit 1
   }

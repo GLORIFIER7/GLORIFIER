@@ -99,10 +99,10 @@ export const AIRoleCommandCenter: React.FC = () => {
             <p className="text-[11px] text-slate-500">{active.subtitle}</p>
           </div>
         </div>
-        <label className="block text-xs font-semibold text-slate-300 mb-2">Task</label>
-        <textarea value={task} onChange={(e) => setTask(e.target.value)} placeholder={active.placeholder} rows={4} className="w-full rounded-lg bg-slate-950 border border-slate-800 p-3 text-sm text-slate-200 placeholder:text-slate-600 outline-none focus:border-emerald-500/50 resize-y" />
-        <label className="block text-xs font-semibold text-slate-300 mt-4 mb-2">Context / Data Notes</label>
-        <textarea value={context} onChange={(e) => setContext(e.target.value)} placeholder="Add non-secret facts, metrics, policy text, schema notes, assumptions, or other context." rows={3} className="w-full rounded-lg bg-slate-950 border border-slate-800 p-3 text-sm text-slate-200 placeholder:text-slate-600 outline-none focus:border-emerald-500/50 resize-y" />
+        <label htmlFor="ai-role-task" className="block text-xs font-semibold text-slate-300 mb-2">Task</label>
+        <textarea id="ai-role-task" value={task} onChange={(e) => setTask(e.target.value)} placeholder={active.placeholder} rows={4} className="w-full rounded-lg bg-slate-950 border border-slate-800 p-3 text-sm text-slate-200 placeholder:text-slate-600 outline-none focus:border-emerald-500/50 resize-y" />
+        <label htmlFor="ai-role-context" className="block text-xs font-semibold text-slate-300 mt-4 mb-2">Context / Data Notes</label>
+        <textarea id="ai-role-context" value={context} onChange={(e) => setContext(e.target.value)} placeholder="Add non-secret facts, metrics, policy text, schema notes, assumptions, or other context." rows={3} className="w-full rounded-lg bg-slate-950 border border-slate-800 p-3 text-sm text-slate-200 placeholder:text-slate-600 outline-none focus:border-emerald-500/50 resize-y" />
         <div className="flex items-center justify-between gap-3 mt-4">
           <div className="text-[11px] text-slate-500">Do not enter passwords, API keys, or unnecessary personal identifiers.</div>
           <button onClick={runAnalysis} disabled={loading || !task.trim()} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 disabled:cursor-not-allowed text-slate-950 text-xs font-bold">

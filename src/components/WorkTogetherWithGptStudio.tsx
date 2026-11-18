@@ -109,8 +109,8 @@ export const WorkTogetherWithGptStudio: React.FC<WorkTogetherWithGptStudioProps>
       }
     };
 
-    fetch247();
-    const timer = setInterval(fetch247, 20000);
+    void fetch247();
+    const timer = setInterval(() => { void fetch247(); }, 20000);
     return () => {
       mounted = false;
       clearInterval(timer);
@@ -180,8 +180,9 @@ export const WorkTogetherWithGptStudio: React.FC<WorkTogetherWithGptStudioProps>
   const currentSession = sessions[0];
 
   const handleCopy = (text: string, id: string) => {
-    navigator.clipboard.writeText(text);
-    setCopiedId(id);
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(id);
+    }).catch((error) => console.warn('Clipboard write failed:', error));
   };
 
   const handleDownloadArtifact = (session: CoWorkingSession) => {
@@ -698,7 +699,7 @@ ${session.geminiPeerReview}
                       setCodeContext(tpl.code);
                       setShowCodeEditor(true);
                     }
-                    handleRunCoWorking(tpl.prompt, tpl.code);
+                    void handleRunCoWorking(tpl.prompt, tpl.code).catch((error) => console.error('Co-working request failed:', error));
                   }}
                   disabled={isLoading}
                   className="px-2 py-1.5 bg-emerald-950/80 hover:bg-emerald-600 text-emerald-300 hover:text-white text-[10px] font-bold border-l border-slate-800 transition-colors flex items-center gap-1 disabled:opacity-50"

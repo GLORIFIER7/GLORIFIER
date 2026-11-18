@@ -68,7 +68,7 @@ public sealed class GlorifierNeuralClient : IDisposable
             var count = await stream.ReadAsync(buffer, cancellationToken).ConfigureAwait(false);
             if (count == 0) break;
             if (output.Length + count > MaxResponseBodyBytes) throw new HttpRequestException("GLORIFIER response exceeds 1 MiB");
-            output.Write(buffer, 0, count);
+            await output.WriteAsync(buffer.AsMemory(0, count), cancellationToken).ConfigureAwait(false);
         }
         var parsed = JsonNode.Parse(output.ToArray()) as JsonObject ?? throw new HttpRequestException("GLORIFIER response must be a JSON object");
         return new NeuralApiResponse(response.StatusCode, parsed,
