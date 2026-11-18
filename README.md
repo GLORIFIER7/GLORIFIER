@@ -116,6 +116,7 @@ The Docker publishing workflow is gated by successful `GLORIFIER CI` on a push t
 ## Documentation
 
 - [Open-source agent orchestration landscape and GLORIFIER extraction plan](docs/architecture/open-source-agent-orchestration-landscape-2026-11-18.md)
+- [Native Agent Graph Engine](docs/architecture/native-agent-graph-engine.md)
 - [EDDI external agent-workforce adoption boundary](docs/architecture/eddi-agent-workforce-adoption.md)
 - [NVIDIA Megatron Core training adoption boundary](docs/architecture/nvidia-megatron-training-adoption.md)
 - [GEAS — Multi-Provider Hosting Resilience (MPHR)](docs/architecture/geas-multi-provider-hosting-resilience.md)
