@@ -177,7 +177,8 @@
     "cross-env": "^10.1.0",
     "playwright": "^1.65.0",
     "@playwright/test": "^1.65.0",
-    "tsx": "^4.23.15"
+    "tsx": "^4.23.15",
+    "picomatch": "file:vendor/picomatch"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org",
@@ -192,8 +193,7 @@
     "vite.config.ts",
     "index.html",
     "README.md",
-    "LICENSE",
-    "vendor/picomatch"
+    "LICENSE"
   ],
   "repository": {
     "type": "git",
