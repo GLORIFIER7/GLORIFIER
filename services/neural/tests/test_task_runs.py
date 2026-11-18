@@ -205,7 +205,7 @@ def test_task_run_repository_rejects_invalid_neon_timeouts(connect_timeout):
 def test_task_run_repository_reads_request_scoped_worker_environment():
     env = {
         "GLORIFIER_NEON_TASK_RUNS_ENABLED": "true",
-        "NEON_DATABASE_URL": "postgresql://neon_user:neon_pass@example.neon.tech/neural"  # NOSONAR - synthetic DSN in tests with monkeypatched database adapters,  # NOSONAR - synthetic DSN; factory only parses it
+        "NEON_DATABASE_URL": "postgresql://neon_user:neon_pass@example.neon.tech/neural",  # NOSONAR - synthetic DSN; repository factory only parses it
     }
 
     repository = TaskRunRepository.from_environment(env)
