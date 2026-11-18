@@ -305,7 +305,7 @@ def test_worker_neon_probe_decodes_percent_encoded_dsn_credentials(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "asyncpg", types.SimpleNamespace(connect=connect))
     probe = NeonConnectivityProbe(
-        "postgresql://agent%40service:p%3Ass%2Fword%25@example.neon.tech/neural"
+        "postgresql://agent%40service:p%3Ass%2Fword%25@example.neon.tech/neural"  # NOSONAR - synthetic DSN in a test using a monkeypatched asyncpg connector
     )
 
     asyncio.run(probe.check_worker())
