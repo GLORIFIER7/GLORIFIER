@@ -576,7 +576,7 @@ const SOVEREIGNTY_DEFAULTS: SovereigntyBoundary = {
 };
 
 function removeActiveHtmlElements(input: string, tagName: 'script' | 'style'): string {
-  const source = input.toLowerCase();
+  const source = input.replace(/[A-Z]/g, (character) => character.toLowerCase());
   const openingTag = `<${tagName}`;
   const closingTag = `</${tagName}`;
   const isWordCharacter = (character: string | undefined): boolean =>
