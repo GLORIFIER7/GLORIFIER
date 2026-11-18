@@ -132,6 +132,10 @@ export function getReadyAutopilotGraphWave<T extends AutopilotGraphNode>(
     node.effect !== 'read-only' && statuses.get(node.id) === 'running',
   )) return [];
 
+  const runningReadOnlyCount = normalized.filter((node) =>
+    node.effect === 'read-only' && statuses.get(node.id) === 'running',
+  ).length;
+  const availableReadOnlySlots = Math.max(0, maxConcurrency - runningReadOnlyCount);
   const ready = normalized.filter((node) =>
     (statuses.get(node.id) ?? 'pending') === 'pending' &&
     node.dependsOn.every((dependency) => statuses.get(dependency) === 'completed'),
@@ -140,10 +144,11 @@ export function getReadyAutopilotGraphWave<T extends AutopilotGraphNode>(
   if (ready.length === 0) return [];
   const first = ready[0];
   if (first.effect !== 'read-only') return [first];
+  if (availableReadOnlySlots === 0) return [];
 
   return ready
     .filter((node) => node.effect === 'read-only')
-    .slice(0, maxConcurrency);
+    .slice(0, availableReadOnlySlots);
 }
 
 /** Returns every transitive prerequisite in deterministic topological order. */
