@@ -11,7 +11,7 @@ const tsxLoader = import.meta.resolve('tsx/esm');
 const gateSource = readFileSync(gateScript, 'utf8');
 
 test('PR gate uses a fixed platform-specific Git executable', () => {
-  assert.match(gateSource, /const GIT_EXECUTABLE = process\\.platform === 'win32'/);
+  assert.match(gateSource, /const GIT_EXECUTABLE = process\.platform === 'win32'/);
   assert.ok(gateSource.includes('C:\\\\Program Files\\\\Git\\\\cmd\\\\git.exe'));
   assert.ok(gateSource.includes("'/usr/bin/git'"));
 });
