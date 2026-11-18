@@ -61,8 +61,8 @@ def test_cloudflare_validation_smoke_tests_pyodide_with_asyncpg_without_ml_drive
         "uv sync --locked --no-build --group dev --no-install-project --no-install-package glorifier-neural-app",
         "uv pip install --python .venv/bin/python --only-binary=:all: setuptools==83.0.0 wheel==0.45.1",
         "uv build --wheel --no-build-isolation --python .venv/bin/python --out-dir /tmp/glorifier-neural-wheel ./neural_app",
-        "NEURAL_WHEEL=\\"$(find /tmp/glorifier-neural-wheel -maxdepth 1 -type f -name 'glorifier_neural_app-*.whl' -print -quit)\\"",
-        "uv pip install --python .venv/bin/python --only-binary=:all: --no-build --no-deps \\"$NEURAL_WHEEL\\","
+        "NEURAL_WHEEL=",
+        "uv pip install --python .venv/bin/python --only-binary=:all: --no-build --no-deps",
         "Prepare Neural application source as local Worker dependency",
         "python prepare_worker.py",
         "uv run --no-sync --locked --no-build pywrangler dev --ip 127.0.0.1 --port 8787",
