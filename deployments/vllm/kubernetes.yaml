@@ -103,10 +103,12 @@ spec:
             requests:
               cpu: "4"
               memory: 16Gi
+              ephemeral-storage: 2Gi
               nvidia.com/gpu: "1"
             limits:
               cpu: "10"
               memory: 24Gi
+              ephemeral-storage: 10Gi
               nvidia.com/gpu: "1"
           volumeMounts:
             - name: model-cache
