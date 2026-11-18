@@ -69,6 +69,7 @@ test('parallel waves never group repository writes and respect concurrency bound
   const graph = normalizeAutopilotGraph([
     node('inspect-a'),
     node('inspect-b'),
+    node('inspect-c'),
     node('write-a', [], 'reversible'),
     node('write-b', [], 'reversible'),
   ]);
@@ -93,4 +94,40 @@ test('failed or uncertain dependencies never release downstream nodes', () => {
     ]);
     assert.deepEqual(getReadyAutopilotGraphWave(graph, states, 2), []);
   }
+});
+
+
+test('legacy sequential missions above six steps remain normalizable and schedulable', () => {
+  const legacy = Array.from({ length: 7 }, (_, index) => node(`legacy-${index + 1}`));
+  const graph = normalizeAutopilotGraph(legacy, 30);
+
+  assert.equal(graph.length, 7);
+  assert.deepEqual(graph.map((step) => step.dependsOn), [
+    [],
+    ['legacy-1'],
+    ['legacy-2'],
+    ['legacy-3'],
+    ['legacy-4'],
+    ['legacy-5'],
+    ['legacy-6'],
+  ]);
+
+  const statuses = new Map(graph.map((step, index) => [
+    step.id,
+    index === 6 ? 'pending' as const : 'completed' as const,
+  ]));
+  assert.deepEqual(getReadyAutopilotGraphWave(graph, statuses, 2).map((step) => step.id), ['legacy-7']);
+});
+
+test('a running mutation prevents another mutation from entering the same execution wave', () => {
+  const graph = normalizeAutopilotGraph([
+    node('write-a', [], 'reversible'),
+    node('write-b', [], 'reversible'),
+  ]);
+  const statuses = new Map([
+    ['write-a', 'running' as const],
+    ['write-b', 'pending' as const],
+  ]);
+
+  assert.deepEqual(getReadyAutopilotGraphWave(graph, statuses, 2), []);
 });
