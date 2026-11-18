@@ -91,8 +91,18 @@ test("duplicateJsonKeys rejects malformed JSON", () => {
   assert.throws(() => duplicateJsonKeys('{"value": truX}'), SyntaxError);
 });
 
-test("npm package includes the locally maintained Picomatch override and its provenance", () => {
+test("local Picomatch override is explicit, locked, disclosed, and excluded from the npm tarball", async () => {
   const manifest = JSON.parse(packageJsonText);
+  const lock = JSON.parse(packageLockText);
+  const patchDocumentation = await readFile(
+    new URL("../vendor/picomatch/SECURITY-PATCH.md", import.meta.url),
+    "utf8",
+  );
+
   assert.equal(manifest.overrides?.picomatch, "file:vendor/picomatch");
-  assert.ok(manifest.files?.includes("vendor/picomatch"));
+  assert.equal(manifest.devDependencies?.picomatch, "file:vendor/picomatch");
+  assert.equal(lock.packages?.[""]?.devDependencies?.picomatch, "file:vendor/picomatch");
+  assert.equal(lock.packages?.["node_modules/picomatch"]?.resolved, "file:vendor/picomatch");
+  assert.ok(patchDocumentation.includes("not an official Picomatch release"));
+  assert.ok(!manifest.files?.includes("vendor/picomatch"), "the local fork must not be shipped in the npm tarball");
 });
