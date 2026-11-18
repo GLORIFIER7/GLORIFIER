@@ -13,16 +13,16 @@ const gateSource = readFileSync(gateScript, 'utf8');
 
 test('PR gate invokes the fixed platform-specific Git executable', () => {
   const declaration = gateSource.match(/^const GIT_EXECUTABLE = .*;$/m)?.[0];
-  const gitRawFunction = gateSource.match(/^function gitRaw\\(args\\) \\{[\\s\\S]*?^\\}/m)?.[0];
+  const gitRawFunction = gateSource.match(/^function gitRaw\(args\) \{[\s\S]*?^\}/m)?.[0];
   assert.ok(declaration, 'the gate must declare its platform-specific Git executable');
   assert.ok(gitRawFunction, 'the gate must expose the gitRaw implementation for the behavioral check');
 
   for (const [platform, expectedExecutable] of [
     ['linux', '/usr/bin/git'],
-    ['win32', 'C:\\\\Program Files\\\\Git\\\\cmd\\\\git.exe'],
+    ['win32', 'C:\\Program Files\\Git\\cmd\\git.exe'],
   ]) {
     const calls = [];
-    runInNewContext(`${declaration}\\n${gitRawFunction}\\ngitRaw(['--version']);`, {
+    runInNewContext(`${declaration}\n${gitRawFunction}\ngitRaw(['--version']);`, {
       process: { platform },
       execFileSync: (executable, args, options) => {
         calls.push({ executable, args: Array.from(args), options });
@@ -45,7 +45,7 @@ function createRepository() {
   runGit(cwd, ['init', '-q']);
   runGit(cwd, ['config', 'user.name', 'GLORIFIER test']);
   runGit(cwd, ['config', 'user.email', 'glorifier-test@example.invalid']);
-  writeFileSync(join(cwd, 'README.md'), 'baseline\\n');
+  writeFileSync(join(cwd, 'README.md'), 'baseline\n');
   runGit(cwd, ['add', 'README.md']);
   runGit(cwd, ['commit', '-q', '-m', 'baseline']);
   return cwd;
@@ -84,15 +84,15 @@ test.after(() => {
 
 test('PR gate accepts an authorized small staged source diff', () => {
   const cwd = freshRepository();
-  writeRepoFile(cwd, 'src/lib/ordinary-feature.ts', 'export const feature = true;\\n');
+  writeRepoFile(cwd, 'src/lib/ordinary-feature.ts', 'export const feature = true;\n');
   const result = executeGate(cwd);
   assert.equal(result.status, 0, result.stderr || result.stdout);
-  assert.match(result.stdout, /capability=create\\.pull_request/);
+  assert.match(result.stdout, /capability=create\.pull_request/);
 });
 
 test('PR gate rejects a protected authorization-policy file', () => {
   const cwd = freshRepository();
-  writeRepoFile(cwd, 'src/lib/capability-authorization.ts', 'export const bypass = true;\\n');
+  writeRepoFile(cwd, 'src/lib/capability-authorization.ts', 'export const bypass = true;\n');
   const result = executeGate(cwd);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /protected_path_requires_human_change/);
@@ -100,7 +100,7 @@ test('PR gate rejects a protected authorization-policy file', () => {
 
 test('PR gate rejects a secret-like token in a staged diff', () => {
   const cwd = freshRepository();
-  writeRepoFile(cwd, 'src/lib/example.ts', "export const key = 'ghp_abcdefghijklmnopqrstuvwxyz0123456789';\\n");
+  writeRepoFile(cwd, 'src/lib/example.ts', "export const key = 'ghp_abcdefghijklmnopqrstuvwxyz0123456789';\n");
   const result = executeGate(cwd);
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /secret_like_material_detected/);
@@ -109,7 +109,7 @@ test('PR gate rejects a secret-like token in a staged diff', () => {
 test('PR gate rejects a newly staged symbolic link', () => {
   const cwd = freshRepository();
   const target = join(cwd, 'target.txt');
-  writeFileSync(target, 'target\\n');
+  writeFileSync(target, 'target\n');
   runGit(cwd, ['add', 'target.txt']);
   symlinkSync('../target.txt', join(cwd, 'link.txt'));
   runGit(cwd, ['add', 'link.txt']);
@@ -120,12 +120,12 @@ test('PR gate rejects a newly staged symbolic link', () => {
 
 test('PR gate rejects replacing an existing symlink with a regular file', () => {
   const cwd = freshRepository();
-  writeFileSync(join(cwd, 'target.txt'), 'target\\n');
+  writeFileSync(join(cwd, 'target.txt'), 'target\n');
   symlinkSync('target.txt', join(cwd, 'link.txt'));
   runGit(cwd, ['add', 'target.txt', 'link.txt']);
   runGit(cwd, ['commit', '-q', '-m', 'add symlink']);
   rmSync(join(cwd, 'link.txt'));
-  writeFileSync(join(cwd, 'link.txt'), 'regular file\\n');
+  writeFileSync(join(cwd, 'link.txt'), 'regular file\n');
   runGit(cwd, ['add', 'link.txt']);
   const result = executeGate(cwd);
   assert.notEqual(result.status, 0);
@@ -134,7 +134,7 @@ test('PR gate rejects replacing an existing symlink with a regular file', () => 
 
 test('PR gate rejects deletion of an existing symlink', () => {
   const cwd = freshRepository();
-  writeFileSync(join(cwd, 'target.txt'), 'target\\n');
+  writeFileSync(join(cwd, 'target.txt'), 'target\n');
   symlinkSync('target.txt', join(cwd, 'link.txt'));
   runGit(cwd, ['add', 'target.txt', 'link.txt']);
   runGit(cwd, ['commit', '-q', '-m', 'add symlink']);
@@ -147,7 +147,7 @@ test('PR gate rejects deletion of an existing symlink', () => {
 
 test('PR gate rejects renaming a protected workflow file into an ordinary directory', () => {
   const cwd = freshRepository();
-  writeRepoFile(cwd, '.github/workflows/policy.yml', 'name: protected\\n');
+  writeRepoFile(cwd, '.github/workflows/policy.yml', 'name: protected\n');
   runGit(cwd, ['commit', '-q', '-m', 'add protected workflow']);
   mkdirSync(join(cwd, 'docs'), { recursive: true });
   runGit(cwd, ['mv', '.github/workflows/policy.yml', 'docs/policy-notes.md']);
@@ -158,7 +158,7 @@ test('PR gate rejects renaming a protected workflow file into an ordinary direct
 
 test('PR gate denies publication without the explicit human authorization input', () => {
   const cwd = freshRepository();
-  writeRepoFile(cwd, 'src/lib/ordinary-feature.ts', 'export const feature = true;\\n');
+  writeRepoFile(cwd, 'src/lib/ordinary-feature.ts', 'export const feature = true;\n');
   const result = executeGate(cwd, 'false');
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /human must explicitly authorize PR creation/);
