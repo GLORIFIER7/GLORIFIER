@@ -48,7 +48,7 @@ def test_cloudflare_validation_smoke_tests_pyodide_with_asyncpg_without_ml_drive
     package_project = (repository_root / "cloudflare" / "neural_app" / "pyproject.toml").read_text(encoding="utf-8")
     preparation_script = (repository_root / "cloudflare" / "prepare_worker.py").read_text(encoding="utf-8")
 
-    assert 'glorifier-neural-app = { path = "neural_app", editable = true }' in cloudflare_project
+    assert 'glorifier-neural-app = { path = "neural_app" }' in cloudflare_project
     assert 'include = ["app*"]' in package_project
     assert '"asyncpg==0.31.0"' in cloudflare_project
     assert 'WORKER_APP = WORKER_ROOT / "neural_app" / "app"' in preparation_script
@@ -60,7 +60,7 @@ def test_cloudflare_validation_smoke_tests_pyodide_with_asyncpg_without_ml_drive
         "cloudflare-neural-uv-lock",
         "uv sync --locked --no-build --group dev --no-install-project --no-install-package glorifier-neural-app",
         "uv pip install --python .venv/bin/python --only-binary=:all: setuptools==83.0.0 wheel==0.45.1",
-        "uv pip install --python .venv/bin/python --no-build-isolation --no-deps -e neural_app",
+        "uv pip install --python .venv/bin/python --no-build-isolation --no-deps neural_app",
         "Prepare Neural application source as local Worker dependency",
         "python prepare_worker.py",
         "uv run --no-sync --locked --no-build pywrangler dev --ip 127.0.0.1 --port 8787",
