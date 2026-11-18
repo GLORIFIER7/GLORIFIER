@@ -68,6 +68,25 @@ class HistoryTests(unittest.TestCase):
         self.assertTrue(result["transactionSemanticsVerified"])
         self.assertEqual(result["tokenAccountCreationTransaction"], tx["signature"])
 
+    def test_token_transfers_do_not_change_total_minted_supply(self):
+        d = copy.deepcopy(FIXTURE)
+        d["transactions"].append({
+            "signature": "1" * 64,
+            "slot": max(t["slot"] for t in d["transactions"]) + 1,
+            "blockTime": 1791431981,
+            "err": None,
+            "instructions": [{
+                "type": "transferChecked",
+                "info": {
+                    "mint": MINT,
+                    "tokenAmount": {"amount": "1", "decimals": 9},
+                },
+            }],
+        })
+        result = v.analyze(MINT, d)
+        self.assertEqual(result["totalMintedBaseUnits"], v.EXPECTED["baseUnits"])
+        self.assertEqual(result["mintTransaction"], "2DszHKku9D3nCC7D1FAZnZfDzH6wjEaqQPzDv8kpPFYRRtUxxS91SvXQZJVyaeAReDUL63Tfy2sRz4tEEpa9U2B4")
+
     def test_instruction_must_explicitly_target_the_mint_or_metadata(self):
         self.assertTrue(v.touches_mint({"mint": MINT}, MINT))
         self.assertTrue(v.touches_mint({"metadata": MINT}, MINT))
