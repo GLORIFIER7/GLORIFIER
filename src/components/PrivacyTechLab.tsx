@@ -294,6 +294,7 @@ export const PrivacyTechLab: React.FC = () => {
               <div>
                 <label className="text-[10px] text-slate-400 block mb-1" htmlFor="glorifier-PrivacyTechLab-tsx-1">Plaintext Metric A (e.g. Heart Rate)</label>
                 <input
+                  id="glorifier-PrivacyTechLab-tsx-1"
                   type="number"
                   value={fhePlainA}
                   onChange={(e) => setFhePlainA(Number.parseInt(e.target.value) || 0)}
@@ -305,6 +306,7 @@ export const PrivacyTechLab: React.FC = () => {
               <div>
                 <label className="text-[10px] text-slate-400 block mb-1" htmlFor="glorifier-PrivacyTechLab-tsx-2">Plaintext Metric B (e.g. Peak Vitals)</label>
                 <input
+                  id="glorifier-PrivacyTechLab-tsx-2"
                   type="number"
                   value={fhePlainB}
                   onChange={(e) => setFhePlainB(Number.parseInt(e.target.value) || 0)}
@@ -468,6 +470,7 @@ export const PrivacyTechLab: React.FC = () => {
               <div>
                 <label className="text-[10px] text-slate-400 block mb-1" htmlFor="glorifier-PrivacyTechLab-tsx-3">Secret Private Input (User Vault Only)</label>
                 <input
+                  id="glorifier-PrivacyTechLab-tsx-3"
                   type="number"
                   value={zkpSecretValue}
                   onChange={(e) => setZkpSecretValue(Number.parseInt(e.target.value) || 0)}
@@ -479,6 +482,7 @@ export const PrivacyTechLab: React.FC = () => {
               <div>
                 <label className="text-[10px] text-slate-400 block mb-1" htmlFor="glorifier-PrivacyTechLab-tsx-4">Public Verification Threshold</label>
                 <input
+                  id="glorifier-PrivacyTechLab-tsx-4"
                   type="number"
                   value={zkpPublicThreshold}
                   onChange={(e) => setZkpPublicThreshold(Number.parseInt(e.target.value) || 0)}
