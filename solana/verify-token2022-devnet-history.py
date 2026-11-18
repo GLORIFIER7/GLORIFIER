@@ -131,7 +131,13 @@ LIFECYCLE = ["creationTransaction", "metadataTransaction", "tokenAccountCreation
 
 
 def touches_mint(info, mint):
-    return info.get("mint") in (None, mint) or info.get("metadata") == mint
+    # Only instructions that explicitly name this mint or its metadata account
+    # may contribute to its lifecycle. Presence elsewhere in accountKeys is not proof.
+    return (
+        info.get("mint") == mint
+        or info.get("metadata") == mint
+        or info.get("metadataAddress") == mint
+    )
 
 
 def apply_instruction(typ, info, sig, receipts):
