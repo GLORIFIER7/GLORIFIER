@@ -214,7 +214,7 @@ cat > solana/devnet-resume-evidence.json <<EOF
 }
 EOF
 
-jq -e --arg mint "${MINT}" '
+if ! jq -e --arg mint "${MINT}" '
  .network=="solana-devnet" and .status=="READY_FOR_RECONCILIATION" and .mint==$mint
  and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
  and (.metadataTransaction|type=="string" and length>=64)
