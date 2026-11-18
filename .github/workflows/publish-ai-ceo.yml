@@ -5,8 +5,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: github-pages
@@ -23,6 +21,9 @@ jobs:
           echo "::notice::AI CEO Pages publishing is disabled unless dispatched from main with PAGES_AI_CEO_APPROVAL_GATE_CONFIGURED=true and PAGES_AI_CEO_DEPLOY_ENABLED=true. Configure required reviewers on the github-pages-ai-ceo environment first; set the approval-gate flag only after verifying that protection in repository settings."
 
   build:
+    permissions:
+      contents: read
+      pages: read
     if: ${{ github.ref == 'refs/heads/main' && vars.PAGES_AI_CEO_APPROVAL_GATE_CONFIGURED == 'true' && vars.PAGES_AI_CEO_DEPLOY_ENABLED == 'true' }}
     runs-on: ubuntu-latest
     steps:
@@ -34,7 +35,7 @@ jobs:
           node-version: 24
           package-manager-cache: false
       - name: Install dependencies
-        run: npm ci --no-audit --no-fund
+        run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Build
         run: npm run build:frontend
         env:
@@ -47,6 +48,10 @@ jobs:
           path: ./dist
 
   deploy:
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     if: ${{ github.ref == 'refs/heads/main' && vars.PAGES_AI_CEO_APPROVAL_GATE_CONFIGURED == 'true' && vars.PAGES_AI_CEO_DEPLOY_ENABLED == 'true' }}
     needs: build
     runs-on: ubuntu-latest
