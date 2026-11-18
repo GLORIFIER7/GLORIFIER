@@ -120,7 +120,7 @@ export function getReadyAutopilotGraphWave<T extends AutopilotGraphNode>(
   graph: readonly T[],
   statuses: ReadonlyMap<string, AutopilotGraphNodeStatus>,
   maxConcurrency = 2,
-): T[] {
+): Array<NormalizedAutopilotGraphNode<T>> {
   if (!Number.isSafeInteger(maxConcurrency) || maxConcurrency < 1 || maxConcurrency > MAX_GRAPH_NODES) {
     throw new Error(`Autopilot graph concurrency must be between 1 and ${MAX_GRAPH_NODES}.`);
   }
@@ -133,11 +133,11 @@ export function getReadyAutopilotGraphWave<T extends AutopilotGraphNode>(
 
   if (ready.length === 0) return [];
   const first = ready[0];
-  if (first.effect !== 'read-only') return [first as T];
+  if (first.effect !== 'read-only') return [first];
 
   return ready
     .filter((node) => node.effect === 'read-only')
-    .slice(0, maxConcurrency) as T[];
+    .slice(0, maxConcurrency);
 }
 
 /** Returns every transitive prerequisite in deterministic topological order. */
