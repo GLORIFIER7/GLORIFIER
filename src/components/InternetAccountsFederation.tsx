@@ -189,11 +189,19 @@ export const InternetAccountsFederation: React.FC<InternetAccountsFederationProp
               return (
                 <div
                   key={acc.id}
-                  role="button"
+                  role="group"
                   tabIndex={0}
-                  aria-pressed={isSelected}
-                  onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedAccount(acc); } }}
-                  onClick={() => setSelectedAccount(acc)}
+                  aria-current={isSelected ? 'true' : undefined}
+                  onKeyDown={(event) => {
+                    if (event.target !== event.currentTarget) return;
+                    if (event.key === "Enter" || event.key === " ") {
+                      event.preventDefault();
+                      setSelectedAccount(acc);
+                    }
+                  }}
+                  onClick={(event) => {
+                    if (event.target === event.currentTarget) setSelectedAccount(acc);
+                  }}
                   className={`cursor-pointer rounded-xl border p-4 transition-all ${
                     isSelected
                       ? 'bg-slate-850 border-indigo-500/60 shadow-lg shadow-indigo-950/20'
