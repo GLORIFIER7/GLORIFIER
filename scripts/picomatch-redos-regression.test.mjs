@@ -50,7 +50,7 @@ test('backslash cleanup preserves the legacy escaped-empty-class case', () => {
 });
 test('backslash cleanup processes repeated unmatched opening brackets in bounded time', () => {
   const count = 25000;
-  const input = '\\\\['.repeat(count);
+  const input = '\\['.repeat(count);
   const started = performance.now();
   const output = utils.removeBackslashes(input);
 
