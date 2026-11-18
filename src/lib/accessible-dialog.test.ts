@@ -35,8 +35,11 @@ function createDialogHarness(focusableCount = 2) {
     contains: (node: Node | null) => node === dialog || items.includes(node as HTMLElement),
     focus: () => { documentLike.activeElement = dialog as unknown as HTMLElement; },
   } as unknown as HTMLElement;
-  const previous = { focused: false, focus() { this.focused = true; } } as unknown as HTMLElement & { focused: boolean };
-  documentLike.activeElement = previous as unknown as HTMLElement;
+  const previousFocusState = { focused: false };
+  const previous = {
+    focus: () => { previousFocusState.focused = true; },
+  } as unknown as HTMLElement;
+  documentLike.activeElement = previous;
 
   const dispatch = (key: string, shiftKey = false) => {
     let prevented = false;
@@ -49,7 +52,7 @@ function createDialogHarness(focusableCount = 2) {
     return prevented;
   };
 
-  return { dialog, documentLike, dispatch, handlers, items, previous };
+  return { dialog, documentLike, dispatch, handlers, items, previous, previousFocusState };
 }
 
 test('focuses the first control, wraps Tab, and restores focus on cleanup', () => {
@@ -70,7 +73,7 @@ test('focuses the first control, wraps Tab, and restores focus on cleanup', () =
   assert.equal(harness.documentLike.activeElement, harness.items[1]);
 
   cleanup();
-  assert.equal(harness.previous.focused, true);
+  assert.equal(harness.previousFocusState.focused, true);
   assert.equal(harness.handlers.has('keydown'), false);
 });
 
