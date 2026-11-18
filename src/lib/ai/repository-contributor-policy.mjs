@@ -1,4 +1,9 @@
-import { stripTrailingSlashes } from '../../../scripts/linear-string.mjs';
+function stripTrailingSlashes(value) {
+  let end = value.length;
+  while (end > 0 && value[end - 1] === '/') end -= 1;
+  return value.slice(0, end);
+}
+
 const ATTESTATION_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 const ATTESTATION_MAX_FUTURE_MS = 7 * 24 * 60 * 60 * 1000;
 export const MAX_REPOSITORY_CONTRIBUTOR_PROVIDERS = 16;
