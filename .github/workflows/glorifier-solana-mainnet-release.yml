@@ -26,7 +26,6 @@ on:
 
 permissions:
   contents: read
-  actions: read
 
 concurrency:
   group: glorifier-solana-mainnet-release
@@ -35,6 +34,9 @@ concurrency:
 jobs:
   preflight:
     name: Mainnet release preflight
+    permissions:
+      contents: read
+      actions: read
     if: ${{ github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     steps:
@@ -274,6 +276,9 @@ jobs:
 
   reconcile:
     name: Independent read-only mainnet reconciliation
+    permissions:
+      contents: read
+      actions: read
     needs: [preflight, deploy]
     if: ${{ always() && needs.preflight.result == 'success' && ((inputs.operation == 'reconcile-existing') || (inputs.operation == 'deploy' && needs.deploy.result == 'success')) }}
     runs-on: ubuntu-latest
