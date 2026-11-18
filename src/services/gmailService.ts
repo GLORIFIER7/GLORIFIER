@@ -1,3 +1,4 @@
+import { extractAngleBracketContent, stripBase64Padding } from '../lib/linear-string.js';
 import { getAccessToken } from '../lib/firebase';
 import { GmailAnalysisItem, GmailTelemetryMetadata } from '../types';
 
@@ -122,8 +123,7 @@ export function classifyEmailMetadataForGovernanceReview(msg: GmailMessageSummar
   const formattedDate = msg.date
     ? new Date(msg.date).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })
     : 'Date unavailable';
-  const senderMatch = msg.sender.match(/<([^>]+)>/);
-  const displaySender = senderMatch ? senderMatch[1] : msg.sender;
+  const displaySender = extractAngleBracketContent(msg.sender) || msg.sender;
 
   return {
     id: msg.id,
@@ -159,10 +159,9 @@ export async function sendGmailMessage(recipient: string, subject: string, bodyT
   const message = messageParts.join('\r\n');
 
   // Base64URL encode
-  const encodedMessage = btoa(unescape(encodeURIComponent(message)))
+  const encodedMessage = stripBase64Padding(btoa(unescape(encodeURIComponent(message)))
     .replace(/\+/g, '-')
-    .replace(/\//g, '_')
-    .replace(/=+$/, '');
+    .replace(/\//g, '_'));
 
   const response = await fetch('https://gmail.googleapis.com/gmail/v1/users/me/messages/send', {
     method: 'POST',
