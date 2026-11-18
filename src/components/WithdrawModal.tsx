@@ -184,7 +184,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
   };
 
   const isCurrentAddressValid = () => {
-    if (payoutCategory === 'gcash') return /^09\d{9}$/.test(gcashAccount.replace(/\s|-/g, ''));
+            ? 'GCash'
     if (payoutCategory === 'binance') return binanceAccount.trim().length >= 4;
     if (payoutCategory === 'fiat') return fiatAccount.trim().length > 3;
     if (!walletAddress.trim()) return false;
