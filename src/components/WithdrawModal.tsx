@@ -294,7 +294,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
       setPayoutError(
         payoutCategory === 'crypto'
           ? 'Select or enter a valid destination address.'
-    if (payoutCategory === 'gcash') return /^09\d{9}$/.test(gcashAccount.replace(/\s|-/g, ''));
+          : payoutCategory === 'gcash'
             ? 'Enter a valid GCash mobile number (09XXXXXXXXX).'
             : payoutCategory === 'binance'
               ? 'Enter a valid Binance Pay ID, Binance UID, or approved account identifier.'
@@ -308,15 +308,15 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
     try {
       const method = payoutCategory === 'crypto'
         ? `stablecoin_${selectedToken.toLowerCase()}_${selectedNetwork.toLowerCase()}`
-    if (payoutCategory === 'gcash') return /^09\d{9}$/.test(gcashAccount.replace(/\s|-/g, ''));
+        : payoutCategory === 'gcash'
           ? 'gcash'
           : payoutCategory === 'binance'
             ? 'binance'
             : fiatMethod;
       const destination = payoutCategory === 'crypto'
         ? walletAddress
-    if (payoutCategory === 'gcash') return /^09\d{9}$/.test(gcashAccount.replace(/\s|-/g, ''));
-          ? gcashAccount.replace(/\\s|-/g, '')
+        : payoutCategory === 'gcash'
+          ? gcashAccount.replace(/\s|-/g, '')
           : payoutCategory === 'binance'
             ? binanceAccount.trim()
             : fiatAccount;
