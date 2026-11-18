@@ -1,3 +1,4 @@
+import { extractFirstFencedContent, stripHtmlTags } from './linear-string.js';
 import { getOptionalPostgresPool } from './db/postgres';
 
 export type IntelligenceEvidence = {
@@ -74,7 +75,7 @@ const ensureSchema = async () => {
 };
 
 function stripHtml(value: string) {
-  const withoutTags = value.replace(/<[^>]+>/g, ' ');
+  const withoutTags = stripHtmlTags(value);
   // Decode each supported entity once. A combined callback replacement does not
   // reprocess the ampersand produced by decoding &amp; (avoids double-unescaping).
   return withoutTags
@@ -211,7 +212,7 @@ async function collectSources(windowHours: number) {
 
 function parseJson<T>(text: string, fallback: T): T {
   try {
-    const fenced = text.match(/\`\`\`(?:json)?\s*([\s\S]*?)\`\`\`/i)?.[1] || text;
+    const fenced = extractFirstFencedContent(text, 'json') || text;
     return JSON.parse(fenced.trim()) as T;
   } catch {
     return fallback;
