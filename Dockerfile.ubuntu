@@ -6,7 +6,8 @@ FROM node@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920
 FROM node@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS build-deps
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --no-audit --no-fund --ignore-scripts
+COPY vendor/picomatch ./vendor/picomatch
+RUN npm ci --no-audit --no-fund --ignore-scripts --install-links
 
 FROM build-deps AS build
 COPY . .
@@ -15,7 +16,8 @@ RUN npm run build
 FROM node@sha256:c86ecead9e55a5210ac1727de38a4ca840bf03dcaf34dc9749addbf383b1920c AS production-deps
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --omit=dev --no-audit --no-fund --ignore-scripts
+COPY vendor/picomatch ./vendor/picomatch
+RUN npm ci --omit=dev --no-audit --no-fund --ignore-scripts --install-links
 
 FROM debian:unstable-slim AS runtime
 ENV DEBIAN_FRONTEND=noninteractive \
