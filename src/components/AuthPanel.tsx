@@ -227,20 +227,20 @@ export const AuthPanel: React.FC<AuthPanelProps> = ({ currentUser }) => {
               {mode === 'register' && (
                 <div>
                   <label className="mb-1 block text-xs text-slate-400" htmlFor="glorifier-AuthPanel-tsx-1">Display name (optional)</label>
-                  <input value={name} onChange={e => setName(e.target.value)} autoComplete="name" className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none focus:border-emerald-500" />
+                  <input id="glorifier-AuthPanel-tsx-1" value={name} onChange={e => setName(e.target.value)} autoComplete="name" className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 text-sm text-white outline-none focus:border-emerald-500" />
                 </div>
               )}
               <div>
                 <label className="mb-1 block text-xs text-slate-400" htmlFor="glorifier-AuthPanel-tsx-2">Email</label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
-                  <input type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2.5 pl-9 pr-3 text-sm text-white outline-none focus:border-emerald-500" placeholder="you@example.com" />
+                  <input id="glorifier-AuthPanel-tsx-2" type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" className="w-full rounded-lg border border-slate-700 bg-slate-950 py-2.5 pl-9 pr-3 text-sm text-white outline-none focus:border-emerald-500" placeholder="you@example.com" />
                 </div>
               </div>
               <div>
                 <label className="mb-1 block text-xs text-slate-400" htmlFor="glorifier-AuthPanel-tsx-3">Password</label>
                 <div className="relative">
-                  <input type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 pr-10 text-sm text-white outline-none focus:border-emerald-500" placeholder="At least 6 characters" />
+                  <input id="glorifier-AuthPanel-tsx-3" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 pr-10 text-sm text-white outline-none focus:border-emerald-500" placeholder="At least 6 characters" />
                   <button type="button" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300">
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
