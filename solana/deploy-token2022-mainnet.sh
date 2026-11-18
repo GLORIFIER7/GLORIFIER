@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-if [[ "${GLORIFIER_AUTHORIZED_MAINNET_WORKFLOW:-}" != "true" || -z "${GITHUB_ACTIONS:-}" ]]; then
+if [[ "${GLORIFIER_AUTHORIZED_MAINNET_WORKFLOW:-}" != "true" | -z "${GITHUB_ACTIONS:-}" ]]; then
   echo "::error::Direct Token-2022 Mainnet mint creation is disabled."; exit 1
 fi
 TEMP_PARENT="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
@@ -40,9 +40,9 @@ METADATA_POINTER_AUTH_TX=""
 METADATA_UPDATE_AUTHORITY_INITIALLY_NONE=false
 METADATA_POINTER_AUTHORITY_INITIALLY_NONE=false
 
-if [[ -f "$RECOVERY_FILE" ]] && jq -e '.status=="RECOVERY_REQUIRED" and .network=="solana-mainnet"' "$RECOVERY_FILE" >/dev/null; then
+if [[ -f "$RECOVERY_FILE" ]] & jq -e '.status=="RECOVERY_REQUIRED" and .network=="solana-mainnet"' "$RECOVERY_FILE" >/dev/null; then
   MINT="$(jq -r '.mint' "$RECOVERY_FILE")"
-  [[ "$MINT" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || { echo "::error::Invalid recovery mint address."; exit 1; }
+  [[ "$MINT" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] | { echo "::error::Invalid recovery mint address."; exit 1; }
   CREATE_TOKEN_TX="$(jq -r '.creationTransaction // empty' "$RECOVERY_FILE")"
   METADATA_TX="$(jq -r '.metadataTransaction // empty' "$RECOVERY_FILE")"
   CREATE_ACCOUNT_TX="$(jq -r '.tokenAccountCreationTransaction // empty' "$RECOVERY_FILE")"
@@ -58,7 +58,7 @@ else
   printf '%s\n' "$MINT_OUTPUT"
   CREATE_TOKEN_TX="$(printf '%s\n' "$MINT_OUTPUT" | awk -F': ' '/^[[:space:]]*Signature:/ {print $2; exit}')"
   MINT="$(printf '%s\n' "$MINT_OUTPUT" | awk '/^[[:space:]]*Address:[[:space:]]+/ {print $2; exit}')"
-  [[ "$MINT" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || { echo "::error::Invalid mainnet mint address."; exit 1; }
+  [[ "$MINT" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] | { echo "::error::Invalid mainnet mint address."; exit 1; }
 fi
 
 STATE="$(spl-token --program-2022 display "$MINT")"
@@ -113,33 +113,33 @@ else
   echo "Revoking Token Metadata update authority with the Token Metadata interface instruction (the spl-token CLI metadata alias can incorrectly dispatch Token-2022 SetAuthority after mint supply is fixed)."
   npm install --prefix "$GLORIFIER_TOKEN2022_NODE_MODULES_DIR" --no-audit --no-fund --ignore-scripts @solana/web3.js@1.99.0 @solana/spl-token@0.4.15 @solana/spl-token-metadata@0.1.6
   METADATA_AUTH_TX="$(node solana/revoke-token2022-metadata-authority.mjs "$MINT")"
-  test -n "$METADATA_AUTH_TX"
+  [[ -n "$METADATA_AUTH_TX" ]]
 fi
 
 STATE="$(spl-token --program-2022 display "$MINT")"
 POINTER_AUTH="$(printf '%s\n' "$STATE" | sed -n '/^[[:space:]]*Metadata Pointer:/,/^[[:space:]]*Metadata:/p' | awk -F': ' '/^[[:space:]]*Authority:/ {print $2; exit}' | tr -d '\r')"
 echo "Detected Metadata Pointer authority: ${POINTER_AUTH:-<none>}"
-if [[ -z "$POINTER_AUTH" || "$POINTER_AUTH" == "None" || "$POINTER_AUTH" == "Disabled" ]]; then
+if [[ -z "$POINTER_AUTH" | "$POINTER_AUTH" == "None" | "$POINTER_AUTH" == "Disabled" ]]; then
   echo "Metadata pointer authority is already absent."
   METADATA_POINTER_AUTHORITY_INITIALLY_NONE=true
 else
   echo "Revoking Metadata Pointer authority with a direct Token-2022 instruction (the spl-token CLI can incorrectly resolve extension authority after mint authority is fixed)."
   npm install --prefix "$GLORIFIER_TOKEN2022_NODE_MODULES_DIR" --no-audit --no-fund --ignore-scripts @solana/web3.js@1.99.0 @solana/spl-token@0.4.15
   METADATA_POINTER_AUTH_TX="$(node solana/revoke-token2022-metadata-pointer.mjs "$MINT")"
-  test -n "$METADATA_POINTER_AUTH_TX"
+  [[ -n "$METADATA_POINTER_AUTH_TX" ]]
 fi
 spl-token --program-2022 balance "$MINT" | tee solana/deployment-mainnet-holder-balance.txt
-test "$(awk 'NR==1 {print $1}' solana/deployment-mainnet-holder-balance.txt | tr -d '\r')" = "$SUPPLY"
+[[ "$(awk 'NR==1 {print $1}' solana/deployment-mainnet-holder-balance.txt | tr -d '\r')" = "$SUPPLY" ]]
 FINAL_MINT_STATE="$(spl-token --program-2022 display "$MINT")"
 printf '%s\n' "$FINAL_MINT_STATE" | tee solana/deployment-mainnet-mint-state.txt
 printf '%s\n' "$FINAL_MINT_STATE" | grep -Eiq 'Mint[[:space:]]+Authority.*(None|Disabled|\(not set\))'
 printf '%s\n' "$FINAL_MINT_STATE" | grep -Eiq 'Freeze[[:space:]]+Authority.*(None|Disabled|\(not set\))'
 FINAL_POINTER_AUTH="$(printf '%s\n' "$FINAL_MINT_STATE" | sed -n '/^[[:space:]]*Metadata Pointer:/,/^[[:space:]]*Metadata:/p' | awk -F': ' '/^[[:space:]]*Authority:/ {print $2; exit}' | tr -d '\r')"
 echo "Detected final Metadata Pointer authority: ${FINAL_POINTER_AUTH:-<none>}"
-test "$FINAL_POINTER_AUTH" = "Disabled" || test "$FINAL_POINTER_AUTH" = "None" || test "$FINAL_POINTER_AUTH" = "(not set)"
+[[ "$FINAL_POINTER_AUTH" = "Disabled" ]]| [[ "$FINAL_POINTER_AUTH" = "None" ]]| [[ "$FINAL_POINTER_AUTH" = "(not set)" ]]
 printf '%s\n' "$FINAL_MINT_STATE" | grep -Fq "$METADATA_URI"
-for v in CREATE_TOKEN_TX METADATA_TX CREATE_ACCOUNT_TX MINT_TX MINT_AUTH_TX; do test -n "${!v}" || { echo "::error::Missing transaction signature: $v"; exit 1; }; done
-if [[ "$METADATA_UPDATE_AUTHORITY_INITIALLY_NONE" != "true" ]]; then test -n "$METADATA_AUTH_TX" || { echo "::error::Missing transaction signature: METADATA_AUTH_TX"; exit 1; }; fi
-if [[ "$METADATA_POINTER_AUTHORITY_INITIALLY_NONE" != "true" ]]; then test -n "$METADATA_POINTER_AUTH_TX" || { echo "::error::Missing transaction signature: METADATA_POINTER_AUTH_TX"; exit 1; }; fi
-if [[ "$FREEZE_AUTHORITY_INITIALLY_NONE" != "true" ]]; then test -n "$FREEZE_AUTH_TX" || { echo "::error::Missing transaction signature: FREEZE_AUTH_TX"; exit 1; }; fi
+for v in CREATE_TOKEN_TX METADATA_TX CREATE_ACCOUNT_TX MINT_TX MINT_AUTH_TX; do [[ -n "${!v}" ]]| { echo "::error::Missing transaction signature: $v"; exit 1; }; done
+if [[ "$METADATA_UPDATE_AUTHORITY_INITIALLY_NONE" != "true" ]]; then [[ -n "$METADATA_AUTH_TX" ]]| { echo "::error::Missing transaction signature: METADATA_AUTH_TX"; exit 1; }; fi
+if [[ "$METADATA_POINTER_AUTHORITY_INITIALLY_NONE" != "true" ]]; then [[ -n "$METADATA_POINTER_AUTH_TX" ]]| { echo "::error::Missing transaction signature: METADATA_POINTER_AUTH_TX"; exit 1; }; fi
+if [[ "$FREEZE_AUTHORITY_INITIALLY_NONE" != "true" ]]; then [[ -n "$FREEZE_AUTH_TX" ]]| { echo "::error::Missing transaction signature: FREEZE_AUTH_TX"; exit 1; }; fi
 write_evidence "READY_FOR_VERIFICATION"
