@@ -44,7 +44,7 @@ export function normalizeAutopilotGraph<T extends AutopilotGraphNode>(
       throw new Error(`Autopilot graph node ${index + 1} has an invalid id.`);
     }
     const id = node.id.trim();
-    if (indexById.has(id)) throw new Error(`Autopilot graph contains duplicate node id '${id}'.`);
+    if (indexById.has(id)) throw new Error(`step identifiers must be unique; Autopilot graph contains duplicate node id '${id}'.`);
     indexById.set(id, index);
     if (node.effect !== undefined && !['read-only', 'reversible', 'irreversible'].includes(node.effect)) {
       throw new Error(`Autopilot graph node '${id}' has an unsupported effect classification.`);
