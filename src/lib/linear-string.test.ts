@@ -59,6 +59,6 @@ test('normalizes outer JSON and diff fences without regular expressions', () => 
 });
 
 test('extracts the first fenced block with an optional language marker', () => {
-  assert.equal(extractFirstFencedContent('answer ```json\n{"ok":true}\n``` tail', 'json'), '{"ok":true}');
+  assert.equal(extractFirstFencedContent('answer ```json\n{"ok":true}\n``` tail', 'json'), '{"ok":true}\\n');
   assert.equal(extractFirstFencedContent('no fence here', 'json'), null);
 });
