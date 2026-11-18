@@ -71,6 +71,7 @@
     "test:protected-api-paths": "tsx src/lib/auth/protected-api-paths.test.ts",
     "test:asap-bridge": "node --import tsx/esm --test src/lib/asap-bridge.test.ts",
     "test:solana-provenance": "tsx scripts/validate-solana-provenance.ts",
+    "test:solana-resume-recovery": "node --test scripts/solana-resume-recovery-contract.test.mjs",
     "test:llama-cloud": "tsx src/lib/llama-cloud.test.ts",
     "test:nvidia-provider": "tsx src/lib/ai/providers/nvidia-provider.test.ts",
     "test:new-id": "node --import tsx/esm --test src/lib/new-id.test.ts",
