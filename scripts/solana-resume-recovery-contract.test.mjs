@@ -13,7 +13,7 @@ test('recovered Token-2022 script passes Bash syntax parsing without execution',
 
 test('recovery requires the authorized workflow and the exact metadata URI', () => {
   assert.match(script, /GLORIFIER_AUTHORIZED_WORKFLOW/);
-  assert.match(script, /URI="\$\{METADATA_URI\}"/);
+  assert.match(script, /\[\[ "\$\{URI\}" == "\$\{METADATA_URI\}" \]\]/);
   assert.match(script, /Existing metadata does not exactly match the canonical GLORIFIER\/GLR name, symbol, and URI/);
 });
 
@@ -26,7 +26,7 @@ test('every prior recovery phase requires a real transaction signature', () => {
   assert.match(script, /require_signature "\$\{FREEZE_AUTH_TX\}"/);
   assert.match(script, /require_signature "\$\{METADATA_AUTH_TX\}"/);
   assert.match(script, /require_signature "\$\{POINTER_AUTH_TX\}"/);
-  assert.doesNotMatch(script, /== null or/);
+  assert.match(script, /all\(\.\[\]; type == "string" and test\(/);
 });
 
 test('metadata authority revocation is inside a valid fail-closed branch', () => {
