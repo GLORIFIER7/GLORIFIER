@@ -36,9 +36,9 @@ EXPECTED = {
 NEVER_SET = "NOT_APPLICABLE_NEVER_SET"
 # Instructions allowed to touch the mint; anything else fails closed.
 ALLOWED = {
-    "initializeMetadataPointer", "initializeMint", "initializeMint2", "initializeTokenMetadata",
+    "initializeMetadataPointer", "initializeMint", "initializeMint2", "initializeTokenMetadata", "initializeMetadata",
     "getAccountDataSize", "initializeImmutableOwner", "initializeAccount", "initializeAccount2",
-    "initializeAccount3", "mintTo", "mintToChecked", "setAuthority", "updateTokenMetadataAuthority",
+    "initializeAccount3", "mintTo", "mintToChecked", "setAuthority", "updateTokenMetadataAuthority", "updateMetadataPointerAuthority",
 }
 
 
@@ -124,6 +124,7 @@ AUTHORITY_RECEIPT = {
     "mintTokens": "mintAuthorityRevocationTransaction",
     "freezeAccount": "freezeAuthorityRevocationTransaction",
     "metadataPointer": "metadataPointerAuthorityRevocationTransaction",
+    "metadata": "metadataUpdateAuthorityRevocationTransaction",
 }
 LIFECYCLE = ["creationTransaction", "metadataTransaction", "tokenAccountCreationTransaction", "mintTransaction",
              "mintAuthorityRevocationTransaction", "freezeAuthorityRevocationTransaction",
@@ -152,7 +153,7 @@ def apply_instruction(typ, info, sig, receipts):
         require(info.get("decimals") == EXPECTED["decimals"], "decimals mismatch")
         require(info.get("freezeAuthority") in (None, ""), "freeze authority was set at creation")
         receipts["creationTransaction"] = sig
-    elif typ == "initializeTokenMetadata":
+    elif typ in ("initializeTokenMetadata", "initializeMetadata"):
         require("metadataTransaction" not in receipts, "token metadata initialized more than once")
         require((info.get("name"), info.get("symbol"), info.get("uri")) ==
                 (EXPECTED["name"], EXPECTED["symbol"], EXPECTED["uri"]), "token metadata mismatch")
@@ -171,15 +172,23 @@ def apply_instruction(typ, info, sig, receipts):
         receipts["mintTransaction"] = sig
         return int(amount)
     elif typ == "setAuthority":
-        require(info.get("newAuthority") is None, f"authority granted (not revoked) in {sig}")
+        require("newAuthority" in info and info["newAuthority"] is None,
+                f"authority grant or missing newAuthority field in {sig}")
         key = AUTHORITY_RECEIPT.get(info.get("authorityType"))
         require(key is not None, f"unexpected authority type {info.get('authorityType')}")
         require(key not in receipts, f"duplicate {info.get('authorityType')} revocation in {sig}")
         receipts[key] = sig
     elif typ == "updateTokenMetadataAuthority":
-        require(info.get("newAuthority") is None, f"metadata authority granted in {sig}")
+        require("newAuthority" in info and info["newAuthority"] is None,
+                f"metadata authority grant or missing newAuthority field in {sig}")
         key = "metadataUpdateAuthorityRevocationTransaction"
         require(key not in receipts, f"duplicate metadata update authority revocation in {sig}")
+        receipts[key] = sig
+    elif typ == "updateMetadataPointerAuthority":
+        require("newAuthority" in info and info["newAuthority"] is None,
+                f"metadata pointer authority grant or missing newAuthority field in {sig}")
+        key = "metadataPointerAuthorityRevocationTransaction"
+        require(key not in receipts, f"duplicate metadata pointer authority revocation in {sig}")
         receipts[key] = sig
     return 0
 
