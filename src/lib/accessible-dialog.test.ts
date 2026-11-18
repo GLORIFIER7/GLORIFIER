@@ -18,8 +18,9 @@ function createDialogHarness(focusableCount = 2) {
 
   const items: HTMLElement[] = [];
   for (let index = 0; index < focusableCount; index += 1) {
-    const item = {
-      focus: () => { documentLike.activeElement = item as unknown as HTMLElement; },
+    let item: HTMLElement;
+    item = {
+      focus: () => { documentLike.activeElement = item; },
     } as unknown as HTMLElement;
     items.push(item);
   }
