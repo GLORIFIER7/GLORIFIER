@@ -140,7 +140,7 @@ def test_worker_neon_probe_uses_asyncpg_with_verified_tls(monkeypatch):
 
     monkeypatch.setitem(sys.modules, "asyncpg", types.SimpleNamespace(connect=connect))
     probe = NeonConnectivityProbe(
-        "postgresql://neon_user:neon_pass@example.neon.tech/neural"
+        "postgresql://neon_user:neon_pass@example.neon.tech/neural"  # NOSONAR - synthetic DSN in tests with monkeypatched asyncpg
     )
 
     asyncio.run(probe.check_worker())
@@ -211,7 +211,7 @@ def test_worker_neon_probe_sanitizes_async_driver_errors(monkeypatch, caplog):
 
     monkeypatch.setitem(sys.modules, "asyncpg", types.SimpleNamespace(connect=connect))
     probe = NeonConnectivityProbe(
-        "postgresql://neon_user:neon_pass@example.neon.tech/neural"
+        "postgresql://neon_user:neon_pass@example.neon.tech/neural"  # NOSONAR - synthetic DSN in tests with monkeypatched asyncpg
     )
 
     with (
