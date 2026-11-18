@@ -11,10 +11,10 @@ readonly COMMITMENT="finalized"
 readonly MINT="${1:-}"
 readonly PROVENANCE="${2:-}"
 
-test -n "$MINT" || { echo "::error::A Solana Mainnet mint address is required."; exit 1; }
-[[ "$MINT" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || { echo "::error::Invalid Solana mint address format."; exit 1; }
-test -n "${SOLANA_RPC_URL:-}" || { echo "::error::SOLANA_RPC_URL is required."; exit 1; }
-test -f "$PROVENANCE" || { echo "::error::Deployment provenance file is required."; exit 1; }
+[[ -n "$MINT" ]]| { echo "::error::A Solana Mainnet mint address is required."; exit 1; }
+[[ "$MINT" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] | { echo "::error::Invalid Solana mint address format."; exit 1; }
+[[ -n "${SOLANA_RPC_URL:-}" ]]| { echo "::error::SOLANA_RPC_URL is required."; exit 1; }
+[[ -f "$PROVENANCE" ]]| { echo "::error::Deployment provenance file is required."; exit 1; }
 
 mkdir -p solana
 echo "MINT=$MINT" | tee solana/reconciliation-mainnet-status.txt
@@ -99,22 +99,22 @@ if [[ -n "$FAILED_METADATA_CHECKS" ]]; then
   exit 1
 fi
 echo "PASS: Finalized account, metadata fields, authorities, pinned URI, and off-chain SHA-256 validated."
-for field in creationTransaction metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction; do test "$(jq -r --arg f "$field" '.[$f] // empty' "$PROVENANCE")" != ""; done
+for field in creationTransaction metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction; do [[ "$(jq -r --arg f "$field" '.[$f] // empty' "$PROVENANCE")" != "" ]]; done
 METADATA_AUTH="$(jq -r '.metadataUpdateAuthorityRevocationTransaction // empty' "$PROVENANCE")"
 METADATA_AUTH_INITIALLY_NONE="$(jq -r '.metadataUpdateAuthorityInitiallyNone // false' "$PROVENANCE")"
 POINTER_AUTH="$(jq -r '.metadataPointerAuthorityRevocationTransaction // empty' "$PROVENANCE")"
 POINTER_AUTH_INITIALLY_NONE="$(jq -r '.metadataPointerAuthorityInitiallyNone // false' "$PROVENANCE")"
-if [[ -z "$METADATA_AUTH" && "$METADATA_AUTH_INITIALLY_NONE" != "true" ]]; then echo "::error::Metadata update authority evidence is incomplete."; exit 1; fi
-if [[ -z "$POINTER_AUTH" && "$POINTER_AUTH_INITIALLY_NONE" != "true" ]]; then echo "::error::Metadata pointer authority evidence is incomplete."; exit 1; fi
+if [[ -z "$METADATA_AUTH" & "$METADATA_AUTH_INITIALLY_NONE" != "true" ]]; then echo "::error::Metadata update authority evidence is incomplete."; exit 1; fi
+if [[ -z "$POINTER_AUTH" & "$POINTER_AUTH_INITIALLY_NONE" != "true" ]]; then echo "::error::Metadata pointer authority evidence is incomplete."; exit 1; fi
 FREEZE_TX="$(jq -r '.freezeAuthorityRevocationTransaction // empty' "$PROVENANCE")"
 FREEZE_INITIALLY_NONE="$(jq -r '.freezeAuthorityInitiallyNone // false' "$PROVENANCE")"
-if [[ -z "$FREEZE_TX" && "$FREEZE_INITIALLY_NONE" != "true" ]]; then
+if [[ -z "$FREEZE_TX" & "$FREEZE_INITIALLY_NONE" != "true" ]]; then
   echo "::error::Freeze authority evidence is incomplete."; exit 1
 fi
 jq -e --arg mint "$MINT" '.status=="READY_FOR_VERIFICATION" and .network=="solana-mainnet" and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and .mint==$mint' "$PROVENANCE" >/dev/null
 verify_tx() {
   local label="$1" tx="$2" patterns="$3"
-  [[ "$tx" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]] || { echo "::error::Invalid $label transaction signature (length/encoding check failed)."; exit 1; }
+  [[ "$tx" =~ ^[1-9A-HJ-NP-Za-km-z]{64,88}$ ]] | { echo "::error::Invalid $label transaction signature (length/encoding check failed)."; exit 1; }
   echo "Checking finalized $label transaction: $tx"
   local json
   if ! json="$(python3 - "$SOLANA_RPC_URL" "$tx" <<'PY'
@@ -139,7 +139,7 @@ PY
     and ((.result.transaction.message.accountKeys // []) | map(if type=="object" then .pubkey else . end) | index($program) != null)
   ' <<<"$json" >/dev/null; then
     echo "::error::$label transaction is missing, failed on-chain, or does not reference both the expected mint and Token-2022 program."
-    jq -c '{error, result: (if .result == null then null else {slot:.result.slot, metaErr:.result.meta.err, accountKeys:(.result.transaction.message.accountKeys // [])} end)}' <<<"$json" || true
+    jq -c '{error, result: (if .result == null then null else {slot:.result.slot, metaErr:.result.meta.err, accountKeys:(.result.transaction.message.accountKeys // [])} end)}' <<<"$json" | true
     exit 1
   fi
   local matched=0
