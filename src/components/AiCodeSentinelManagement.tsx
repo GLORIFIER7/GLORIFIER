@@ -333,16 +333,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
               return (
                 <div
                   key={err.id}
-                  onClick={() => setSelectedError(err)}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(event) => {
-                    if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
-                      event.preventDefault();
-                      setSelectedError(err);
-                    }
-                  }}
-                  className={`cursor-pointer rounded-xl border p-4 transition-all ${
+                                    className={`cursor-pointer rounded-xl border p-4 transition-all ${
                     isSelected
                       ? 'bg-slate-850 border-emerald-500/60 shadow-lg shadow-emerald-950/20'
                       : 'bg-slate-900 hover:bg-slate-850/70 border-slate-800'
@@ -352,7 +343,14 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
                     <div className="space-y-1.5 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         {getSeverityBadge(err.severity)}
-                        <span className="font-mono text-xs font-bold text-white tracking-wide">{err.code}</span>
+                        <button
+                          type="button"
+                          aria-pressed={isSelected}
+                          onClick={() => setSelectedError(err)}
+                          className="font-mono text-xs font-bold text-white tracking-wide text-left hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400"
+                        >
+                          {err.code}
+                        </button>
                         <span className="text-[11px] text-slate-400 font-mono">({err.source})</span>
                       </div>
                       <p className="text-xs text-slate-300 line-clamp-2">{err.message}</p>
