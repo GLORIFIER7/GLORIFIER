@@ -1,6 +1,15 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useLayoutEffect, useRef } from 'react';
 
-const activeDialogStack: HTMLElement[] = [];
+const activeDialogStacks = new WeakMap<Document, HTMLElement[]>();
+
+function getActiveDialogStack(ownerDocument: Document): HTMLElement[] {
+  let stack = activeDialogStacks.get(ownerDocument);
+  if (!stack) {
+    stack = [];
+    activeDialogStacks.set(ownerDocument, stack);
+  }
+  return stack;
+}
 
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
@@ -11,6 +20,7 @@ export function installAccessibleDialogBehavior(
   ownerDocument: Document = dialog.ownerDocument,
 ): () => void {
   const previouslyFocused = ownerDocument.activeElement as HTMLElement | null;
+  const activeDialogStack = getActiveDialogStack(ownerDocument);
   const previousStackIndex = activeDialogStack.indexOf(dialog);
   if (previousStackIndex >= 0) activeDialogStack.splice(previousStackIndex, 1);
   activeDialogStack.push(dialog);
@@ -64,7 +74,10 @@ export function installAccessibleDialogBehavior(
 export function useAccessibleDialog(isOpen: boolean, onClose: () => void) {
   const dialogRef = useRef<HTMLElement | null>(null);
   const onCloseRef = useRef(onClose);
-  onCloseRef.current = onClose;
+
+  useLayoutEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
 
   useEffect(() => {
     const dialog = dialogRef.current;
