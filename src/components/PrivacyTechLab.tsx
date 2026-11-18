@@ -292,7 +292,7 @@ export const PrivacyTechLab: React.FC = () => {
             {/* Inputs & Operation */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] text-slate-400 block mb-1">Plaintext Metric A (e.g. Heart Rate)</label>
+                <label className="text-[10px] text-slate-400 block mb-1" htmlFor="glorifier-PrivacyTechLab-tsx-1">Plaintext Metric A (e.g. Heart Rate)</label>
                 <input
                   type="number"
                   value={fhePlainA}
@@ -303,7 +303,7 @@ export const PrivacyTechLab: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-[10px] text-slate-400 block mb-1">Plaintext Metric B (e.g. Peak Vitals)</label>
+                <label className="text-[10px] text-slate-400 block mb-1" htmlFor="glorifier-PrivacyTechLab-tsx-2">Plaintext Metric B (e.g. Peak Vitals)</label>
                 <input
                   type="number"
                   value={fhePlainB}
@@ -466,7 +466,7 @@ export const PrivacyTechLab: React.FC = () => {
             {/* ZKP Inputs */}
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] text-slate-400 block mb-1">Secret Private Input (User Vault Only)</label>
+                <label className="text-[10px] text-slate-400 block mb-1" htmlFor="glorifier-PrivacyTechLab-tsx-3">Secret Private Input (User Vault Only)</label>
                 <input
                   type="number"
                   value={zkpSecretValue}
@@ -477,7 +477,7 @@ export const PrivacyTechLab: React.FC = () => {
               </div>
 
               <div>
-                <label className="text-[10px] text-slate-400 block mb-1">Public Verification Threshold</label>
+                <label className="text-[10px] text-slate-400 block mb-1" htmlFor="glorifier-PrivacyTechLab-tsx-4">Public Verification Threshold</label>
                 <input
                   type="number"
                   value={zkpPublicThreshold}
