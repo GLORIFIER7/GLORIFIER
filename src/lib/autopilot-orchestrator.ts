@@ -8,6 +8,7 @@ import { estimateRepositoryInputTokenUpperBound, reserveRepositoryProviderReques
 import { createA2ATaskForProtocol, executeA2ATask, getA2ARuntimeStatus } from './a2a-runtime';
 import { authorizeCapability } from './capability-authorization';
 import { evaluateGeasPolicy } from './governance/geas-policy-engine';
+import { getAutopilotGraphAncestors, getReadyAutopilotGraphWave, normalizeAutopilotGraph } from './autopilot-graph';
 import { executeAutopilotToolStep, normalizeGithubToolInvocation } from './autopilot-execution-fabric';
 import { isAllowedAutopilotWritePath, normalizeAutopilotWriteBranch } from './autopilot-github-write';
 import { hasGithubAppWriteConfiguration, type GithubAppWriterIdentity } from './github-app-auth';
@@ -286,12 +287,12 @@ export function validateAutopilotPlan(
     throw new Error('AI CEO plan must contain between 1 and 6 steps.');
   }
   const ids = new Set<string>();
-  const plan = parsed.steps.map((value, index) => {
+  const rawPlan = parsed.steps.map((value, index) => {
     if (!value || typeof value !== 'object' || Array.isArray(value)) {
       throw new Error(`Plan step ${index + 1} is invalid.`);
     }
     const step = value as Record<string, unknown>;
-    if (Object.keys(step).some(key => !['id', 'capability', 'objective', 'arguments'].includes(key))) {
+    if (Object.keys(step).some(key => !['id', 'capability', 'objective', 'arguments', 'dependsOn'].includes(key))) {
       throw new Error(`Plan step ${index + 1} contains unsupported fields.`);
     }
     if (typeof step.id !== 'string' || typeof step.capability !== 'string' || typeof step.objective !== 'string') {
@@ -311,15 +312,24 @@ export function validateAutopilotPlan(
     if (isWrite && options.allowWrites !== true) {
       throw new Error(`Plan step ${id} requests a repository write while the write adapter is disabled.`);
     }
+    let dependsOn: string[] | undefined;
+    if (step.dependsOn !== undefined) {
+      if (!Array.isArray(step.dependsOn) || step.dependsOn.some(dependency => typeof dependency !== 'string')) {
+        throw new Error(`Plan step ${id} has an invalid dependsOn list.`);
+      }
+      dependsOn = step.dependsOn as string[];
+    }
     const invocation = normalizeGithubToolInvocation(capability, step.arguments ?? {});
     return {
       id,
       capability,
       objective,
       effect: isWrite ? 'reversible' : 'read-only',
+      ...(dependsOn === undefined ? {} : { dependsOn }),
       toolArguments: invocation.arguments,
     } as PlannedStep;
   });
+  const plan = normalizeAutopilotGraph(rawPlan);
 
   const writeSteps = plan.filter(step =>
     (REVERSIBLE_REPOSITORY_WRITE_CAPABILITIES as readonly string[]).includes(step.capability),
@@ -375,6 +385,20 @@ export function validateAutopilotPlan(
         lastRead >= firstUpdate || firstUpdate < 2 ||
         plan.slice(firstUpdate, prIndex).some(step => step.capability !== 'github.update_file')) {
       throw new Error('Repository repair steps must follow branch, source reads, file updates, then draft PR order.');
+    }
+    const branchId = branchSteps[0].id;
+    if (readSteps.some(step => !getAutopilotGraphAncestors(plan, step.id).includes(branchId))) {
+      throw new Error('Every repository source read must depend on completion of the mission-scoped branch creation.');
+    }
+    for (const step of updateSteps) {
+      const path = String(step.toolArguments?.path || '');
+      const readStep = readSteps.find(candidate => candidate.toolArguments?.path === path);
+      if (!readStep || !getAutopilotGraphAncestors(plan, step.id).includes(readStep.id)) {
+        throw new Error('Every repository update must depend on its own source-read step.');
+      }
+    }
+    if (updateSteps.some(step => !getAutopilotGraphAncestors(plan, pullRequestSteps[0].id).includes(step.id))) {
+      throw new Error('The draft pull request must depend on every repository update.');
     }
     for (const step of updateSteps) {
       const path = String(step.toolArguments?.path || '');
