@@ -58,10 +58,10 @@ def test_cloudflare_validation_smoke_tests_pyodide_with_asyncpg_without_ml_drive
         "run: uv lock",
         "Upload validated Cloudflare dependency lock",
         "cloudflare-neural-uv-lock",
-        "uv sync --locked --group dev --no-install-project",
+        "uv sync --locked --no-build --group dev --no-install-project",
         "Prepare Neural application source as local Worker dependency",
         "python prepare_worker.py",
-        "uv run --locked pywrangler dev --ip 127.0.0.1 --port 8787",
+        "uv run --locked --no-build pywrangler dev --ip 127.0.0.1 --port 8787",
         "test -f python_modules/app/api.py",
         "Verify Cloudflare Python Worker runtime startup including asyncpg",
         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_NEON_READONLY",
@@ -71,7 +71,9 @@ def test_cloudflare_validation_smoke_tests_pyodide_with_asyncpg_without_ml_drive
         'importlib.util.find_spec("torch") is None',
         "http://127.0.0.1:8787/health",
         "bash ./worker-build.sh --prepare-only",
-        "npx wrangler deploy --dry-run",
+        "npm install --global --no-audit --no-fund wrangler@4.164.0",
+        "test \"$(wrangler --version)\" = \"4.164.0\"",
+        "wrangler deploy --dry-run",
         "bash ./worker-build.sh deploy",
     )
     for check in required_runtime_checks:
@@ -101,9 +103,9 @@ def test_cloudflare_build_script_removes_host_venvs_before_wrangler_upload():
     script = script_path.read_text(encoding="utf-8")
 
     assert "python prepare_worker.py" in script
-    assert "uv run --locked pywrangler sync" in script
+    assert "uv run --locked --no-build pywrangler sync" in script
     assert "rm -rf -- .venv .venv-workers" in script
-    assert 'exec npx wrangler "$mode"' in script
+    assert 'exec wrangler "$mode"' in script
     assert "preview|deploy|--prepare-only" in script
     assert "--prepare-only" in script
 
