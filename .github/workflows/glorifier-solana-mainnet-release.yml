@@ -130,7 +130,10 @@ jobs:
             while IFS=
               [ -n "$AID" ] || continue
               rm -rf /tmp/glr-replay; mkdir -p /tmp/glr-replay
+              [[ "$DIGEST" =~ ^sha256:[0-9a-f]{64}$ ]] || { echo "::error::Prior Mainnet evidence artifact has no valid SHA-256 digest; refusing replay lock verification."; exit 1; }
               gh api "/repos/$GITHUB_REPOSITORY/actions/artifacts/$AID/zip" > /tmp/glr-replay.zip
+              ACTUAL_DIGEST="sha256:$(sha256sum /tmp/glr-replay.zip | awk '{print $1}')"
+              test "$ACTUAL_DIGEST" = "$DIGEST" || { echo "::error::Prior Mainnet evidence artifact digest mismatch; refusing replay lock verification."; exit 1; }
               unzip -oq /tmp/glr-replay.zip -d /tmp/glr-replay
               E="$(find /tmp/glr-replay -type f -name deployment-mainnet-evidence.json -print -quit || true)"
               if [ -n "$E" ] && jq -e '.network=="solana-mainnet" and (.mint|type=="string") and .status=="READY_FOR_VERIFICATION"' "$E" >/dev/null; then
