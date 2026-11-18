@@ -175,6 +175,20 @@ test('PostgreSQL TLS assertions reject sibling-step and non-exact production dec
   assert.doesNotMatch(debugEnv, /^          NODE_ENV:\s*production\s*$/m);
 });
 
-
-
-
+test('main branch protection has one always-present aggregate CI check', () => {
+  const requiredCi = ci.split('\n  required-ci:\n')[1] ?? '';
+  assert.ok(requiredCi, 'CI workflow must publish a required-ci job');
+  assert.ok(requiredCi.includes('    name: Required CI'));
+  assert.ok(requiredCi.includes('    if: ${{ always() }}'));
+  assert.ok(requiredCi.includes([
+    '      - build',
+    '      - agent-state-postgres-integration',
+    '      - supabase-default-privileges-integration',
+  ].join('\n')));
+  assert.ok(requiredCi.includes('needs.build.result'));
+  assert.ok(requiredCi.includes('needs.agent-state-postgres-integration.result'));
+  assert.ok(requiredCi.includes('needs.supabase-default-privileges-integration.result'));
+  assert.ok(requiredCi.includes('[[ "$BUILD_RESULT" == "success" ]]'));
+  assert.ok(requiredCi.includes('[[ "$AGENT_STATE_POSTGRES_RESULT" == "success" ]]'));
+  assert.ok(requiredCi.includes('[[ "$SUPABASE_DEFAULT_PRIVILEGES_RESULT" == "success" ]]'));
+});
