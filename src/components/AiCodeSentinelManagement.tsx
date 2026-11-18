@@ -354,7 +354,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
                         <button
                           type="button"
                           onClick={() => setSelectedError(err)}
-                          aria-current={isSelected ? 'true' : undefined}
+                          aria-pressed={isSelected}
                           className="font-mono text-xs font-bold text-white tracking-wide hover:underline"
                           aria-label={`Inspect error ${err.code}`}
                         >
