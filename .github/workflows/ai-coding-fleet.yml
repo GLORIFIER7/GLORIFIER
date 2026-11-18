@@ -14,7 +14,6 @@ on:
 
 permissions:
   contents: read
-  pull-requests: read
 
 concurrency:
   group: glorifier-ai-fleet-${{ github.ref }}-${{ github.event_name }}
@@ -22,6 +21,9 @@ concurrency:
 
 jobs:
   coding-fleet:
+    permissions:
+      contents: read
+      pull-requests: read
     if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') }}
     runs-on: ubuntu-latest
     timeout-minutes: 45
