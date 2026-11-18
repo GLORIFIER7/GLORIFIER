@@ -99,7 +99,7 @@ test('Gemini development and PR review workflows retain their bounded legacy CLI
       name + ' must use its explicit bounded approval mode',
     );
     assert.ok(
-      source.includes('npm install --global --silent --no-audit --prefer-offline "@google/gemini-cli@0.68.0"'),
+      source.includes('npm install --global --ignore-scripts --silent --no-audit --prefer-offline "@google/gemini-cli@0.68.0"'),
       name + ' must install the pinned Gemini CLI version',
     );
     assert.doesNotMatch(source, /run-gemini-cli|--yolo/,
