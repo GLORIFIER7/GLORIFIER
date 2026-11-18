@@ -11,9 +11,65 @@ const gateScript = fileURLToPath(new URL('./validate-ai-fleet-diff.mjs', import.
 const tsxLoader = import.meta.resolve('tsx/esm');
 const gateSource = readFileSync(gateScript, 'utf8');
 
+function extractBalancedFunction(source, signature) {
+  const start = source.indexOf(signature);
+  if (start < 0) return null;
+  const openingBrace = source.indexOf('{', start + signature.length);
+  if (openingBrace < 0) return null;
+  let depth = 0;
+  let quote = null;
+  let escaped = false;
+  let lineComment = false;
+  let blockComment = false;
+  for (let index = openingBrace; index < source.length; index += 1) {
+    const character = source[index];
+    const next = source[index + 1];
+    if (lineComment) {
+      if (character === '\n') lineComment = false;
+      continue;
+    }
+    if (blockComment) {
+      if (character === '*' && next === '/') { blockComment = false; index += 1; }
+      continue;
+    }
+    if (quote) {
+      if (escaped) { escaped = false; continue; }
+      if (character === '\\') { escaped = true; continue; }
+      if (character === quote) quote = null;
+      continue;
+    }
+    if (character === '/' && next === '/') { lineComment = true; index += 1; continue; }
+    if (character === '/' && next === '*') { blockComment = true; index += 1; continue; }
+    if (character === "'" || character === '"' || character === '`') { quote = character; continue; }
+    if (character === '{') depth += 1;
+    if (character === '}') {
+      depth -= 1;
+      if (depth === 0) return source.slice(start, index + 1);
+    }
+  }
+  return null;
+}
+
+test('function extraction handles nested blocks and braces inside strings', () => {
+  const fixture = [
+    'function nested() {',
+    "  const close = '}';",
+    '  if (true) {',
+    '    try {',
+    '      return { value: 1 };',
+    '    } catch (error) {',
+    '      return { value: 2 };',
+    '    }',
+    '  }',
+    '}',
+  ].join('\n');
+  assert.equal(extractBalancedFunction(fixture, 'function nested()'), fixture);
+});
+
+
 test('PR gate invokes the fixed platform-specific Git executable', () => {
   const declaration = gateSource.match(/^const GIT_EXECUTABLE = .*;$/m)?.[0];
-  const gitRawFunction = gateSource.match(/^function gitRaw\(args\) \{[\s\S]*?^\}/m)?.[0];
+  const gitRawFunction = extractBalancedFunction(gateSource, 'function gitRaw(args)');
   assert.ok(declaration, 'the gate must declare its platform-specific Git executable');
   assert.ok(gitRawFunction, 'the gate must expose the gitRaw implementation for the behavioral check');
 
