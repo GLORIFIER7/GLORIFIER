@@ -16,7 +16,7 @@ RUN node -e 'const [major, minor] = process.versions.node.split(".").map(Number)
 COPY . .
 # Bundle the TypeScript server while esbuild is still installed.
 RUN npm run build \
- && npm prune --omit=dev --no-audit --no-fund \
+ && npm ci --omit=dev --ignore-scripts --no-audit --no-fund --install-links \
  && npm cache clean --force \
  && rm -rf .github
 
