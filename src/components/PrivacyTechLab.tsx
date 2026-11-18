@@ -293,7 +293,7 @@ export const PrivacyTechLab: React.FC = () => {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label htmlFor="fhe-plaintext-metric-a" className="text-[10px] text-slate-400 block mb-1">Plaintext Metric A (e.g. Heart Rate)</label>
-                <inpu id="fhe-plaintext-metric-a"t
+                <input id="fhe-plaintext-metric-a"
                   type="number"
                   value={fhePlainA}
                   onChange={(e) => setFhePlainA(Number.parseInt(e.target.value) || 0)}
@@ -304,7 +304,7 @@ export const PrivacyTechLab: React.FC = () => {
 
               <div>
                 <label htmlFor="fhe-plaintext-metric-b" className="text-[10px] text-slate-400 block mb-1">Plaintext Metric B (e.g. Peak Vitals)</label>
-                <inpu id="fhe-plaintext-metric-b"t
+                <input id="fhe-plaintext-metric-b"
                   type="number"
                   value={fhePlainB}
                   onChange={(e) => setFhePlainB(Number.parseInt(e.target.value) || 0)}
@@ -467,7 +467,7 @@ export const PrivacyTechLab: React.FC = () => {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label htmlFor="zkp-secret-private-input" className="text-[10px] text-slate-400 block mb-1">Secret Private Input (User Vault Only)</label>
-                <inpu id="zkp-secret-private-input"t
+                <input id="zkp-secret-private-input"
                   type="number"
                   value={zkpSecretValue}
                   onChange={(e) => setZkpSecretValue(Number.parseInt(e.target.value) || 0)}
@@ -478,7 +478,7 @@ export const PrivacyTechLab: React.FC = () => {
 
               <div>
                 <label htmlFor="zkp-public-verification-threshold" className="text-[10px] text-slate-400 block mb-1">Public Verification Threshold</label>
-                <inpu id="zkp-public-verification-threshold"t
+                <input id="zkp-public-verification-threshold"
                   type="number"
                   value={zkpPublicThreshold}
                   onChange={(e) => setZkpPublicThreshold(Number.parseInt(e.target.value) || 0)}

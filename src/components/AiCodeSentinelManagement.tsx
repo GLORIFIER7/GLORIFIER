@@ -636,7 +636,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
             <div className="space-y-3 text-xs">
               <div>
                 <label htmlFor="edit-error-message" className="block text-slate-400 mb-1">Error Message / Description</label>
-                <textare id="edit-error-message"a
+                <textarea id="edit-error-message"
                   value={editMessage}
                   onChange={(e) => setEditMessage(e.target.value)}
                   rows={2}
@@ -646,7 +646,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
 
               <div>
                 <label htmlFor="edit-patch-diff" className="block text-slate-400 mb-1">Patch Diff Snippet</label>
-                <textare id="edit-patch-diff"a
+                <textarea id="edit-patch-diff"
                   value={editPatch}
                   onChange={(e) => setEditPatch(e.target.value)}
                   rows={5}
@@ -656,7 +656,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
 
               <div>
                 <label htmlFor="edit-lifecycle-status" className="block text-slate-400 mb-1">Lifecycle Status</label>
-                <selec id="edit-lifecycle-status"t
+                <select id="edit-lifecycle-status"
                   value={editStatus}
                   onChange={(e) => setEditStatus(e.target.value as ErrorLifecycleStatus)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-emerald-500"
@@ -704,7 +704,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
             <div className="space-y-3 text-xs">
               <div>
                 <label htmlFor="new-error-code" className="block text-slate-400 mb-1">Error Code Identifier</label>
-                <inpu id="new-error-code"t
+                <input id="new-error-code"
                   type="text"
                   value={newErrorCode}
                   onChange={(e) => setNewErrorCode(e.target.value)}
@@ -714,7 +714,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
 
               <div>
                 <label htmlFor="new-error-source" className="block text-slate-400 mb-1">Source Component / File</label>
-                <inpu id="new-error-source"t
+                <input id="new-error-source"
                   type="text"
                   value={newErrorSource}
                   onChange={(e) => setNewErrorSource(e.target.value)}
@@ -724,7 +724,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
 
               <div>
                 <label htmlFor="new-error-message" className="block text-slate-400 mb-1">Error Message / Symptom</label>
-                <textare id="new-error-message"a
+                <textarea id="new-error-message"
                   value={newErrorMessage}
                   onChange={(e) => setNewErrorMessage(e.target.value)}
                   rows={2}
@@ -734,7 +734,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
 
               <div>
                 <label htmlFor="new-error-severity" className="block text-slate-400 mb-1">Severity</label>
-                <selec id="new-error-severity"t
+                <select id="new-error-severity"
                   value={newErrorSeverity}
                   onChange={(e) => setNewErrorSeverity(e.target.value as ErrorSeverity)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-lg p-2 text-slate-200 focus:outline-none focus:border-emerald-500"

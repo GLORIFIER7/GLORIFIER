@@ -639,7 +639,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
                 Or Enter Custom Multi-Model Agenda Directive:
               </label>
               <div className="flex gap-2">
-                <inpu id="custom-multi-model-agenda"t
+                <input id="custom-multi-model-agenda"
                   type="text"
                   placeholder="e.g. Audit my developer telemetry licensing for OpenAI and Anthropic research labs with zero-identifiability guarantees"
                   value={customAgenda}

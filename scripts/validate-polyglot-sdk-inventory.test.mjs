@@ -91,12 +91,16 @@ const sdkReadme = await readFile(new URL('../sdk/README.md', import.meta.url), '
 const architectureGuide = await readFile(new URL('../docs/architecture/language-neutral-interoperability.md', import.meta.url), 'utf8');
 const polyglotWorkflow = await readFile(new URL('../.github/workflows/polyglot-sdk.yml', import.meta.url), 'utf8');
 const kotlinBuild = await readFile(new URL('../sdk/kotlin/build.gradle.kts', import.meta.url), 'utf8');
+const dartLock = await readFile(new URL('../sdk/dart/pubspec.lock', import.meta.url), 'utf8');
+const kotlinLock = await readFile(new URL('../sdk/kotlin/gradle.lockfile', import.meta.url), 'utf8');
 
-test('does not claim dependency-lock enforcement without committed lockfiles', () => {
-  assert.doesNotMatch(kotlinBuild, /dependencyLocking\s*\{/);
-  assert.doesNotMatch(polyglotWorkflow, /--write-locks|--enforce-lockfile|Upload generated (?:Kotlin|Dart) dependency lock/);
+test('enforces committed Dart and Kotlin dependency lockfiles in CI', () => {
+  assert.match(kotlinBuild, /dependencyLocking\s*\{/);
+  assert.match(kotlinLock, /org\.jetbrains\.kotlin:kotlin-stdlib:2\.0\.21=/);
+  assert.match(dartLock, /test:\n    dependency: "direct dev"/);
   assert.match(polyglotWorkflow, /gradle --no-daemon -p sdk\/kotlin test/);
-  assert.match(polyglotWorkflow, /dart pub get\s+dart test/);
+  assert.match(polyglotWorkflow, /dart pub get --enforce-lockfile\s+dart test/);
+  assert.doesNotMatch(polyglotWorkflow, /--write-locks|Upload generated (?:Kotlin|Dart) dependency lock/);
 });
 
 function tableColumnCount(line) {

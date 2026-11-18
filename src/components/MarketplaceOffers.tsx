@@ -314,7 +314,7 @@ export const MarketplaceOffers: React.FC<MarketplaceOffersProps> = ({
                       <label htmlFor="counter-offer-price" className="text-[10px] text-slate-400 block mb-1">
                         Proposed Compensation Rate ($/month)
                       </label>
-                      <inpu id="counter-offer-price"t
+                      <input id="counter-offer-price"
                         type="number"
                         value={counterPrice}
                         onChange={(e) => setCounterPrice(Number.parseFloat(e.target.value) || 0)}
