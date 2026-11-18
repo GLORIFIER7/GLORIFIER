@@ -605,6 +605,10 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
                 ].map(item => (
                   <div
                     key={item.title}
+                    role="button"
+                    tabIndex={0}
+                    aria-pressed={selectedTopic === item.title && !customAgenda}
+                    onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedTopic(item.title); setCustomAgenda(''); } }}
                     onClick={() => {
                       setSelectedTopic(item.title);
                       setCustomAgenda('');
@@ -764,6 +768,10 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
               ].map(mode => (
                 <div
                   key={mode.id}
+                  role="button"
+                  tabIndex={0}
+                  aria-pressed={collaborationMode === mode.id}
+                  onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setCollaborationMode(mode.id as any); } }}
                   onClick={() => setCollaborationMode(mode.id as any)}
                   className={`p-3.5 rounded-xl border cursor-pointer transition-all ${
                     collaborationMode === mode.id
