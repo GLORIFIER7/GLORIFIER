@@ -14,6 +14,10 @@ dependencies {
 
 kotlin { jvmToolchain(17) }
 
+dependencyLocking {
+    lockAllConfigurations()
+}
+
 tasks.test { useJUnitPlatform() }
 
 dependencies { testImplementation("org.junit.jupiter:junit-jupiter:5.11.4") }
