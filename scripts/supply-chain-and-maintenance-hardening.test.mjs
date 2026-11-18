@@ -198,17 +198,16 @@ const nvidiaTriageWorkflow = readFileSync(
   'utf8',
 );
 
-test('NVIDIA workflows serialize blank run-ID dispatches against the same latest-failure target', () => {
-  for (const [name, source, expectedPrefix] of [
-    ['assisted maintenance', nvidiaMaintenanceWorkflow, 'nvidia-assisted-maintenance-'],
-    ['CI triage', nvidiaTriageWorkflow, 'nvidia-ci-triage-'],
+test('NVIDIA workflows serialize every dispatch independent of the selected failed run', () => {
+  for (const [name, source, expectedGroup] of [
+    ['assisted maintenance', nvidiaMaintenanceWorkflow, 'nvidia-assisted-maintenance'],
+    ['CI triage', nvidiaTriageWorkflow, 'nvidia-ci-triage'],
   ]) {
     const group = source.match(/^  group:\s*(.+)$/m)?.[1] ?? '';
-    assert.ok(group.startsWith(expectedPrefix), name + ' must declare its own concurrency group');
-    assert.ok(group.includes("inputs.run_id || 'latest'"),
-      name + ' must use one shared key when no explicit run ID is supplied');
-    assert.doesNotMatch(group, /github\\.run_id/,
-      name + ' must not give every blank-ID dispatch a distinct concurrency key');
+    assert.equal(group, expectedGroup, name + ' must serialize all dispatches in one fixed concurrency group');
+    assert.equal(group.includes('${{'), false, name + ' concurrency group must not depend on input syntax');
+    assert.equal(group.includes('github.run_id'), false, name + ' must not use a unique key per workflow run');
+    assert.equal(group.includes('inputs.run_id'), false, name + ' must serialize explicit and implicit run IDs together');
   }
 });
 
