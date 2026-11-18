@@ -493,10 +493,10 @@ async function planMission(objective: string, missionId: string) {
     const systemPrompt = writePlanningEnabled
       ? [
           'You are the GLORIFIER AI CEO. Prepare a bounded repository repair as an isolated branch and draft pull request. Never change main.',
-          'Return strict JSON only with shape {"steps":[{"id":"short-id","capability":"github.create_branch","objective":"...","arguments":{"branch":"<exact-branch>","base_ref":"main"}}]}.',
+          'Return strict JSON only with shape {"steps":[{"id":"short-id","dependsOn":[],"capability":"github.create_branch","objective":"...","arguments":{"branch":"<exact-branch>","base_ref":"main"}}]}.',
           'The exact branch for this mission is ' + expectedBranch + '. Use only this branch for all writes and use main as the PR base.',
           'Valid operations are github.create_branch, github.read_file, github.update_file, and github.create_pull_request. Use 1-6 steps.',
-          'The order must be: one create_branch, one github.read_file per edited path with ref equal to the mission branch, one github.update_file per inspected path, then one github.create_pull_request as the final step.',
+          'The dependency graph must require branch creation before each source read, each file update after its matching source read, and the final draft PR after every file update. Set dependsOn to the exact prerequisite step IDs; independent read-only inspections may run in parallel.',
           'You may update at most two inspected files. Do not edit any path that was not supplied in inspectedFiles. Every update_file needs branch, path, complete replacement content, a concise message, and the exact expectedContentSha256 from inspectedFiles.',
           'Keep each replacement file at or below 24,000 characters. Do not change dependencies, package manifests, lockfiles, credentials, environment files, secrets, ownership, production settings, or generated artifacts.',
           'The PR must target main and remain a draft. Never merge, deploy, dispatch workflows, publish packages, change secrets, or perform financial or irreversible actions.',
@@ -505,9 +505,9 @@ async function planMission(objective: string, missionId: string) {
         ].join(' ')
       : [
           'You are the GLORIFIER AI CEO. Produce a bounded plan using only the four existing read-only GitHub adapter tools.',
-          'Return strict JSON only, with this shape: {"steps":[{"id":"short-id","capability":"github.get_repository","objective":"...","arguments":{}}]}.',
+          'Return strict JSON only, with this shape: {"steps":[{"id":"short-id","dependsOn":[],"capability":"github.get_repository","objective":"...","arguments":{}}]}.',
           'Valid capability strings are github.get_repository, github.list_pull_requests, github.list_workflow_runs, and github.read_file.',
-          'Use 1-6 steps. github.get_repository accepts an empty arguments object.',
+          'Use 1-6 steps. Every step must include dependsOn as an array of prerequisite step IDs. Independent read-only steps may have dependsOn: []. github.get_repository accepts an empty arguments object.',
           'github.list_pull_requests accepts only optional state (open, closed, all) and per_page (1-20).',
           'github.list_workflow_runs accepts only optional per_page (1-20).',
           'github.read_file requires a repository-relative path and accepts optional ref. Never use path traversal.',
