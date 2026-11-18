@@ -399,11 +399,19 @@ export const DriveGovernanceTab: React.FC<DriveGovernanceTabProps> = ({
                 {filteredFiles.map((file) => (
                   <div
                     key={file.id}
-                    role="button"
+                    role="group"
                     tabIndex={0}
-                    aria-pressed={selectedFile?.id === file.id}
-                    onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); setSelectedFile(file); } }}
-                    onClick={() => setSelectedFile(file)}
+                    aria-current={selectedFile?.id === file.id ? 'true' : undefined}
+                    onKeyDown={(event) => {
+                      if (event.target !== event.currentTarget) return;
+                      if (event.key === "Enter" || event.key === " ") {
+                        event.preventDefault();
+                        setSelectedFile(file);
+                      }
+                    }}
+                    onClick={(event) => {
+                      if (event.target === event.currentTarget) setSelectedFile(file);
+                    }}
                     className={`p-4 rounded-xl border transition-all cursor-pointer ${
                       selectedFile?.id === file.id
                         ? 'bg-slate-900 border-cyan-500/50 shadow-md ring-1 ring-cyan-500/20'
