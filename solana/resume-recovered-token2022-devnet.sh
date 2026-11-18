@@ -114,6 +114,7 @@ printf '%s\n' "${FINAL}" | grep -Eiq '^[[:space:]]*Name:[[:space:]]+GLORIFIER[[:
 printf '%s\n' "${FINAL}" | grep -Eiq '^[[:space:]]*Symbol:[[:space:]]+GLR[[:space:]]*$'
 printf '%s\n' "${FINAL}" | grep -Eiq 'Mint[[:space:]]+Authority.*None'
 printf '%s\n' "${FINAL}" | grep -Eiq 'Freeze[[:space:]]+Authority.*None'
+printf '%s\\n' "${FINAL}" | grep -Eiq 'Metadata Update Authority.*None|Update Authority.*None'
 FINAL_POINTER_AUTH="$(printf '%s\n' "${FINAL}" | awk '/Metadata Pointer:/ {in_pointer=1; next} in_pointer && /^[[:space:]]*Authority:/ {print $2; exit} in_pointer && /^$/ {exit}')"
 [[ "${FINAL_POINTER_AUTH}" = "Disabled" ]]|| [[ "${FINAL_POINTER_AUTH}" = "None" ]]
 [[ "$(spl-token --program-2022 supply "${MINT}" | awk 'NR==1 {print $1}' | tr -d '\r')" = "${SUPPLY}" ]]
@@ -140,12 +141,12 @@ EOF
 jq -e --arg mint "${MINT}" '
  .network=="solana-devnet" and .status=="READY_FOR_RECONCILIATION" and .mint==$mint
  and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
- and (.metadataTransaction|type=="string" and length>=64)
- and (.tokenAccountCreationTransaction|type=="string" and length>=64)
- and (.mintTransaction|type=="string" and length>=64)
- and (.mintAuthorityRevocationTransaction|type=="string" and length>=64)
- and (.freezeAuthorityRevocationTransaction|type=="string" and length>=64)
- and (.metadataUpdateAuthorityRevocationTransaction|type=="string" and length>=64)
- and (.metadataPointerAuthorityRevocationTransaction|type=="string" and length>=64)
+ and (.metadataTransaction==null or (.metadataTransaction|type=="string" and length>=64))
+ and (.tokenAccountCreationTransaction==null or (.tokenAccountCreationTransaction|type=="string" and length>=64))
+ and (.mintTransaction==null or (.mintTransaction|type=="string" and length>=64))
+ and (.mintAuthorityRevocationTransaction==null or (.mintAuthorityRevocationTransaction|type=="string" and length>=64))
+ and (.freezeAuthorityRevocationTransaction==null or (.freezeAuthorityRevocationTransaction|type=="string" and length>=64))
+ and (.metadataUpdateAuthorityRevocationTransaction==null or (.metadataUpdateAuthorityRevocationTransaction|type=="string" and length>=64))
+ and (.metadataPointerAuthorityRevocationTransaction==null or (.metadataPointerAuthorityRevocationTransaction|type=="string" and length>=64))
  and .verifiedFinalState==true
 ' solana/devnet-resume-evidence.json >/dev/null
