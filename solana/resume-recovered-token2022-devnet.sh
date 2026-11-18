@@ -6,7 +6,7 @@ readonly SUPPLY=1000000000
 readonly METADATA_URI="https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/main/solana/token.json"
 readonly MINT="${1:-}"
 readonly EVIDENCE_FILE="solana/devnet-resume-evidence.json"
-readonly SIGNATURE_PATTERN='^[1-9A-HJ-NP-Za-km-z]{64,90}$'
+readonly SIGNATURE_PATTERN='^[1-9A-HJ-NP-Za-km-z]{64,88}$'
 
 if [[ "${GLORIFIER_AUTHORIZED_WORKFLOW:-}" != "true" || -z "${GITHUB_ACTIONS:-}" ]]; then
   echo "::error::Recovered-mint resume is disabled outside the authorized GitHub Actions deployment workflow."
@@ -57,7 +57,7 @@ read_pointer_authority() {
 }
 
 is_disabled() {
-  [[ -z "$1" || "$1" == "None" || "$1" == "Disabled" || "$1" == "(not set)" ]]
+  [[ "$1" == "None" || "$1" == "Disabled" || "$1" == "(not set)" ]]
 }
 
 require_signature() {
@@ -68,6 +68,52 @@ require_signature() {
     exit 1
   fi
 }
+verify_finalized_transaction() {
+  local signature="$1"
+  local label="$2"
+  local expected_types="$3"
+  local expected_authority_type="${4:-}"
+  local payload
+  local response
+
+  require_signature "$signature" "$label"
+  payload="$(jq -cn --arg signature "$signature" '{
+    jsonrpc:"2.0",
+    id:1,
+    method:"getTransaction",
+    params:[$signature,{commitment:"finalized",encoding:"jsonParsed",maxSupportedTransactionVersion:0}]
+  }')"
+  response="$(curl --silent --show-error --fail --max-time 30 \
+    --header "Content-Type: application/json" \
+    --data "$payload" "$SOLANA_RPC_URL")" || {
+    echo "::error::Unable to retrieve finalized ${label} transaction evidence from the configured Solana RPC."
+    exit 1
+  }
+
+  jq -e \
+    --arg signature "$signature" \
+    --arg mint "$MINT" \
+    --arg program "$TOKEN_2022_PROGRAM" \
+    --argjson expected_types "$expected_types" \
+    --arg expected_authority_type "$expected_authority_type" '
+      .error == null
+      and .result != null
+      and .result.meta.err == null
+      and .result.transaction.signatures[0] == $signature
+      and any(.result.transaction.message.accountKeys[]?;
+        (if type == "object" then .pubkey else . end) == $mint)
+      and any(.result.transaction.message.instructions[]?;
+        .programId == $program
+        and (.parsed as $parsed
+          | $parsed != null
+          and ($expected_types | index($parsed.type)) != null
+          and ($expected_authority_type == "" or $parsed.info.authorityType == $expected_authority_type)))
+    ' <<< "$response" >/dev/null || {
+      echo "::error::The ${label} signature is not a finalized successful transaction for this mint and expected Token-2022 operation."
+      exit 1
+    }
+}
+
 
 METADATA_TX=""
 ACCOUNT_TX=""
@@ -102,6 +148,13 @@ if [[ -f "${EVIDENCE_FILE}" ]]; then
   FREEZE_AUTH_TX="$(jq -r '.freezeAuthorityRevocationTransaction // empty' "${EVIDENCE_FILE}")"
   METADATA_AUTH_TX="$(jq -r '.metadataUpdateAuthorityRevocationTransaction // empty' "${EVIDENCE_FILE}")"
   POINTER_AUTH_TX="$(jq -r '.metadataPointerAuthorityRevocationTransaction // empty' "${EVIDENCE_FILE}")"
+  [[ -z "${METADATA_TX}" ]] || verify_finalized_transaction "${METADATA_TX}" "metadata initialization" '["initializeTokenMetadata","initializeMetadata"]'
+  [[ -z "${ACCOUNT_TX}" ]] || verify_finalized_transaction "${ACCOUNT_TX}" "token-account creation" '["initializeAccount","initializeAccount2","initializeAccount3"]'
+  [[ -z "${MINT_TX}" ]] || verify_finalized_transaction "${MINT_TX}" "supply mint" '["mintTo","mintToChecked"]'
+  [[ -z "${MINT_AUTH_TX}" ]] || verify_finalized_transaction "${MINT_AUTH_TX}" "mint authority revocation" '["setAuthority"]' "mintTokens"
+  [[ -z "${FREEZE_AUTH_TX}" ]] || verify_finalized_transaction "${FREEZE_AUTH_TX}" "freeze authority revocation" '["setAuthority"]' "freezeAccount"
+  [[ -z "${METADATA_AUTH_TX}" ]] || verify_finalized_transaction "${METADATA_AUTH_TX}" "metadata update-authority revocation" '["updateTokenMetadataAuthority","setAuthority"]' "metadata"
+  [[ -z "${POINTER_AUTH_TX}" ]] || verify_finalized_transaction "${POINTER_AUTH_TX}" "metadata pointer-authority revocation" '["updateMetadataPointerAuthority","setAuthority"]' "metadataPointer"
 fi
 
 MINT_AUTHORITY="$(printf '%s\n' "${DISPLAY}" | read_field 'Mint Authority')"
@@ -126,7 +179,7 @@ if [[ -z "${NAME}" && -z "${SYMBOL}" && -z "${URI}" ]]; then
   OUTPUT="$(spl-token --program-2022 initialize-metadata "${MINT}" "GLORIFIER" "GLR" "${METADATA_URI}")"
   printf '%s\n' "${OUTPUT}"
   METADATA_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"
-  require_signature "${METADATA_TX}" "metadata initialization"
+  verify_finalized_transaction "${METADATA_TX}" "metadata initialization" '["initializeTokenMetadata","initializeMetadata"]'
   DISPLAY="$(spl-token --program-2022 display "${MINT}")"
   NAME="$(printf '%s\n' "${DISPLAY}" | read_field 'Name')"
   SYMBOL="$(printf '%s\n' "${DISPLAY}" | read_field 'Symbol')"
@@ -153,14 +206,14 @@ if [[ "${SUPPLY_NOW}" == "0" ]]; then
     OUTPUT="$(spl-token --program-2022 create-account "${MINT}")"
     printf '%s\n' "${OUTPUT}"
     ACCOUNT_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"
-    require_signature "${ACCOUNT_TX}" "token-account creation"
+    verify_finalized_transaction "${ACCOUNT_TX}" "token-account creation" '["initializeAccount","initializeAccount2","initializeAccount3"]'
   else
-    require_signature "${ACCOUNT_TX}" "existing token-account creation"
+    verify_finalized_transaction "${ACCOUNT_TX}" "existing token-account creation" '["initializeAccount","initializeAccount2","initializeAccount3"]'
   fi
   OUTPUT="$(spl-token --program-2022 mint "${MINT}" "${SUPPLY}")"
   printf '%s\n' "${OUTPUT}"
   MINT_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"
-  require_signature "${MINT_TX}" "supply mint"
+  verify_finalized_transaction "${MINT_TX}" "supply mint" '["mintTo","mintToChecked"]'
 elif [[ "${SUPPLY_NOW}" == "${SUPPLY}" ]]; then
   require_signature "${ACCOUNT_TX}" "token-account creation"
   require_signature "${MINT_TX}" "supply mint"
@@ -190,7 +243,9 @@ revoke_authority() {
   OUTPUT="$(spl-token --program-2022 authorize "${MINT}" "${instruction}" --disable)"
   printf '%s\n' "${OUTPUT}"
   printf -v "${signature_variable}" '%s' "$(printf '%s\n' "${OUTPUT}" | capture_sig)"
-  require_signature "${!signature_variable}" "${field_name} revocation"
+  local expected_authority_type="mintTokens"
+  [[ "${field_name}" == "Freeze Authority" ]] && expected_authority_type="freezeAccount"
+  verify_finalized_transaction "${!signature_variable}" "${field_name} revocation" '["setAuthority"]' "${expected_authority_type}"
   DISPLAY="$(spl-token --program-2022 display "${MINT}")"
 }
 
@@ -202,7 +257,7 @@ if [[ -z "${METADATA_AUTHORITY}" ]]; then
   METADATA_AUTHORITY="$(printf '%s\n' "${DISPLAY}" | read_field 'Metadata Update Authority')"
 fi
 if is_disabled "${METADATA_AUTHORITY}"; then
-  require_signature "${METADATA_AUTH_TX}" "metadata update-authority revocation"
+  verify_finalized_transaction "${METADATA_AUTH_TX}" "metadata update-authority revocation" '["updateTokenMetadataAuthority","setAuthority"]' "metadata"
 else
   [[ "${METADATA_AUTHORITY}" == "${SIGNER}" ]] || {
     echo "::error::Metadata update authority does not match the deployment signer."
@@ -217,7 +272,7 @@ fi
 
 CURRENT_POINTER_AUTH="$(printf '%s\n' "${DISPLAY}" | read_pointer_authority)"
 if is_disabled "${CURRENT_POINTER_AUTH}"; then
-  require_signature "${POINTER_AUTH_TX}" "metadata pointer-authority revocation"
+  verify_finalized_transaction "${POINTER_AUTH_TX}" "metadata pointer-authority revocation" '["updateMetadataPointerAuthority","setAuthority"]' "metadataPointer"
 else
   [[ "${CURRENT_POINTER_AUTH}" == "${SIGNER}" ]] || {
     echo "::error::Metadata pointer authority does not match the deployment signer."
