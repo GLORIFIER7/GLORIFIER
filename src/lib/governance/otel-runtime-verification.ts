@@ -1,3 +1,4 @@
+import { stripTrailingZeros } from '../linear-string.js';
 /**
  * OpenTelemetry runtime evidence assessment.
  *
@@ -99,7 +100,7 @@ function parseRfc3339Timestamp(value: unknown): ParsedRfc3339Timestamp | null {
   if (!Number.isFinite(epochSecondMs)) return null;
   return {
     epochSecond: BigInt(epochSecondMs / 1000),
-    fraction: (match[7] ?? '').replace(/0+$/, ''),
+    fraction: stripTrailingZeros(match[7] ?? ''),
   };
 }
 
@@ -120,7 +121,7 @@ function timestampFromMilliseconds(value: number): ParsedRfc3339Timestamp | null
   const millisecond = value - epochSecond * 1000;
   return {
     epochSecond: BigInt(epochSecond),
-    fraction: String(millisecond).padStart(3, '0').replace(/0+$/, ''),
+    fraction: stripTrailingZeros(String(millisecond).padStart(3, '0')),
   };
 }
 
