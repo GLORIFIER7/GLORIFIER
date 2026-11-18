@@ -11,7 +11,7 @@ This package is a locally maintained fork of upstream `picomatch@4.0.7` used onl
 
 ## Change scope
 
-`lib/parse.js` contains the repeated-extglob mitigation: it detects glob wildcards inside repeated extglob branches and repetition-overlap between simple branches; patterns detected as risky are treated literally. `lib/utils.js` replaces the upstream backslash-removal regex with a deterministic single-pass routine, and `lib/constants.js` removes the no-longer-used regex. This also addresses CodeQL's polynomial-regex finding on repeated escaped opening brackets. The regression suite covers the reported pattern families, preserves representative bracket-class behavior, and verifies ordinary extglob behavior.
+`lib/parse.js` contains the repeated-extglob mitigation: it detects glob wildcards inside repeated extglob branches and repetition-overlap between simple branches; patterns detected as risky are treated literally. `lib/utils.js` replaces the upstream backslash-removal regex with a deterministic single-pass routine, and `lib/constants.js` removes the no-longer-used regex. This also addresses CodeQL's polynomial-regex finding on repeated escaped opening brackets. The regression suite covers the reported pattern families, preserves the legacy escaped-empty-class behavior, and verifies ordinary extglob behavior.
 
 ## Maintenance
 
