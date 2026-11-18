@@ -383,7 +383,7 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
                       )}
 
                       <button
-                        onClick={(event) => { event.stopPropagation(); handleRunGptCollaboration(err); }}
+                        onClick={(event) => { event.stopPropagation(); void handleRunGptCollaboration(err); }}
                         className="px-2.5 py-1 rounded bg-emerald-950/40 hover:bg-emerald-900/50 text-emerald-300 border border-emerald-500/30 text-[11px] font-semibold flex items-center gap-1 transition-colors"
                         title="Work together with OpenAI GPT-4o and Gemini to diagnose and fix this error"
                       >
