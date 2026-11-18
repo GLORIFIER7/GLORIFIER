@@ -403,7 +403,7 @@ export async function verifyFederatedA2ATask(
   }
   const source = typeof decision.source === 'string' ? decision.source.trim() : '';
   const verifier = typeof decision.verifier === 'string' ? decision.verifier.trim() : '';
-  const observedAt = typeof decision.observedAt === 'string' ? Date.parse(decision.observedAt) : NaN;
+  const observedAt = typeof decision.observedAt === 'string' ? Date.parse(decision.observedAt) : Number.NaN;
   const attachedEvidence = new Set(evidenceSnapshot);
   const verifiedEvidence = Array.isArray(decision.evidenceRefs)
     ? decision.evidenceRefs.filter((reference): reference is string => typeof reference === 'string')
