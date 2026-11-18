@@ -180,8 +180,9 @@ export const WorkTogetherWithGptStudio: React.FC<WorkTogetherWithGptStudioProps>
   const currentSession = sessions[0];
 
   const handleCopy = (text: string, id: string) => {
-    void navigator.clipboard.writeText(text).catch((error) => console.warn('Clipboard write failed:', error));
-    setCopiedId(id);
+    void navigator.clipboard.writeText(text).then(() => {
+      setCopiedId(id);
+    }).catch((error) => console.warn('Clipboard write failed:', error));
   };
 
   const handleDownloadArtifact = (session: CoWorkingSession) => {
