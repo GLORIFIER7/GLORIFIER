@@ -55,13 +55,16 @@ async def _connect_worker_database(asyncpg, database_url, hyperdrive, timeout):
     parsed = urlparse(database_url)
     import ssl
 
+    tls_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH)
+    tls_context.verify_mode = ssl.CERT_REQUIRED
+    tls_context.check_hostname = True
     return await asyncpg.connect(
         user=unquote(parsed.username) if parsed.username is not None else None,
         password=unquote(parsed.password) if parsed.password is not None else None,
         host=parsed.hostname,
         port=parsed.port or 5432,
         database=parsed.path.lstrip("/"),
-        ssl=ssl.create_default_context(),
+        ssl=tls_context,
         timeout=timeout,
         command_timeout=timeout,
     )
