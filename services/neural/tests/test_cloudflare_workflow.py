@@ -61,7 +61,7 @@ def test_cloudflare_validation_smoke_tests_pyodide_with_asyncpg_without_ml_drive
         "uv sync --locked --no-build --group dev --no-install-project",
         "Prepare Neural application source as local Worker dependency",
         "python prepare_worker.py",
-        "uv run --locked --no-build pywrangler dev --ip 127.0.0.1 --port 8787",
+        "uv run --no-sync --locked --no-build pywrangler dev --ip 127.0.0.1 --port 8787",
         "test -f python_modules/app/api.py",
         "Verify Cloudflare Python Worker runtime startup including asyncpg",
         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_NEON_READONLY",
