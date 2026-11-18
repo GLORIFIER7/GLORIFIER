@@ -304,12 +304,14 @@ function mapPersistedA2ATask(row: Record<string, unknown>): A2ATask {
   };
 }
 
+const compareCanonicalKeys = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0;
+
 function canonicalizeIdempotencyValue(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(canonicalizeIdempotencyValue);
   if (value !== null && typeof value === 'object') {
     const record = value as Record<string, unknown>;
     return Object.fromEntries(
-      Object.keys(record).sort().map((key) => [key, canonicalizeIdempotencyValue(record[key])]),
+      Object.keys(record).sort(compareCanonicalKeys).map((key) => [key, canonicalizeIdempotencyValue(record[key])]),
     );
   }
   return value;
@@ -597,7 +599,7 @@ export async function listA2ATaskPageForProtocol(request: A2ATaskPageRequest): P
     ...request,
     requesterAgentId: requester,
     pageSize,
-    statuses: request.statuses ? [...new Set(request.statuses)].sort() : undefined,
+    statuses: request.statuses ? [...new Set(request.statuses)].sort((left, right) => left.localeCompare(right)) : undefined,
   };
   const cursor = request.pageToken ? decodeA2ATaskPageCursor(request.pageToken, normalizedRequest) : null;
   const statusAfter = request.statusTimestampAfter ? new Date(request.statusTimestampAfter).toISOString() : null;

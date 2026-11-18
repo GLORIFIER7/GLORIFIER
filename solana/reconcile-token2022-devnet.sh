@@ -9,7 +9,7 @@ readonly EXPECTED_METADATA_URI="https://raw.githubusercontent.com/GLORIFIER7/GLO
 readonly EXCLUDED_EXISTING_MINT="FrJhrVGjNRiB1eZpg5PTqLp9VSQS5rpwMp7jxNtEmV9G"
 readonly COMMITMENT="finalized"
 MINT="$1"
-test -n "$MINT"
+[[-n "$MINT" ]]
 [[ "$MINT" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]]
 [[ "$MINT" != "$EXCLUDED_EXISTING_MINT" ]]
 mkdir -p solana
@@ -131,17 +131,17 @@ PY
   for pat in "${pats[@]}"; do
     if jq -r '.result.meta.logMessages[]? // empty' <<<"$json" | grep -Eiq "$pat"; then matched=1; break; fi
   done
-  test "$matched" -eq 1
+  [["$matched" -eq 1 ]]
   printf '%s\n' "$json" > "solana/reconciliation-tx-$label.json"
 }
 
-test -f solana/deployment-provenance.json
+[[-f solana/deployment-provenance.json ]]
 PROVENANCE_SOURCE="$(jq -r '.provenanceSource // empty' solana/deployment-provenance.json)"
 PROVENANCE_MINT="$(jq -r '.mint // empty' solana/deployment-provenance.json)"
 PROVENANCE_STATUS="$(jq -r '.status // empty' solana/deployment-provenance.json)"
-test "$PROVENANCE_MINT" = "$MINT"
-test "$PROVENANCE_STATUS" = "READY_FOR_VERIFICATION"
-test "$PROVENANCE_SOURCE" = "IMMUTABLE_GITHUB_ACTIONS_ARTIFACT" || test "$PROVENANCE_SOURCE" = "IMMUTABLE_GITHUB_ACTIONS_JOB_LOG_PLUS_RESUME_EVIDENCE"
+[["$PROVENANCE_MINT" = "$MINT" ]]
+[["$PROVENANCE_STATUS" = "READY_FOR_VERIFICATION" ]]
+[["$PROVENANCE_SOURCE" = "IMMUTABLE_GITHUB_ACTIONS_ARTIFACT" ]]|| [["$PROVENANCE_SOURCE" = "IMMUTABLE_GITHUB_ACTIONS_JOB_LOG_PLUS_RESUME_EVIDENCE" ]]
 
 CREATION_TX="$(jq -r '.creationTransaction // empty' solana/deployment-provenance.json)"
 METADATA_TX="$(jq -r '.metadataTransaction // empty' solana/deployment-provenance.json)"

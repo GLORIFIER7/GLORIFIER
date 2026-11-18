@@ -11,10 +11,10 @@ readonly COMMITMENT="finalized"
 readonly MINT="${1:-}"
 readonly PROVENANCE="${2:-}"
 
-test -n "$MINT" || { echo "::error::A Solana Mainnet mint address is required."; exit 1; }
+[[-n "$MINT" ]]|| { echo "::error::A Solana Mainnet mint address is required."; exit 1; }
 [[ "$MINT" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || { echo "::error::Invalid Solana mint address format."; exit 1; }
-test -n "${SOLANA_RPC_URL:-}" || { echo "::error::SOLANA_RPC_URL is required."; exit 1; }
-test -f "$PROVENANCE" || { echo "::error::Deployment provenance file is required."; exit 1; }
+[[-n "${SOLANA_RPC_URL:-}" ]]|| { echo "::error::SOLANA_RPC_URL is required."; exit 1; }
+[[-f "$PROVENANCE" ]]|| { echo "::error::Deployment provenance file is required."; exit 1; }
 
 mkdir -p solana
 echo "MINT=$MINT" | tee solana/reconciliation-mainnet-status.txt
@@ -99,7 +99,7 @@ if [[ -n "$FAILED_METADATA_CHECKS" ]]; then
   exit 1
 fi
 echo "PASS: Finalized account, metadata fields, authorities, pinned URI, and off-chain SHA-256 validated."
-for field in creationTransaction metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction; do test "$(jq -r --arg f "$field" '.[$f] // empty' "$PROVENANCE")" != ""; done
+for field in creationTransaction metadataTransaction tokenAccountCreationTransaction mintTransaction mintAuthorityRevocationTransaction; do [["$(jq -r --arg f "$field" '.[$f] // empty' "$PROVENANCE")" != "" ]]; done
 METADATA_AUTH="$(jq -r '.metadataUpdateAuthorityRevocationTransaction // empty' "$PROVENANCE")"
 METADATA_AUTH_INITIALLY_NONE="$(jq -r '.metadataUpdateAuthorityInitiallyNone // false' "$PROVENANCE")"
 POINTER_AUTH="$(jq -r '.metadataPointerAuthorityRevocationTransaction // empty' "$PROVENANCE")"

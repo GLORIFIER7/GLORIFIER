@@ -1,5 +1,7 @@
 import { createHash } from 'node:crypto';
 
+const compareCodeUnits = (left: string, right: string): number => left < right ? -1 : left > right ? 1 : 0;
+
 export const SKILLHUB_PACKAGE_POLICY = Object.freeze({
   maxFiles: 500,
   maxSingleFileBytes: 10 * 1024 * 1024,
@@ -396,7 +398,7 @@ export function validateSkillCandidate(input: unknown): SkillPackageValidation {
     valid: errors.length === 0,
     errors: [...new Set(errors)],
     warnings: [...new Set(warnings)],
-    canonicalFilePaths: canonicalFilePaths.sort()
+    canonicalFilePaths: canonicalFilePaths.sort(compareCodeUnits)
   };
 }
 
@@ -406,7 +408,7 @@ export function createSkillFingerprint(files: readonly SkillPackageFile[]): stri
     const path = normalizeSkillEntryPath(file.path);
     if (!HEX_SHA256.test(file.sha256)) throw new Error('invalid SHA-256 digest for ' + path);
     return { path, digest: digestValue(file.sha256) };
-  }).sort((left, right) => left.path < right.path ? -1 : left.path > right.path ? 1 : 0);
+  }).sort((left, right) => compareCodeUnits(left.path, right.path));
 
   const seen = new Set<string>();
   for (const entry of entries) {
@@ -424,9 +426,9 @@ export function diffSkillFiles(
   baseline: Readonly<Record<string, string>> | undefined,
   current: Readonly<Record<string, string>>
 ): string[] {
-  if (!baseline) return Object.keys(current).sort();
+  if (!baseline) return Object.keys(current).sort(compareCodeUnits);
   const paths = new Set([...Object.keys(baseline), ...Object.keys(current)]);
-  return [...paths].filter((path) => baseline[path] !== current[path]).sort();
+  return [...paths].filter((path) => baseline[path] !== current[path]).sort(compareCodeUnits);
 }
 
 /**

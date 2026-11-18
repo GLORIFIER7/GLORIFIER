@@ -2,8 +2,8 @@
 set -euo pipefail
 
 readonly EXPECTED_PROGRAM="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
-test "${GITHUB_ACTIONS:-}" = "true"
-test -n "${GH_TOKEN:-}"
+[["${GITHUB_ACTIONS:-}" = "true" ]]
+[[-n "${GH_TOKEN:-}" ]]
 
 jq -e '.status=="VERIFIED_ON_CHAIN" and .network=="solana-mainnet" and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and .name=="GLORIFIER" and .symbol=="GLR" and .decimals==9 and .totalSupply=="1000000000" and .mintAuthority==null and .freezeAuthority==null and .metadataUriInDisplay==true and .commitment=="finalized" and .finalized==true and .transactionSemanticsVerified==true and .metadataPointerAuthority==null and .metadataUpdateAuthority==null and (.metadataPointerAuthorityRevocationTransaction or .metadataPointerAuthorityInitiallyNone==true)' solana/reconciliation-mainnet-evidence.json >/dev/null
 MINT="$(jq -r '.mint' solana/reconciliation-mainnet-evidence.json)"
@@ -35,10 +35,10 @@ ARTIFACT_DIGEST="$(jq -er '.deploymentArtifactDigest' solana/deployment-mainnet-
 rm -rf /tmp/glorifier-mainnet-publish
 mkdir -p /tmp/glorifier-mainnet-publish
 gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/$ARTIFACT_ID/zip" > /tmp/glorifier-mainnet-publish.zip
-test "sha256:$(sha256sum /tmp/glorifier-mainnet-publish.zip | awk '{print $1}')" = "$ARTIFACT_DIGEST" || { echo "::error::Original deployment artifact digest mismatch."; exit 1; }
+[["sha256:$(sha256sum /tmp/glorifier-mainnet-publish.zip | awk '{print $1}')" = "$ARTIFACT_DIGEST" ]]|| { echo "::error::Original deployment artifact digest mismatch."; exit 1; }
 unzip -oq /tmp/glorifier-mainnet-publish.zip -d /tmp/glorifier-mainnet-publish
 EVIDENCE_FILE="$(find /tmp/glorifier-mainnet-publish -type f -name deployment-mainnet-evidence.json -print -quit)"
-test -n "$EVIDENCE_FILE"
+[[-n "$EVIDENCE_FILE" ]]
 
 jq -e --arg mint "$MINT" --arg run_id "$SOURCE_RUN_ID" --arg repo "$GITHUB_REPOSITORY" '
   .network=="solana-mainnet"

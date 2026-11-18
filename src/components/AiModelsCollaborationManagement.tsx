@@ -530,7 +530,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
                       step="5"
                       disabled={!isEnabled}
                       value={node.weight}
-                      onChange={(e) => handleWeightChange(node.id, parseInt(e.target.value))}
+                      onChange={(e) => handleWeightChange(node.id, Number.parseInt(e.target.value))}
                       className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500 disabled:opacity-30"
                     />
                     <div className="flex justify-between text-[10px] text-slate-400 font-mono">
@@ -798,7 +798,7 @@ export const AiModelsCollaborationManagement: React.FC<AiModelsCollaborationMana
                 max="100"
                 step="5"
                 value={consensusThreshold}
-                onChange={(e) => setConsensusThreshold(parseInt(e.target.value))}
+                onChange={(e) => setConsensusThreshold(Number.parseInt(e.target.value))}
                 className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-teal-400"
               />
               <div className="flex justify-between text-[10px] text-slate-400 font-mono">

@@ -67,7 +67,7 @@ export function canonicalizeLinuxHostAgentJson(value: unknown): string {
     return '[' + value.map((item) => canonicalizeLinuxHostAgentJson(item)).join(',') + ']';
   }
   if (isRecord(value)) {
-    const keys = Object.keys(value).sort();
+    const keys = Object.keys(value).sort((left, right) => left < right ? -1 : left > right ? 1 : 0);
     return '{' + keys.map((key) =>
       JSON.stringify(key) + ':' + canonicalizeLinuxHostAgentJson(value[key])
     ).join(',') + '}';

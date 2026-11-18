@@ -157,7 +157,7 @@ function stableStringify(value) {
     return `[${value.map(stableStringify).join(',')}]`;
   }
   if (value && typeof value === 'object') {
-    const entries = Object.keys(value).sort().map(
+    const entries = Object.keys(value).sort((left, right) => left < right ? -1 : left > right ? 1 : 0).map(
       (key) => `${JSON.stringify(key)}:${stableStringify(value[key])}`,
     );
     return `{${entries.join(',')}}`;

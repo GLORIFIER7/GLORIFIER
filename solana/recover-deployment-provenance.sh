@@ -4,8 +4,8 @@ set -euo pipefail
 readonly EXPECTED_PROGRAM="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
 readonly MINT="${1:-}"
 
-test -n "${GH_TOKEN:-}"
-test -n "${MINT}"
+[[-n "${GH_TOKEN:-}" ]]
+[[-n "${MINT}" ]]
 
 # First trust an immutable successful deployment artifact for the exact mint.
 # This check runs before legacy recovery/replacement handling so a newer
@@ -24,7 +24,7 @@ while IFS= read -r RUN_ID; do
     rm -rf /tmp/glorifier-exact-provenance
     mkdir -p /tmp/glorifier-exact-provenance
     gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" > /tmp/glorifier-exact-provenance.zip
-    test "sha256:$(sha256sum /tmp/glorifier-exact-provenance.zip | awk '{print $1}')" = "${ARTIFACT_DIGEST}"
+    [["sha256:$(sha256sum /tmp/glorifier-exact-provenance.zip | awk '{print $1}')" = "${ARTIFACT_DIGEST}" ]]
     unzip -oq /tmp/glorifier-exact-provenance.zip -d /tmp/glorifier-exact-provenance
     EVIDENCE_FILE="$(find /tmp/glorifier-exact-provenance -type f -name deployment-evidence.json -print -quit || true)"
     [[ -n "${EVIDENCE_FILE}" ]] || continue
@@ -60,7 +60,7 @@ if [[ -f solana/devnet-deployment-recovery.json ]]; then
         rm -rf /tmp/glorifier-replacement-provenance
         mkdir -p /tmp/glorifier-replacement-provenance
         gh api "/repos/${GITHUB_REPOSITORY}/actions/artifacts/${ARTIFACT_ID}/zip" > /tmp/glorifier-replacement-provenance.zip
-        test "sha256:$(sha256sum /tmp/glorifier-replacement-provenance.zip | awk '{print $1}')" = "${ARTIFACT_DIGEST}"
+        [["sha256:$(sha256sum /tmp/glorifier-replacement-provenance.zip | awk '{print $1}')" = "${ARTIFACT_DIGEST}" ]]
         unzip -oq /tmp/glorifier-replacement-provenance.zip -d /tmp/glorifier-replacement-provenance
         EVIDENCE_FILE="$(find /tmp/glorifier-replacement-provenance -type f -name deployment-evidence.json -print -quit || true)"
         [[ -n "${EVIDENCE_FILE}" ]] || continue
@@ -70,7 +70,7 @@ if [[ -f solana/devnet-deployment-recovery.json ]]; then
         break 2
       done < <(jq -r '[.artifacts[]? | select(.expired==false) | select(.name=="glorifier-solana-devnet-evidence") | select(.digest!=null and (.digest|startswith("sha256:")))] | sort_by(.created_at) | reverse | .[] | [(.id|tostring),.digest] | @tsv' <<<"${ARTIFACTS_JSON}")
     done < <(jq -r '[.workflow_runs[]? | select(.event=="workflow_dispatch") | select(.head_branch=="main") | select(.path==".github/workflows/glorifier-solana-devnet.yml") | select(.conclusion=="success")] | sort_by(.created_at) | reverse | .[].id' <<<"${RUNS_JSON}")
-    test "${FOUND}" -eq 1 || { echo "::error::No immutable successful deployment artifact matches replacement mint ${MINT}."; exit 1; }
+    [["${FOUND}" -eq 1 ]]|| { echo "::error::No immutable successful deployment artifact matches replacement mint ${MINT}."; exit 1; }
     jq -e --arg mint "${MINT}" --arg recovery_mint "${RECOVERY_MINT}" '.mint==$mint and .status=="READY_FOR_VERIFICATION" and .provenanceSource=="IMMUTABLE_GITHUB_ACTIONS_ARTIFACT" and .replacementAuthorized==true and .replacedMint==$recovery_mint' solana/deployment-provenance.json >/dev/null
     echo "RECOVERY_REQUIRED=false" >> "${GITHUB_OUTPUT:-/dev/null}"
     exit 0
@@ -78,11 +78,11 @@ if [[ -f solana/devnet-deployment-recovery.json ]]; then
 fi
 
 # Legacy/recovered mint provenance path.
-test -f solana/devnet-deployment-recovery.json
+[[-f solana/devnet-deployment-recovery.json ]]
 RECOVERY_MINT="$(jq -r '.mint // empty' solana/devnet-deployment-recovery.json)"
 JOB_ID="$(jq -r '.deploymentJobId // empty' solana/devnet-deployment-recovery.json)"
 RUN_ID="$(jq -r '.deploymentWorkflowRunId // empty' solana/devnet-deployment-recovery.json)"
-test "${RECOVERY_MINT}" = "${MINT}"
+[["${RECOVERY_MINT}" = "${MINT}" ]]
 [[ "${JOB_ID}" =~ ^[0-9]+$ ]]
 [[ "${RUN_ID}" =~ ^[0-9]+$ ]]
 
@@ -118,7 +118,7 @@ EOF
   exit 0
 fi
 
-test -f solana/devnet-resume-evidence.json || { echo "::error::Recovered mint is only partially deployed. Run the authorized Devnet deployment workflow to complete the existing mint before reconciliation."; exit 1; }
+[[-f solana/devnet-resume-evidence.json ]]|| { echo "::error::Recovered mint is only partially deployed. Run the authorized Devnet deployment workflow to complete the existing mint before reconciliation."; exit 1; }
 RESUME_JSON="solana/devnet-resume-evidence.json"
 jq -e --arg mint "${MINT}" '.network=="solana-devnet" and .status=="READY_FOR_RECONCILIATION" and .mint==$mint and .programId=="TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb" and .verifiedFinalState==true' "${RESUME_JSON}" >/dev/null
 METADATA_TX="$(jq -r '.metadataTransaction // empty' "${RESUME_JSON}")"

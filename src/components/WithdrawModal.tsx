@@ -435,7 +435,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
                   max={verifiedAvailableUsd ?? 0}
                   step="0.01"
                   value={amount}
-                  onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
+                  onChange={(e) => setAmount(Number.parseFloat(e.target.value) || 0)}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-20 py-3 text-sm font-mono text-white focus:outline-none focus:border-emerald-500"
                   placeholder="0.00"
                 />

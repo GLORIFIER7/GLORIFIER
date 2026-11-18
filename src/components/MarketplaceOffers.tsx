@@ -317,7 +317,7 @@ export const MarketplaceOffers: React.FC<MarketplaceOffersProps> = ({
                       <input
                         type="number"
                         value={counterPrice}
-                        onChange={(e) => setCounterPrice(parseFloat(e.target.value) || 0)}
+                        onChange={(e) => setCounterPrice(Number.parseFloat(e.target.value) || 0)}
                         className="w-full bg-slate-900 border border-slate-800 rounded px-3 py-1.5 text-xs font-mono text-white focus:outline-none focus:border-amber-500"
                       />
                     </div>
