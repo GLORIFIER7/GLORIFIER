@@ -95,7 +95,7 @@ if ! printf '%s\n' "${DISPLAY}" | grep -Eiq 'Freeze[[:space:]]+Authority.*None';
 fi
 
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
-if ! printf '%s\n' "${DISPLAY}" | grep -Eiq 'Metadata Update Authority.*None|Update Authority.*None'; then
+printf '%s\n' "${FINAL}" | grep -Eiq 'Metadata Update Authority.*None|Update Authority.*None'
   OUTPUT="$(spl-token --program-2022 authorize "${MINT}" metadata --disable)"; printf '%s\n' "${OUTPUT}"
   METADATA_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; [[ -n "${METADATA_AUTH_TX}" ]]
 fi
