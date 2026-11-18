@@ -134,7 +134,10 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div 
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="configured-ai-council-title"
         className="relative w-full max-w-4xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
       >
@@ -149,7 +152,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
             </div>
             <div>
               <div className="flex items-center gap-2 flex-wrap">
-                <h2 className="text-base sm:text-lg font-bold text-white tracking-tight">
+                <h2 id="configured-ai-council-title" className="text-base sm:text-lg font-bold text-white tracking-tight">
                   Configured-Provider AI Council
                 </h2>
                 <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-300 border border-emerald-500/20 flex items-center gap-1">
@@ -489,7 +492,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
             )}
           </div>
         </div>
-      </div>
+      </section>
     </div>
   );
 };
