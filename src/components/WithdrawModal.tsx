@@ -533,7 +533,7 @@ export const WithdrawModal: React.FC<WithdrawModalProps> = ({
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-xs font-mono text-white focus:outline-none focus:border-emerald-500"
                 />
               </div>
-
+            ) : payoutCategory === 'gcash' ? (
               <div>
                 <label className="text-xs font-semibold text-slate-300 block mb-1.5" htmlFor="glorifier-WithdrawModal-tsx-5">GCash Number</label>
                 <input
