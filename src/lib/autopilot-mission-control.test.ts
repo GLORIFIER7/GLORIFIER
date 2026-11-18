@@ -722,3 +722,87 @@ test('Autopilot does not release dependents when a prerequisite lacks verified e
   assert.equal(dependent.claimed, false);
   assert.equal(dependent.reason, 'dependencies-not-completed');
 });
+
+
+test('legacy sequential missions with seven steps remain claimable after graph introduction', async () => {
+  const store = new MemoryMissionStore();
+  await createAutopilotMission(store, {
+    requester: 'owner',
+    idempotencyKey: 'legacy-seven-step-001',
+    objective: 'Continue a pre-graph sequential mission without losing its remaining steps.',
+    now: '2026-11-18T06:00:00.000Z',
+  });
+  const claimed = await claimNextAutopilotMission(store, 'worker-legacy', 300_000, '2026-11-18T06:01:00.000Z');
+  assert.ok(claimed);
+
+  const planned = await recordAutopilotMissionPlan(
+    store,
+    claimed.id,
+    claimed.version,
+    'worker-legacy',
+    Array.from({ length: 6 }, (_, index) => ({
+      id: `legacy-${index + 1}`,
+      capability: 'engineering',
+      objective: `Legacy sequential step ${index + 1}.`,
+      effect: 'read-only' as const,
+    })),
+    '2026-11-18T06:02:00.000Z',
+  );
+
+  const legacySteps = [
+    ...planned.steps.map(step => ({ ...step, dependsOn: undefined })),
+    {
+      ...planned.steps[0],
+      id: 'legacy-7',
+      objective: 'Legacy sequential step 7.',
+      dependsOn: undefined,
+      idempotencyKey: `mission:${planned.id}:step:legacy-7`,
+      attemptCount: 0,
+      evidenceRefs: [],
+      status: 'pending' as const,
+    },
+  ] as unknown as AutopilotMission['steps'];
+  store.records.set(planned.id, { ...planned, steps: legacySteps });
+
+  const recovered = await claimAutopilotMissionStep(
+    store,
+    planned.id,
+    'legacy-1',
+    'worker-legacy',
+    undefined,
+    '2026-11-18T06:03:00.000Z',
+  );
+  assert.equal(recovered.claimed, true);
+  assert.equal(recovered.mission.steps.length, 7);
+  assert.equal(recovered.mission.steps[0].status, 'running');
+  assert.equal(recovered.mission.steps[6].status, 'pending');
+});
+
+test('new dependency-graph plans report the six-node cap separately from legacy mission capacity', async () => {
+  const store = new MemoryMissionStore();
+  await createAutopilotMission(store, {
+    requester: 'owner',
+    idempotencyKey: 'graph-limit-001',
+    objective: 'Validate the explicit new-graph node limit.',
+    now: '2026-11-18T06:00:00.000Z',
+  });
+  const claimed = await claimNextAutopilotMission(store, 'worker-limit', 300_000, '2026-11-18T06:01:00.000Z');
+  assert.ok(claimed);
+
+  await assert.rejects(
+    () => recordAutopilotMissionPlan(
+      store,
+      claimed.id,
+      claimed.version,
+      'worker-limit',
+      Array.from({ length: 7 }, (_, index) => ({
+        id: `new-${index + 1}`,
+        capability: 'engineering',
+        objective: `New graph step ${index + 1}.`,
+        effect: 'read-only' as const,
+      })),
+      '2026-11-18T06:02:00.000Z',
+    ),
+    /New dependency graphs are limited to 6 steps; legacy sequential missions may contain up to 30 steps\./,
+  );
+});
