@@ -230,6 +230,8 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
             <div className="relative mt-2">
               <input
                 type="text"
+                id="all-ai-collaboration-custom-prompt"
+                aria-label="Custom question for configured providers"
                 value={customPrompt}
                 onChange={(e) => setCustomPrompt(e.target.value)}
                 placeholder="Or specify a question for the currently configured providers..."
