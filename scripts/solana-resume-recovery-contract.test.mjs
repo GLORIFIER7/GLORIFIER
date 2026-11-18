@@ -78,3 +78,9 @@ test('Solana signatures use the canonical base58 length range', () => {
   assert.match(script, /SIGNATURE_PATTERN='\^\[1-9A-HJ-NP-Za-km-z\]\{64,88\}\$'/);
   assert.doesNotMatch(script, /\{64,90\}/);
 });
+
+test('published recovery evidence requires finalized transaction-semantic verification', () => {
+  assert.ok(script.includes('status:"VERIFIED_ON_CHAIN"'));
+  assert.ok(script.includes('.status == "VERIFIED_ON_CHAIN"'));
+  assert.ok(script.includes('.historyComplete == true'));
+});
