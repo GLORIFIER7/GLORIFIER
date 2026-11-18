@@ -193,6 +193,10 @@ const nvidiaMaintenanceWorkflow = readFileSync(
   new URL('../.github/workflows/nvidia-assisted-maintenance-pr.yml', import.meta.url),
   'utf8',
 );
+const nvidiaTriageWorkflow = readFileSync(
+  new URL('../.github/workflows/nvidia-ci-triage.yml', import.meta.url),
+  'utf8',
+);
 
 test('NVIDIA maintenance rejects malformed explicit run IDs before selecting the latest failure', () => {
   const guardStart = nvidiaMaintenanceWorkflow.indexOf(
