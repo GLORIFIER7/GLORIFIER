@@ -192,7 +192,8 @@
     "vite.config.ts",
     "index.html",
     "README.md",
-    "LICENSE"
+    "LICENSE",
+    "vendor/picomatch"
   ],
   "repository": {
     "type": "git",
