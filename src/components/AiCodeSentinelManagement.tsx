@@ -334,17 +334,12 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
                 <div
                   key={err.id}
                   role="group"
-                  tabIndex={0}
-                  aria-current={isSelected ? 'true' : undefined}
-                  onKeyDown={(event) => {
-                    if (event.target !== event.currentTarget) return;
-                    if (event.key === "Enter" || event.key === " ") {
-                      event.preventDefault();
+                  aria-label={`Error record ${err.code}`}
+                  onClick={(event) => {
+                    const target = event.target;
+                    if (!(target instanceof Element) || !target.closest('button, a, input, select, textarea')) {
                       setSelectedError(err);
                     }
-                  }}
-                  onClick={(event) => {
-                    if (event.target === event.currentTarget) setSelectedError(err);
                   }}
                   className={`cursor-pointer rounded-xl border p-4 transition-all ${
                     isSelected
@@ -356,7 +351,15 @@ export const AiCodeSentinelManagement: React.FC<AiCodeSentinelManagementProps> =
                     <div className="space-y-1.5 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         {getSeverityBadge(err.severity)}
-                        <span className="font-mono text-xs font-bold text-white tracking-wide">{err.code}</span>
+                        <button
+                          type="button"
+                          onClick={() => setSelectedError(err)}
+                          aria-current={isSelected ? 'true' : undefined}
+                          className="font-mono text-xs font-bold text-white tracking-wide hover:underline"
+                          aria-label={`Inspect error ${err.code}`}
+                        >
+                          {err.code}
+                        </button>
                         <span className="text-[11px] text-slate-400 font-mono">({err.source})</span>
                       </div>
                       <p className="text-xs text-slate-300 line-clamp-2">{err.message}</p>
