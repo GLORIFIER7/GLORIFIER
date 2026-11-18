@@ -655,3 +655,44 @@ test('Autopilot persists graph prerequisites and refuses to claim a dependent st
   );
   assert.equal(dependentClaim.claimed, true);
 });
+
+
+test('Autopilot does not release dependents when a prerequisite lacks verified evidence', async () => {
+  const store = new MemoryMissionStore();
+  const now = '2026-11-18T06:10:00.000Z';
+  const mission = await createAutopilotMission(store, {
+    requester: 'owner-unverified-graph',
+    idempotencyKey: 'graph-unverified-001',
+    objective: 'Keep an unverified prerequisite from releasing downstream work.',
+    now,
+  });
+  const leased = await claimNextAutopilotMission(store, 'graph-worker', 60_000, now);
+  assert.ok(leased);
+  await recordAutopilotMissionPlan(store, mission.id, leased.version, 'graph-worker', [
+    { id: 'inspect', capability: 'github.read_file', objective: 'Inspect source.', effect: 'read-only', dependsOn: [] },
+    { id: 'update', capability: 'github.update_file', objective: 'Update source.', effect: 'reversible', dependsOn: ['inspect'] },
+  ], now);
+
+  const claimed = await claimAutopilotMissionStep(store, mission.id, 'inspect', 'graph-worker', undefined, now);
+  assert.equal(claimed.claimed, true);
+  await completeAutopilotMissionStep(
+    store,
+    mission.id,
+    'inspect',
+    claimed.mission.version,
+    'graph-worker',
+    ['inspection-result://unverified'],
+    '2026-11-18T06:10:01.000Z',
+  );
+
+  const dependent = await claimAutopilotMissionStep(
+    store,
+    mission.id,
+    'update',
+    'graph-worker',
+    undefined,
+    '2026-11-18T06:10:02.000Z',
+  );
+  assert.equal(dependent.claimed, false);
+  assert.equal(dependent.reason, 'dependencies-not-completed');
+});
