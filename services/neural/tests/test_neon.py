@@ -4,6 +4,7 @@ import secrets
 import ssl
 import sys
 import types
+from urllib.parse import quote
 
 import pytest
 
@@ -12,7 +13,7 @@ from app.database.neon import NeonConnectivityProbe
 
 def test_neon_probe_is_disabled_by_default(monkeypatch):
     monkeypatch.delenv("GLORIFIER_NEON_CONNECTIVITY_ENABLED", raising=False)
-    monkeypatch.setenv("NEON_DATABASE_URL", "postgresql://user:pass@example.neon.tech/db")
+    monkeypatch.setenv("NEON_DATABASE_URL", "postgresql://example.neon.tech/db")
     assert NeonConnectivityProbe.from_environment() is None
 
 
@@ -67,7 +68,10 @@ def test_neon_probe_uses_tls_bounded_connection_and_read_only_query(monkeypatch)
         return Connection()
 
     monkeypatch.setitem(sys.modules, "psycopg", types.SimpleNamespace(connect=connect))
-    NeonConnectivityProbe("postgresql://user:pass@example.neon.tech/db").check()
+    username = "neon_user"
+    password = secrets.token_hex(8)
+    dsn = f"postgresql://{username}:{password}@example.neon.tech/db"
+    NeonConnectivityProbe(dsn).check()
 
     assert calls["query"] == "SELECT 1"
     assert calls["kwargs"] == {
@@ -76,7 +80,7 @@ def test_neon_probe_uses_tls_bounded_connection_and_read_only_query(monkeypatch)
         "sslrootcert": "system",
         "channel_binding": "require",
     }
-    assert calls["dsn"] == "postgresql://user:pass@example.neon.tech/db"
+    assert calls["dsn"] == dsn
 
 
 def test_neon_probe_sanitizes_connection_errors(monkeypatch):
@@ -84,9 +88,13 @@ def test_neon_probe_sanitizes_connection_errors(monkeypatch):
         raise OSError("sensitive host and credential data")
 
     monkeypatch.setitem(sys.modules, "psycopg", types.SimpleNamespace(connect=connect))
+    password = secrets.token_hex(8)
+    dsn = f"postgresql://neon_user:{password}@example.neon.tech/db"
     with pytest.raises(RuntimeError, match="Neon connectivity probe failed") as error:
-        NeonConnectivityProbe("postgresql://user:pass@example.neon.tech/db").check()
+        NeonConnectivityProbe(dsn).check()
     assert "sensitive host" not in str(error.value)
+    assert password not in str(error.value)
+
 
 @pytest.mark.parametrize("timeout_seconds", [1, 3, 5])
 def test_neon_connection_options_accepts_bounded_integer_timeouts(timeout_seconds):
@@ -115,7 +123,7 @@ def test_neon_connection_options_rejects_invalid_timeouts(timeout_seconds):
 def test_neon_probe_rejects_invalid_timeout_types_and_ranges(timeout_seconds):
     with pytest.raises(ValueError, match="Neon connection timeout"):
         NeonConnectivityProbe(
-            "postgresql://user:pass@example.neon.tech/db",
+            "postgresql://example.neon.tech/db",
             timeout_seconds=timeout_seconds,
         )
 
@@ -139,8 +147,10 @@ def test_worker_neon_probe_uses_asyncpg_with_verified_tls(monkeypatch):
         return Connection()
 
     monkeypatch.setitem(sys.modules, "asyncpg", types.SimpleNamespace(connect=connect))
+    username = "neon_user"
+    password = f"test:{secrets.token_hex(8)}/%"
     probe = NeonConnectivityProbe(
-        "postgresql://neon_user:neon_pass@example.neon.tech/neural"
+        f"postgresql://{quote(username, safe='')}:{quote(password, safe='')}@example.neon.tech/neural"
     )
 
     asyncio.run(probe.check_worker())
@@ -151,8 +161,8 @@ def test_worker_neon_probe_uses_asyncpg_with_verified_tls(monkeypatch):
     assert ssl_context.check_hostname is True
     assert calls["kwargs"]["host"] == "example.neon.tech"
     assert calls["kwargs"]["database"] == "neural"
-    assert calls["kwargs"]["user"] == "neon_user"
-    assert calls["kwargs"]["password"] == "neon_pass"
+    assert calls["kwargs"]["user"] == username
+    assert calls["kwargs"]["password"] == password
     assert calls["kwargs"]["timeout"] == 3
     assert calls["kwargs"]["command_timeout"] == 3
     assert calls["query"] == "SELECT 1"
@@ -210,8 +220,10 @@ def test_worker_neon_probe_sanitizes_async_driver_errors(monkeypatch, caplog):
         raise OSError("private database host and secret-value")
 
     monkeypatch.setitem(sys.modules, "asyncpg", types.SimpleNamespace(connect=connect))
+    username = "neon_user"
+    password = f"test:{secrets.token_hex(8)}/%"
     probe = NeonConnectivityProbe(
-        "postgresql://neon_user:neon_pass@example.neon.tech/neural"
+        f"postgresql://{quote(username, safe='')}:{quote(password, safe='')}@example.neon.tech/neural"
     )
 
     with (
@@ -222,7 +234,7 @@ def test_worker_neon_probe_sanitizes_async_driver_errors(monkeypatch, caplog):
 
     assert "private database host" not in str(error.value)
     assert "secret-value" not in caplog.text
-    assert "neon_pass" not in caplog.text
+    assert password not in caplog.text
     assert "OSError" in caplog.text
 
 
@@ -304,14 +316,16 @@ def test_worker_neon_probe_decodes_percent_encoded_dsn_credentials(monkeypatch):
         return Connection()
 
     monkeypatch.setitem(sys.modules, "asyncpg", types.SimpleNamespace(connect=connect))
+    username = "agent@service"
+    password = f"test:{secrets.token_hex(8)}/%"
     probe = NeonConnectivityProbe(
-        "postgresql://agent%40service:p%3Ass%2Fword%25@example.neon.tech/neural"
+        f"postgresql://{quote(username, safe='')}:{quote(password, safe='')}@example.neon.tech/neural"
     )
 
     asyncio.run(probe.check_worker())
 
-    assert calls["kwargs"]["user"] == "agent@service"
-    assert calls["kwargs"]["password"] == "p:ss/word%"
+    assert calls["kwargs"]["user"] == username
+    assert calls["kwargs"]["password"] == password
     assert calls["kwargs"]["host"] == "example.neon.tech"
     assert calls["kwargs"]["database"] == "neural"
     assert calls["query"] == "SELECT 1"

@@ -129,10 +129,9 @@ def test_monorepo_has_a_separate_trusted_scheduled_status_publisher():
     triggers = workflow.partition("permissions:")[0]
     assert "schedule:" in triggers
     assert 'cron: "*/15 * * * *"' in triggers
-    assert 'workflows: ["NEURAL Service CI"]' in triggers
-    assert "workflow_run:" in triggers
-    assert "types: [completed]" in triggers
-    assert "branches: [main]" in triggers
+    assert 'workflows: ["NEURAL Service CI"]' not in triggers
+    assert "workflow_run:" not in triggers
+    assert "pull_request:" not in triggers
     assert "pull_request:" not in triggers
     assert "pull_request_target:" not in triggers
 

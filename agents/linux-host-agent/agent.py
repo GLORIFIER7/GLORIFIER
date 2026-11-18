@@ -129,9 +129,12 @@ class LinuxHostAgentClient:
         self.runtime_id = runtime_id
         self.token = token
         self.timeout = timeout
+        tls_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH)
+        tls_context.verify_mode = ssl.CERT_REQUIRED
+        tls_context.check_hostname = True
         self.opener = urllib.request.build_opener(
             NoRedirectHandler(),
-            urllib.request.HTTPSHandler(context=ssl.create_default_context()),
+            urllib.request.HTTPSHandler(context=tls_context),
         )
         self.runtime_path = urllib.parse.quote(runtime_id, safe="")
 

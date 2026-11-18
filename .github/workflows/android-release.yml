@@ -30,7 +30,7 @@ jobs:
           java-version: '21'
 
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm ci --ignore-scripts --no-audit --no-fund
 
       - name: Build web bundle for Android
         env:
@@ -39,10 +39,10 @@ jobs:
         run: npm run build:android
 
       - name: Add Android platform
-        run: npx cap add android
+        run: ./node_modules/.bin/cap add android
 
       - name: Sync Capacitor
-        run: npx cap sync android
+        run: ./node_modules/.bin/cap sync android
 
       # Download from Gradle's official distribution service with bounded retry.
       # Verify against Gradle's independently published SHA-256 before the wrapper uses it.

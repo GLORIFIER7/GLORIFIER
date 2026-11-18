@@ -1,9 +1,5 @@
 name: NVIDIA Assisted Maintenance PR
 on:
-  workflow_run:
-    workflows: ["GLORIFIER CI"]
-    types: [completed]
-    branches: [main]
   workflow_dispatch:
     inputs:
       run_id:
@@ -21,7 +17,7 @@ permissions:
   contents: read
   pull-requests: read
 concurrency:
-  group: nvidia-assisted-maintenance-${{ github.event.workflow_run.id || inputs.run_id || github.run_id }}
+  group: nvidia-assisted-maintenance
   cancel-in-progress: false
 jobs:
   propose-fix:
@@ -38,7 +34,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      RUN_ID: ${{ github.event.workflow_run.id || inputs.run_id || '' }}
+      RUN_ID: ${{ inputs.run_id || '' }}
     steps:
       - name: Checkout trusted main-branch authorization policy
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

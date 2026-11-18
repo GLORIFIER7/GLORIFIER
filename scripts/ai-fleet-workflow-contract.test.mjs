@@ -147,7 +147,8 @@ test('scheduled inference is disabled and manual inference requires explicit fun
 });
 
 test('the model-execution job has no GitHub write permissions', () => {
-  assert.match(workflow, /^permissions:\n  contents: read\n  pull-requests: read/m);
+  assert.match(workflow, /^permissions:\n  contents: read\n/m);
+  assert.match(coding, /^    permissions:\n      contents: read\n      pull-requests: read/m);
   assert.doesNotMatch(coding, /(?:actions|contents|pull-requests):\s*write/);
   assert.match(coding, /uses: openai\/codex-action@/);
   assert.match(codex, /effort: medium/);
@@ -292,7 +293,8 @@ test('NEURAL CI retains ordinary PR validation and excludes restricted review ev
 test('NEURAL review diagnostics remain isolated in a default-branch advisory workflow', () => {
   const statusWorkflow = readFileSync(new URL('../.github/workflows/neural-ai-review-status.yml', import.meta.url), 'utf8');
   assert.ok(statusWorkflow.includes('schedule:'));
-  assert.ok(statusWorkflow.includes('workflows: ["NEURAL Service CI"]'));
+  assert.ok(statusWorkflow.includes('push:\n    branches: [main]'));
+  assert.ok(!statusWorkflow.includes('\n  workflow_run:\n'));
   assert.ok(statusWorkflow.includes('branches: [main]'));
   assert.ok(statusWorkflow.includes('ref: main'));
   assert.ok(statusWorkflow.includes('statuses: write'));
@@ -531,8 +533,10 @@ test('NVIDIA inference workflows require explicit owner-only manual authorizatio
       item.name + ' must authorize before collecting CI logs or source context');
     assert.ok(authorizationIndex < credentialIndex && authorizationIndex < providerIndex,
       item.name + ' must authorize before reading provider credentials or making provider requests');
-    assert.match(item.source, /workflow_run:/,
-      item.name + ' may retain the automatic trigger only as a skipped, default-deny event');
+    assert.ok(item.source.includes('\n  workflow_dispatch:'),
+      item.name + ' must expose a manual dispatch entry point');
+    assert.doesNotMatch(item.source, /^\s+workflow_run:/m,
+      item.name + ' must not declare automatic workflow_run triggers');
   }
 });
 

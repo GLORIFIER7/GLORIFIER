@@ -169,7 +169,7 @@ def test_task_run_repository_uses_authenticated_tls_for_writes_and_cleanup(monke
         return Connection()
 
     monkeypatch.setitem(sys.modules, "psycopg", SimpleNamespace(connect=connect))
-    database_url = "postgresql://neural_writer:secret@example.neon.tech/glorifier"
+    database_url = "postgresql://example.neon.tech/glorifier"
     repository = TaskRunRepository(database_url)
 
     repository.record(
@@ -205,7 +205,7 @@ def test_task_run_repository_rejects_invalid_neon_timeouts(connect_timeout):
 def test_task_run_repository_reads_request_scoped_worker_environment():
     env = {
         "GLORIFIER_NEON_TASK_RUNS_ENABLED": "true",
-        "NEON_DATABASE_URL": "postgresql://neon_user:neon_pass@example.neon.tech/neural",
+        "NEON_DATABASE_URL": "postgresql://example.neon.tech/neural",
     }
 
     repository = TaskRunRepository.from_environment(env)
@@ -257,7 +257,7 @@ def test_worker_task_run_write_is_committed_and_verified_by_readback(monkeypatch
 
     monkeypatch.setitem(sys.modules, "pg8000", SimpleNamespace(connect=connect))
     repository = TaskRunRepository(
-        "postgresql://neon_user:neon_pass@example.neon.tech/neural"
+        "postgresql://example.neon.tech/neural"
     )
 
     repository.record_worker(
@@ -304,7 +304,7 @@ def test_worker_task_run_write_fails_closed_on_missing_readback(monkeypatch):
         SimpleNamespace(connect=lambda **_kwargs: Connection()),
     )
     repository = TaskRunRepository(
-        "postgresql://neon_user:neon_pass@example.neon.tech/neural"
+        "postgresql://example.neon.tech/neural"
     )
 
     with pytest.raises(RuntimeError, match="readback did not match"):

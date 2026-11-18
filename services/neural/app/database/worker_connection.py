@@ -20,13 +20,16 @@ def connect_worker_database(pg8000, database_url: str, hyperdrive, timeout: floa
     parsed = urlparse(database_url)
     username = unquote(parsed.username) if parsed.username is not None else None
     password = unquote(parsed.password) if parsed.password is not None else None
+    tls_context = ssl.create_default_context(purpose=ssl.Purpose.SERVER_AUTH)
+    tls_context.verify_mode = ssl.CERT_REQUIRED
+    tls_context.check_hostname = True
     return pg8000.connect(
         user=username,
         password=password,
         host=parsed.hostname,
         port=parsed.port or 5432,
         database=parsed.path.lstrip("/"),
-        ssl_context=ssl.create_default_context(),
+        ssl_context=tls_context,
         timeout=timeout,
     )
 

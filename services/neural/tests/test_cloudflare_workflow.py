@@ -48,7 +48,7 @@ def test_cloudflare_validation_smoke_tests_pyodide_with_asyncpg_without_ml_drive
     package_project = (repository_root / "cloudflare" / "neural_app" / "pyproject.toml").read_text(encoding="utf-8")
     preparation_script = (repository_root / "cloudflare" / "prepare_worker.py").read_text(encoding="utf-8")
 
-    assert 'glorifier-neural-app = { path = "neural_app", editable = false }' in cloudflare_project
+    assert 'glorifier-neural-app = { path = "neural_app" }' in cloudflare_project
     assert 'include = ["app*"]' in package_project
     assert '"asyncpg==0.31.0"' in cloudflare_project
     assert 'WORKER_APP = WORKER_ROOT / "neural_app" / "app"' in preparation_script
@@ -58,10 +58,14 @@ def test_cloudflare_validation_smoke_tests_pyodide_with_asyncpg_without_ml_drive
         "run: uv lock",
         "Upload validated Cloudflare dependency lock",
         "cloudflare-neural-uv-lock",
-        "uv sync --locked --group dev --no-install-project",
+        "uv sync --locked --no-build --group dev --no-install-project --no-install-package glorifier-neural-app",
+        "uv pip install --python .venv/bin/python --only-binary=:all: setuptools==83.0.0 wheel==0.45.1",
+        "uv build --wheel --no-build-isolation --python .venv/bin/python --out-dir /tmp/glorifier-neural-wheel ./neural_app",
+        "NEURAL_WHEEL=",
+        "uv pip install --python .venv/bin/python --only-binary=:all: --no-deps",
         "Prepare Neural application source as local Worker dependency",
         "python prepare_worker.py",
-        "uv run --locked pywrangler dev --ip 127.0.0.1 --port 8787",
+        "uv run --no-sync --locked --no-build pywrangler dev --ip 127.0.0.1 --port 8787",
         "test -f python_modules/app/api.py",
         "Verify Cloudflare Python Worker runtime startup including asyncpg",
         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_NEON_READONLY",
@@ -71,11 +75,21 @@ def test_cloudflare_validation_smoke_tests_pyodide_with_asyncpg_without_ml_drive
         'importlib.util.find_spec("torch") is None',
         "http://127.0.0.1:8787/health",
         "bash ./worker-build.sh --prepare-only",
-        "npx wrangler deploy --dry-run",
+        "npm install --global --ignore-scripts --no-audit --no-fund wrangler@4.164.0",
+        "test \"$(wrangler --version)\" = \"4.164.0\"",
+        "wrangler deploy --dry-run",
         "bash ./worker-build.sh deploy",
     )
     for check in required_runtime_checks:
         assert check in workflow, f"Cloudflare validation is missing runtime check: {check}"
+
+    assert workflow.count(
+        "uv build --wheel --no-build-isolation --python .venv/bin/python --out-dir /tmp/glorifier-neural-wheel ./neural_app"
+    ) == 2, "Validation and deployment must build the same trusted local package with pinned build tools"
+    assert workflow.count(
+        "uv pip install --python .venv/bin/python --only-binary=:all: --no-deps"
+    ) == 2, "Validation and deployment must install the prebuilt wheel without executing build scripts"
+    assert "uv pip install --python .venv/bin/python --no-build-isolation --no-deps ./neural_app" not in workflow
 
     # Dependabot may update the immutable action commit; pinning is the invariant.
     for artifact_action in ("upload-artifact", "download-artifact"):
@@ -101,9 +115,9 @@ def test_cloudflare_build_script_removes_host_venvs_before_wrangler_upload():
     script = script_path.read_text(encoding="utf-8")
 
     assert "python prepare_worker.py" in script
-    assert "uv run --locked pywrangler sync" in script
+    assert "uv run --no-sync --locked --no-build pywrangler sync" in script
     assert "rm -rf -- .venv .venv-workers" in script
-    assert 'exec npx wrangler "$mode"' in script
+    assert 'exec wrangler "$mode"' in script
     assert "preview|deploy|--prepare-only" in script
     assert "--prepare-only" in script
 

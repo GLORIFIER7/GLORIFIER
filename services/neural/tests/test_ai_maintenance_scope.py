@@ -650,8 +650,11 @@ def test_monorepo_nvidia_maintenance_proposals_remain_human_governed():
     maintenance = WORKFLOW.read_text(encoding="utf-8")
     neural_ci = CI_WORKFLOW.read_text(encoding="utf-8")
 
-    assert "workflow_run:" in maintenance
-    assert 'branches: [main]' in maintenance
+    assert "workflow_dispatch:" in maintenance
+    assert "workflow_run:" not in maintenance
+    assert "github.event_name == 'workflow_dispatch'" in maintenance
+    assert "github.ref == 'refs/heads/main'" in maintenance
+    assert "inputs.allow_paid_inference == true" in maintenance
     assert "gh pr create" in maintenance
     assert "gh pr merge" not in maintenance
     assert "--auto" not in maintenance

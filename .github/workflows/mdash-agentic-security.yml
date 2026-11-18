@@ -63,7 +63,7 @@ jobs:
         run: |
           set -euo pipefail
           defender="$RUNNER_TEMP/defender"
-          curl --fail --location --silent --show-error --retry 3 \
+          curl --proto '=https' --proto-redir '=https' --fail --location --silent --show-error --retry 3 \
             "https://cli.dfd.security.azure.com/public/v2/latest/Defender_linux-x64" \
             --output "$defender"
           if ! printf '%s  %s\n' "$DEFENDER_CLI_SHA256" "$defender" | sha256sum --check --status; then

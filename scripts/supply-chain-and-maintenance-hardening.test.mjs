@@ -99,7 +99,7 @@ test('Gemini development and PR review workflows retain their bounded legacy CLI
       name + ' must use its explicit bounded approval mode',
     );
     assert.ok(
-      source.includes('npm install --global --silent --no-audit --prefer-offline "@google/gemini-cli@0.68.0"'),
+      source.includes('npm install --global --ignore-scripts --silent --no-audit --prefer-offline "@google/gemini-cli@0.68.0"'),
       name + ' must install the pinned Gemini CLI version',
     );
     assert.doesNotMatch(source, /run-gemini-cli|--yolo/,
@@ -193,6 +193,23 @@ const nvidiaMaintenanceWorkflow = readFileSync(
   new URL('../.github/workflows/nvidia-assisted-maintenance-pr.yml', import.meta.url),
   'utf8',
 );
+const nvidiaTriageWorkflow = readFileSync(
+  new URL('../.github/workflows/nvidia-ci-triage.yml', import.meta.url),
+  'utf8',
+);
+
+test('NVIDIA workflows serialize every dispatch independent of the selected failed run', () => {
+  for (const [name, source, expectedGroup] of [
+    ['assisted maintenance', nvidiaMaintenanceWorkflow, 'nvidia-assisted-maintenance'],
+    ['CI triage', nvidiaTriageWorkflow, 'nvidia-ci-triage'],
+  ]) {
+    const group = source.match(/^  group:\s*(.+)$/m)?.[1] ?? '';
+    assert.equal(group, expectedGroup, name + ' must serialize all dispatches in one fixed concurrency group');
+    assert.equal(group.includes('${{'), false, name + ' concurrency group must not depend on input syntax');
+    assert.equal(group.includes('github.run_id'), false, name + ' must not use a unique key per workflow run');
+    assert.equal(group.includes('inputs.run_id'), false, name + ' must serialize explicit and implicit run IDs together');
+  }
+});
 
 test('NVIDIA maintenance rejects malformed explicit run IDs before selecting the latest failure', () => {
   const guardStart = nvidiaMaintenanceWorkflow.indexOf(
@@ -603,7 +620,7 @@ test('Gemini CLI installation is isolated from every provider-credential-bearing
       assert.ok(install.includes('install -m 755'));
       assert.ok(install.includes('"$HOME/.local/bin/agy" --version'));
     } else {
-      assert.match(install, /npm install --global --silent --no-audit --prefer-offline "@google\/gemini-cli@0\.68\.0"/);
+      assert.match(install, /npm install --global --ignore-scripts --silent --no-audit --prefer-offline "@google\/gemini-cli@0\.68\.0"/);
       assert.match(install, /gemini --version/);
     }
     assert.doesNotMatch(install, /secrets\.GEMINI_API_KEY/,
