@@ -7,11 +7,11 @@ readonly SUPPLY=1000000000
 readonly METADATA_URI="https://raw.githubusercontent.com/GLORIFIER7/GLORIFIER/main/solana/token.json"
 readonly MINT="${1:-}"
 
-if [[ "${GLORIFIER_AUTHORIZED_WORKFLOW:-}" != "true" || -z "${GITHUB_ACTIONS:-}" ]]; then
+if [[ "${GLORIFIER_AUTHORIZED_WORKFLOW:-}" != "true" | -z "${GITHUB_ACTIONS:-}" ]]; then
   echo "::error::Recovered-mint resume is disabled outside the authorized GitHub Actions deployment workflow."
   exit 1
 fi
-[[ "${MINT}" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] || { echo "::error::Invalid recovered Solana mint address."; exit 1; }
+[[ "${MINT}" =~ ^[1-9A-HJ-NP-Za-km-z]{32,44}$ ]] | { echo "::error::Invalid recovered Solana mint address."; exit 1; }
 
 solana config set --url "${SOLANA_RPC_URL}" --keypair "${HOME}/.config/solana/glorifier-devnet-keypair.json" >/dev/null
 SIGNER="$(solana address)"
@@ -29,17 +29,17 @@ METADATA_TX=""; ACCOUNT_TX=""; MINT_TX=""; MINT_AUTH_TX=""; FREEZE_AUTH_TX=""; M
 # comparison is based on the actual on-chain display value rather than a brittle
 # capitalization assumption.
 MINT_AUTHORITY="$(printf '%s\n' "${DISPLAY}" | awk 'tolower($0) ~ /^[[:space:]]*mint[[:space:]]+authority:/ {sub(/^[^:]*:[[:space:]]*/, ""); gsub(/^[[:space:]]+|[[:space:]]+$/, ""); print; exit}')"
-test -n "${MINT_AUTHORITY}" || {
+[[ -n "${MINT_AUTHORITY}" ]]| {
   echo "::error::Recovered mint did not expose a Mint authority in spl-token display output."
   printf '%s\n' "${DISPLAY}"
   exit 1
 }
-test "${MINT_AUTHORITY}" != "(not set)" && test "${MINT_AUTHORITY}" != "None" || {
+[[ "${MINT_AUTHORITY}" != "(not set)" ]]& [[ "${MINT_AUTHORITY}" != "None" ]]| {
   echo "::error::RECOVERY_BLOCKED_MINT_AUTHORITY_REVOKED: the existing recovered mint has no mint authority. Token-2022 metadata initialization and supply completion cannot be authorized on this mint."
   echo "::error::Do not create a replacement mint automatically. Preserve this mint as DEPLOYED_UNVERIFIED and require an explicit human decision before any new canonical mint is created."
   exit 1
 }
-test "${MINT_AUTHORITY}" = "${SIGNER}" || {
+[[ "${MINT_AUTHORITY}" = "${SIGNER}" ]]| {
   echo "::error::Recovered mint authority does not match the deployment signer; refusing metadata initialization."
   printf 'Mint authority: %s\n' "${MINT_AUTHORITY}"
   printf 'Deployment signer: %s\n' "${SIGNER}"
@@ -53,7 +53,7 @@ if ! printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*Name:[[:space:]]+GLORI
   OUTPUT="$(spl-token --program-2022 initialize-metadata "${MINT}" "GLORIFIER" "GLR" "${METADATA_URI}")"
   printf '%s\n' "${OUTPUT}"
   METADATA_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"
-  test -n "${METADATA_TX}"
+  [[ -n "${METADATA_TX}" ]]
 fi
 
 SUPPLY_NOW="$(spl-token --program-2022 supply "${MINT}" | awk 'NR==1 {print $1}' | tr -d '\r')"
@@ -62,12 +62,12 @@ if [[ "${SUPPLY_NOW}" == "0" ]]; then
     OUTPUT="$(spl-token --program-2022 create-account "${MINT}")"
     printf '%s\n' "${OUTPUT}"
     ACCOUNT_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"
-    test -n "${ACCOUNT_TX}"
+    [[ -n "${ACCOUNT_TX}" ]]
   fi
   OUTPUT="$(spl-token --program-2022 mint "${MINT}" "${SUPPLY}")"
   printf '%s\n' "${OUTPUT}"
   MINT_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"
-  test -n "${MINT_TX}"
+  [[ -n "${MINT_TX}" ]]
 elif [[ "${SUPPLY_NOW}" != "${SUPPLY}" ]]; then
   echo "::error::Recovered mint has unexpected supply ${SUPPLY_NOW}; refusing to alter it."
   exit 1
@@ -76,27 +76,27 @@ fi
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
 if ! printf '%s\n' "${DISPLAY}" | grep -Eiq 'Mint[[:space:]]+Authority.*None'; then
   OUTPUT="$(spl-token --program-2022 authorize "${MINT}" mint --disable)"; printf '%s\n' "${OUTPUT}"
-  MINT_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; test -n "${MINT_AUTH_TX}"
+  MINT_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; [[ -n "${MINT_AUTH_TX}" ]]
 fi
 
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
 if ! printf '%s\n' "${DISPLAY}" | grep -Eiq 'Freeze[[:space:]]+Authority.*None'; then
   OUTPUT="$(spl-token --program-2022 authorize "${MINT}" freeze --disable)"; printf '%s\n' "${OUTPUT}"
-  FREEZE_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; test -n "${FREEZE_AUTH_TX}"
+  FREEZE_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; [[ -n "${FREEZE_AUTH_TX}" ]]
 fi
 
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
 if ! printf '%s\n' "${DISPLAY}" | grep -Eiq 'Metadata Update Authority.*None|Update Authority.*None'; then
   OUTPUT="$(spl-token --program-2022 authorize "${MINT}" metadata --disable)"; printf '%s\n' "${OUTPUT}"
-  METADATA_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; test -n "${METADATA_AUTH_TX}"
+  METADATA_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; [[ -n "${METADATA_AUTH_TX}" ]]
 fi
 
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
 CURRENT_POINTER_AUTH="$(printf '%s\n' "${DISPLAY}" | awk '/Metadata Pointer:/ {in_pointer=1; next} in_pointer && /^[[:space:]]*Authority:/ {print $2; exit} in_pointer && /^$/ {exit}')"
-if [[ "${CURRENT_POINTER_AUTH}" != "Disabled" && "${CURRENT_POINTER_AUTH}" != "None" ]]; then
-  test "${CURRENT_POINTER_AUTH}" = "${SIGNER}"
+if [[ "${CURRENT_POINTER_AUTH}" != "Disabled" & "${CURRENT_POINTER_AUTH}" != "None" ]]; then
+  [[ "${CURRENT_POINTER_AUTH}" = "${SIGNER}" ]]
   OUTPUT="$(spl-token --program-2022 authorize "${MINT}" metadata-pointer --disable)"; printf '%s\n' "${OUTPUT}"
-  POINTER_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; test -n "${POINTER_AUTH_TX}"
+  POINTER_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; [[ -n "${POINTER_AUTH_TX}" ]]
 fi
 
 FINAL="$(spl-token --program-2022 display "${MINT}")"
@@ -104,8 +104,8 @@ printf '%s\n' "${FINAL}"
 printf '%s\n' "${FINAL}" | grep -Eiq 'Mint[[:space:]]+Authority.*None'
 printf '%s\n' "${FINAL}" | grep -Eiq 'Freeze[[:space:]]+Authority.*None'
 FINAL_POINTER_AUTH="$(printf '%s\n' "${FINAL}" | awk '/Metadata Pointer:/ {in_pointer=1; next} in_pointer && /^[[:space:]]*Authority:/ {print $2; exit} in_pointer && /^$/ {exit}')"
-test "${FINAL_POINTER_AUTH}" = "Disabled" || test "${FINAL_POINTER_AUTH}" = "None"
-test "$(spl-token --program-2022 supply "${MINT}" | awk 'NR==1 {print $1}' | tr -d '\r')" = "${SUPPLY}"
+[[ "${FINAL_POINTER_AUTH}" = "Disabled" ]]| [[ "${FINAL_POINTER_AUTH}" = "None" ]]
+[[ "$(spl-token --program-2022 supply "${MINT}" | awk 'NR==1 {print $1}' | tr -d '\r')" = "${SUPPLY}" ]]
 
 cat > solana/devnet-resume-evidence.json <<EOF
 {
@@ -138,11 +138,11 @@ jq -e --arg mint "${MINT}" '
  and (.metadataPointerAuthorityRevocationTransaction|type=="string" and length>=64)
  and .verifiedFinalState==true
 ' solana/devnet-resume-evidence.json >/dev/null
- || ! printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*Symbol:[[:space:]]+GLR[[:space:]]*
+ | ! printf '%s\n' "${DISPLAY}" | grep -Eiq '^[[:space:]]*Symbol:[[:space:]]+GLR[[:space:]]*
   OUTPUT="$(spl-token --program-2022 initialize-metadata "${MINT}" "GLORIFIER" "GLR" "${METADATA_URI}")"
   printf '%s\n' "${OUTPUT}"
   METADATA_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"
-  test -n "${METADATA_TX}"
+  [[ -n "${METADATA_TX}" ]]
 fi
 
 SUPPLY_NOW="$(spl-token --program-2022 supply "${MINT}" | awk 'NR==1 {print $1}' | tr -d '\r')"
@@ -151,12 +151,12 @@ if [[ "${SUPPLY_NOW}" == "0" ]]; then
     OUTPUT="$(spl-token --program-2022 create-account "${MINT}")"
     printf '%s\n' "${OUTPUT}"
     ACCOUNT_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"
-    test -n "${ACCOUNT_TX}"
+    [[ -n "${ACCOUNT_TX}" ]]
   fi
   OUTPUT="$(spl-token --program-2022 mint "${MINT}" "${SUPPLY}")"
   printf '%s\n' "${OUTPUT}"
   MINT_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"
-  test -n "${MINT_TX}"
+  [[ -n "${MINT_TX}" ]]
 elif [[ "${SUPPLY_NOW}" != "${SUPPLY}" ]]; then
   echo "::error::Recovered mint has unexpected supply ${SUPPLY_NOW}; refusing to alter it."
   exit 1
@@ -165,27 +165,27 @@ fi
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
 if ! printf '%s\n' "${DISPLAY}" | grep -Eiq 'Mint[[:space:]]+Authority.*None'; then
   OUTPUT="$(spl-token --program-2022 authorize "${MINT}" mint --disable)"; printf '%s\n' "${OUTPUT}"
-  MINT_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; test -n "${MINT_AUTH_TX}"
+  MINT_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; [[ -n "${MINT_AUTH_TX}" ]]
 fi
 
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
 if ! printf '%s\n' "${DISPLAY}" | grep -Eiq 'Freeze[[:space:]]+Authority.*None'; then
   OUTPUT="$(spl-token --program-2022 authorize "${MINT}" freeze --disable)"; printf '%s\n' "${OUTPUT}"
-  FREEZE_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; test -n "${FREEZE_AUTH_TX}"
+  FREEZE_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; [[ -n "${FREEZE_AUTH_TX}" ]]
 fi
 
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
 if ! printf '%s\n' "${DISPLAY}" | grep -Eiq 'Metadata Update Authority.*None|Update Authority.*None'; then
   OUTPUT="$(spl-token --program-2022 authorize "${MINT}" metadata --disable)"; printf '%s\n' "${OUTPUT}"
-  METADATA_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; test -n "${METADATA_AUTH_TX}"
+  METADATA_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; [[ -n "${METADATA_AUTH_TX}" ]]
 fi
 
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
 CURRENT_POINTER_AUTH="$(printf '%s\n' "${DISPLAY}" | awk '/Metadata Pointer:/ {in_pointer=1; next} in_pointer && /^[[:space:]]*Authority:/ {print $2; exit} in_pointer && /^$/ {exit}')"
-if [[ "${CURRENT_POINTER_AUTH}" != "Disabled" && "${CURRENT_POINTER_AUTH}" != "None" ]]; then
-  test "${CURRENT_POINTER_AUTH}" = "${SIGNER}"
+if [[ "${CURRENT_POINTER_AUTH}" != "Disabled" & "${CURRENT_POINTER_AUTH}" != "None" ]]; then
+  [[ "${CURRENT_POINTER_AUTH}" = "${SIGNER}" ]]
   OUTPUT="$(spl-token --program-2022 authorize "${MINT}" metadata-pointer --disable)"; printf '%s\n' "${OUTPUT}"
-  POINTER_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; test -n "${POINTER_AUTH_TX}"
+  POINTER_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; [[ -n "${POINTER_AUTH_TX}" ]]
 fi
 
 FINAL="$(spl-token --program-2022 display "${MINT}")"
@@ -193,8 +193,8 @@ printf '%s\n' "${FINAL}"
 printf '%s\n' "${FINAL}" | grep -Eiq 'Mint[[:space:]]+Authority.*None'
 printf '%s\n' "${FINAL}" | grep -Eiq 'Freeze[[:space:]]+Authority.*None'
 FINAL_POINTER_AUTH="$(printf '%s\n' "${FINAL}" | awk '/Metadata Pointer:/ {in_pointer=1; next} in_pointer && /^[[:space:]]*Authority:/ {print $2; exit} in_pointer && /^$/ {exit}')"
-test "${FINAL_POINTER_AUTH}" = "Disabled" || test "${FINAL_POINTER_AUTH}" = "None"
-test "$(spl-token --program-2022 supply "${MINT}" | awk 'NR==1 {print $1}' | tr -d '\r')" = "${SUPPLY}"
+[[ "${FINAL_POINTER_AUTH}" = "Disabled" ]]| [[ "${FINAL_POINTER_AUTH}" = "None" ]]
+[[ "$(spl-token --program-2022 supply "${MINT}" | awk 'NR==1 {print $1}' | tr -d '\r')" = "${SUPPLY}" ]]
 
 cat > solana/devnet-resume-evidence.json <<EOF
 {
@@ -231,7 +231,7 @@ jq -e --arg mint "${MINT}" '
   OUTPUT="$(spl-token --program-2022 initialize-metadata "${MINT}" "GLORIFIER" "GLR" "${METADATA_URI}")"
   printf '%s\n' "${OUTPUT}"
   METADATA_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"
-  test -n "${METADATA_TX}"
+  [[ -n "${METADATA_TX}" ]]
 fi
 
 SUPPLY_NOW="$(spl-token --program-2022 supply "${MINT}" | awk 'NR==1 {print $1}' | tr -d '\r')"
@@ -240,12 +240,12 @@ if [[ "${SUPPLY_NOW}" == "0" ]]; then
     OUTPUT="$(spl-token --program-2022 create-account "${MINT}")"
     printf '%s\n' "${OUTPUT}"
     ACCOUNT_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"
-    test -n "${ACCOUNT_TX}"
+    [[ -n "${ACCOUNT_TX}" ]]
   fi
   OUTPUT="$(spl-token --program-2022 mint "${MINT}" "${SUPPLY}")"
   printf '%s\n' "${OUTPUT}"
   MINT_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"
-  test -n "${MINT_TX}"
+  [[ -n "${MINT_TX}" ]]
 elif [[ "${SUPPLY_NOW}" != "${SUPPLY}" ]]; then
   echo "::error::Recovered mint has unexpected supply ${SUPPLY_NOW}; refusing to alter it."
   exit 1
@@ -254,27 +254,27 @@ fi
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
 if ! printf '%s\n' "${DISPLAY}" | grep -Eiq 'Mint[[:space:]]+Authority.*None'; then
   OUTPUT="$(spl-token --program-2022 authorize "${MINT}" mint --disable)"; printf '%s\n' "${OUTPUT}"
-  MINT_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; test -n "${MINT_AUTH_TX}"
+  MINT_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; [[ -n "${MINT_AUTH_TX}" ]]
 fi
 
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
 if ! printf '%s\n' "${DISPLAY}" | grep -Eiq 'Freeze[[:space:]]+Authority.*None'; then
   OUTPUT="$(spl-token --program-2022 authorize "${MINT}" freeze --disable)"; printf '%s\n' "${OUTPUT}"
-  FREEZE_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; test -n "${FREEZE_AUTH_TX}"
+  FREEZE_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; [[ -n "${FREEZE_AUTH_TX}" ]]
 fi
 
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
 if ! printf '%s\n' "${DISPLAY}" | grep -Eiq 'Metadata Update Authority.*None|Update Authority.*None'; then
   OUTPUT="$(spl-token --program-2022 authorize "${MINT}" metadata --disable)"; printf '%s\n' "${OUTPUT}"
-  METADATA_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; test -n "${METADATA_AUTH_TX}"
+  METADATA_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; [[ -n "${METADATA_AUTH_TX}" ]]
 fi
 
 DISPLAY="$(spl-token --program-2022 display "${MINT}")"
 CURRENT_POINTER_AUTH="$(printf '%s\n' "${DISPLAY}" | awk '/Metadata Pointer:/ {in_pointer=1; next} in_pointer && /^[[:space:]]*Authority:/ {print $2; exit} in_pointer && /^$/ {exit}')"
-if [[ "${CURRENT_POINTER_AUTH}" != "Disabled" && "${CURRENT_POINTER_AUTH}" != "None" ]]; then
-  test "${CURRENT_POINTER_AUTH}" = "${SIGNER}"
+if [[ "${CURRENT_POINTER_AUTH}" != "Disabled" & "${CURRENT_POINTER_AUTH}" != "None" ]]; then
+  [[ "${CURRENT_POINTER_AUTH}" = "${SIGNER}" ]]
   OUTPUT="$(spl-token --program-2022 authorize "${MINT}" metadata-pointer --disable)"; printf '%s\n' "${OUTPUT}"
-  POINTER_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; test -n "${POINTER_AUTH_TX}"
+  POINTER_AUTH_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"; [[ -n "${POINTER_AUTH_TX}" ]]
 fi
 
 FINAL="$(spl-token --program-2022 display "${MINT}")"
@@ -282,8 +282,8 @@ printf '%s\n' "${FINAL}"
 printf '%s\n' "${FINAL}" | grep -Eiq 'Mint[[:space:]]+Authority.*None'
 printf '%s\n' "${FINAL}" | grep -Eiq 'Freeze[[:space:]]+Authority.*None'
 FINAL_POINTER_AUTH="$(printf '%s\n' "${FINAL}" | awk '/Metadata Pointer:/ {in_pointer=1; next} in_pointer && /^[[:space:]]*Authority:/ {print $2; exit} in_pointer && /^$/ {exit}')"
-test "${FINAL_POINTER_AUTH}" = "Disabled" || test "${FINAL_POINTER_AUTH}" = "None"
-test "$(spl-token --program-2022 supply "${MINT}" | awk 'NR==1 {print $1}' | tr -d '\r')" = "${SUPPLY}"
+[[ "${FINAL_POINTER_AUTH}" = "Disabled" ]]| [[ "${FINAL_POINTER_AUTH}" = "None" ]]
+[[ "$(spl-token --program-2022 supply "${MINT}" | awk 'NR==1 {print $1}' | tr -d '\r')" = "${SUPPLY}" ]]
 
 cat > solana/devnet-resume-evidence.json <<EOF
 {
