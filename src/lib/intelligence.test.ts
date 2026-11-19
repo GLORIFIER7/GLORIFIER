@@ -24,6 +24,17 @@ test('Markdown-fenced JSON is parsed when the response is not raw JSON', () => {
 
   assert.deepEqual(parseJson(response, {}), expected);
 });
+test('Markdown-fenced JSON preserves backticks inside JSON string values', () => {
+  const expected = {
+    executiveSummary: 'Keep the marker ```typescript without truncating the report.',
+    themes: [],
+    disagreements: [],
+  };
+  const response = `Here is the report:\n```json\n${JSON.stringify(expected)}\n```;
+
+  assert.deepEqual(parseJson(response, {}), expected);
+});
+
 
 test('invalid JSON returns the caller-provided fallback', () => {
   const fallback = { executiveSummary: 'fallback' };
