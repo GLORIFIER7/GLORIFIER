@@ -41,7 +41,7 @@ test('fenced content preserves inline backticks and requires a standalone closin
     'Trailing explanation',
   ].join('\n');
 
-  assert.equal(extractFirstFencedContent(response, 'json'), json + '\n');
+  assert.equal(extractFirstFencedContent(response, 'json', { requireStandaloneClosing: true }), json + '\n');
   assert.equal(extractFirstFencedContent(response, 'jsonc'), null);
 });
 
