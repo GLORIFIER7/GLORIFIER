@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAccessibleDialog } from '../lib/use-accessible-dialog';
 import { 
   Users, 
   Sparkles, 
@@ -65,6 +66,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
   const [councilResult, setCouncilResult] = useState<CouncilConsensusResult | null>(null);
   const [providerFailures, setProviderFailures] = useState<ModelCouncilProviderFailure[]>([]);
   const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
+  const dialogRef = useAccessibleDialog(isOpen, onClose);
 
   if (!isOpen) return null;
 
@@ -134,7 +136,8 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div 
+      <div
+        ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="all-ai-collaboration-title"
