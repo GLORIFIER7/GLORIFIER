@@ -24,8 +24,35 @@ export function installAccessibleDialogBehavior(
   const previousStackIndex = activeDialogStack.indexOf(dialog);
   if (previousStackIndex >= 0) activeDialogStack.splice(previousStackIndex, 1);
   activeDialogStack.push(dialog);
-  const focusableItems = () => Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+  const focusableItems = () => Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
+    .filter((item) => {
+      if (
+        item.hidden
+        || item.getAttribute('type')?.toLowerCase() === 'hidden'
+        || item.matches(':disabled')
+        || item.closest('[hidden], [inert], [aria-hidden="true"]')
+      ) return false;
+
+      const style = ownerDocument.defaultView?.getComputedStyle(item);
+      return !style
+        || (style.display !== 'none'
+          && style.visibility !== 'hidden'
+          && style.visibility !== 'collapse');
+    })
+    .map((item, index) => ({ item, index }))
+    .sort((left, right) => {
+      const leftTabIndex = left.item.tabIndex;
+      const rightTabIndex = right.item.tabIndex;
+      if (leftTabIndex > 0 && rightTabIndex > 0) {
+        return leftTabIndex - rightTabIndex || left.index - right.index;
+      }
+      if (leftTabIndex > 0) return -1;
+      if (rightTabIndex > 0) return 1;
+      return left.index - right.index;
+    })
+    .map(({ item }) => item);
   const initialItems = focusableItems();
+  if (initialItems.length === 0 && dialog.tabIndex < 0) dialog.tabIndex = -1;
   (initialItems[0] ?? dialog).focus();
 
   const handleKeyDown = (event: KeyboardEvent) => {
@@ -40,6 +67,7 @@ export function installAccessibleDialogBehavior(
     const items = focusableItems();
     if (items.length === 0) {
       event.preventDefault();
+      if (dialog.tabIndex < 0) dialog.tabIndex = -1;
       dialog.focus();
       return;
     }
@@ -64,8 +92,9 @@ export function installAccessibleDialogBehavior(
   return () => {
     ownerDocument.removeEventListener('keydown', handleKeyDown);
     const stackIndex = activeDialogStack.lastIndexOf(dialog);
+    const wasTopmost = stackIndex >= 0 && stackIndex === activeDialogStack.length - 1;
     if (stackIndex >= 0) activeDialogStack.splice(stackIndex, 1);
-    if (previouslyFocused && typeof previouslyFocused.focus === 'function') {
+    if (wasTopmost && previouslyFocused && typeof previouslyFocused.focus === 'function') {
       previouslyFocused.focus();
     }
   };
