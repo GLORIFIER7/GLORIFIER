@@ -103,8 +103,8 @@ export function installAccessibleDialogBehavior(
   };
 }
 
-export function useAccessibleDialog(isOpen: boolean, onClose: () => void) {
-  const dialogRef = useRef<HTMLElement | null>(null);
+export function useAccessibleDialog<T extends HTMLElement = HTMLElement>(isOpen: boolean, onClose: () => void) {
+  const dialogRef = useRef<T | null>(null);
   const onCloseRef = useRef(onClose);
 
   useLayoutEffect(() => {
