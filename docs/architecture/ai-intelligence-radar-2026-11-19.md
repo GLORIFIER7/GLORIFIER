@@ -24,13 +24,9 @@ Sources were prioritized in this order:
 
 Every proposed adoption must identify the exact source/version, the target GLORIFIER component, the problem it solves, its cost and risk, and a verification method. A source page, model card, benchmark score, provider model-list response, successful build, or local mock is not proof of production readiness.
 
-Use GLORIFIER's evidence states and preserve the distinctions:
+Use only GLORIFIER's binding status labels: **FULLY VERIFIED**, **VERIFIED**, **PARTIALLY VERIFIED**, **NOT VERIFIED**, **DEGRADED**, and **NOT OBSERVABLE** (see the [Interoperability and Outcome Verification Matrix](../INTEROPERABILITY-AND-OUTCOME-VERIFICATION-MATRIX.md)). Do not introduce a parallel status vocabulary in architecture documents.
 
-- **Declared:** present in documentation or configuration.
-- **Implemented:** code and tests exist for a defined contract.
-- **Observed:** a current runtime or external system returned evidence.
-- **Verified:** reproducible evidence proves a narrowly scoped claim.
-- **Unknown / Not verified:** evidence is missing, stale, inaccessible, or insufficient.
+A passing status must link to dated test output, the exact commit or runtime identity, the target environment, and an evidence artifact. A plan, documentation review, mock, build, or provider response alone is not runtime or outcome verification. Missing, stale, inaccessible, or insufficient evidence remains **NOT VERIFIED** or **NOT OBSERVABLE**, according to the matrix.
 
 ## 2. AI capability map: what the system should understand
 
@@ -60,7 +56,7 @@ GLORIFIER should select the least complex pattern that satisfies the job:
 - Use sequential workflows when each stage depends on the prior stage and the process is stable.
 - Use parallel execution only for independent read-only work with a bounded concurrency ceiling and a deterministic synthesis step.
 - Use a coordinator and specialists when task decomposition genuinely needs adaptive routing.
-- Use the existing persistent DAG for prerequisites, durable checkpoints, cancellation, and reconciliation.
+- Use the existing persistent DAG for prerequisite ordering, durable checkpoints, and crash reconciliation. The `cancelled` mission status does not establish an operator-facing Autopilot mission-cancellation API; mission-level cancellation remains NOT VERIFIED. Protocol-level task cancellation is a separate contract and does not imply that active provider work can be interrupted.
 - Use iterative critique/refinement only with explicit quality criteria, maximum attempts, timeouts, and budget limits.
 
 More agents do not automatically produce better results. Fan-out increases model calls, aggregate spend, latency variance, synchronization complexity, and the number of failure paths. Consensus is not a substitute for evidence or authorization.
@@ -157,6 +153,29 @@ Never log API keys, tokens, private keys, raw sensitive prompts, or unnecessary 
 Cost accounting must distinguish provider-reported token usage, billable usage, estimated cost, invoice charges, reconciled charges, and verified business outcomes. Missing usage is unknown, not zero. Route only among eligible models using capability, policy, data handling, measured quality, availability, latency, quota, and the owner's budget. Never evade quotas or silently substitute a model the user did not authorize.
 
 Self-hosted serving projects such as vLLM show the value of continuous batching, KV-cache management, prefix caching, quantization, and speculative decoding. Those optimizations are relevant only when GLORIFIER has an authorized workload, suitable hardware, measured demand, and a full operating-cost model. Open weights do not mean free inference; GPUs, electricity, storage, maintenance, security, and egress still have costs.
+
+
+### 5.1 GEAS compute efficiency and verified-throughput objective
+
+GEAS treats compute efficiency as a first-class engineering objective: maximize evidence-verified successful work per unit of attributable compute cost without reducing task quality, security, reliability, provenance, authorization, or human control.
+
+The primary metric is:
+
+`verified-work efficiency = completed tasks with accepted evidence / attributable compute cost`
+
+A missing or unreconciled cost is **unknown**, not zero. Report the ratio with its time window, workload class, task-success denominator, provider/runtime identity, and cost source. Do not compare unlike workloads or treat raw tokens, GPU utilization, or model throughput as business value.
+
+Track the supporting measures together:
+- verified task throughput and evidence-verification pass rate;
+- p50/p95 end-to-end latency, queue age, and time to recover from failed work;
+- provider/model calls, tokens and provider-reported usage when actually returned;
+- CPU, memory, storage, and GPU utilization where those resources are actually present;
+- retry, timeout, duplicate-work, and provider-failure rates;
+- cost per successful verified task, separated into measured, estimated, and reconciled amounts.
+
+Optimization order is CPU-first and evidence-preserving: use deterministic scripts and tests before inference; reuse dependency and CI caches; deduplicate identical observations and work; minimize prompt/context size; batch only compatible idempotent requests; and parallelize only independent read-only graph nodes. Serialize mutations. Route to the least expensive authorized model that meets the task's measured quality threshold, and do not silently switch providers or evade quotas.
+
+Benchmark each proposed optimization against a fixed, versioned task corpus and an exact commit/configuration baseline. Accept it only when verified throughput or cost per verified task improves without a regression in task quality, evidence validity, security, policy enforcement, or failure recovery. Keep the existing inference, external-egress, and paid-inference authorization gates. This objective does not justify purchasing GPUs, enabling paid inference, or weakening governance.
 
 ## 6. Governance and regulatory awareness
 
@@ -273,6 +292,37 @@ Related existing architecture documents:
 - [SWE-Bench Pro, ICML/PMLR 2026](https://proceedings.mlr.press/v306/deng26f.html)
 - [NVIDIA Nemotron model family](https://developer.nvidia.com/topics/ai/nemotron)
 - [vLLM inference and serving documentation](https://github.com/vllm-project/vllm/tree/main/docs)
+
+
+### Source provenance and reproducibility ledger
+
+The source pass was recorded on **2026-11-19 (UTC)**. Immutable repository sources are pinned to commit IDs below. For versionless standards/vendor pages, the dated URL snapshot is a time-bounded locator; the publisher does not expose an immutable revision or downloadable content hash for those pages. Recheck them at the review cadence rather than treating the snapshot as current indefinitely.
+
+| Source | Revision / snapshot identifier | Retrieved (UTC) | Applicability to this blueprint |
+|---|---|---|---|
+| NIST AI Risk Management Framework | AI 100-1, Version 1.0 (2023) | 2026-11-19 | Risk lifecycle and governance structure |
+| NIST Generative AI Profile | NIST AI 600-1 (2024-07) | 2026-11-19 | Generative-AI risk mapping and measurement |
+| NIST AI Agent Standards Initiative | Initiative page; launch announcement 2026-02-17; dated page snapshot | 2026-11-19 | Emerging agent identity, security, and interoperability work |
+| OWASP Top 10 for Agentic Applications | 2026 edition | 2026-11-19 | Agent-specific threat taxonomy |
+| OWASP Securing Agentic Applications | Version 2; publication 2026-11-10 | 2026-11-19 | Secure agent application design and controls |
+| OWASP Agent Control Standard | Initial publication 2026-09-01; dated page snapshot | 2026-11-19 | Portable runtime control and observability concepts |
+| MITRE ATLAS | Living knowledge-base URL snapshot; no immutable revision exposed | 2026-11-19 | Adversarial AI tactics and techniques |
+| Microsoft indirect prompt-injection guidance | Microsoft Learn page snapshot; no immutable revision exposed | 2026-11-19 | Defensive handling of indirect prompt injection |
+| European Commission AI Act FAQ | Commission FAQ snapshot; no immutable revision exposed | 2026-11-19 | Jurisdiction-dependent regulatory timeline context |
+| Model Context Protocol specification announcement | Protocol revision 2026-07-28 | 2026-11-19 | Versioned MCP protocol scope |
+| A2A source snapshot | `3303592588e388e62e0f69f701af531d2f4e3991` | 2026-11-19 | Exact A2A 1.0.1 source baseline used by GLORIFIER evidence records |
+| Linux Foundation Agentic AI Foundation announcement | Publication 2025-12-09 | 2026-11-19 | Open governance context for agent ecosystem projects |
+| Google Cloud agentic design patterns | Current documentation URL snapshot; no immutable revision exposed | 2026-11-19 | Agent architecture pattern comparison |
+| Microsoft Agent Framework overview | Current documentation URL snapshot; no immutable revision exposed | 2026-11-19 | Framework capability comparison, not an adoption mandate |
+| AWS Well-Architected Agentic AI Lens | Publication 2026-06-10; current document revision snapshot | 2026-11-19 | Agent reliability, security, performance, and cost practices |
+| OpenAI agent evaluation guide | Current documentation URL snapshot; no immutable revision exposed | 2026-11-19 | Evaluation design concepts |
+| OpenAI API deprecations | Current deprecation-page snapshot; Evals shutdown date listed as 2026-11-30 | 2026-11-19 | Hosted Evals lifecycle and migration deadline |
+| OpenTelemetry GenAI client/tool conventions | `76e0c19e7fe11dc693fe258642363a438af4d3aa` (main) | 2026-11-19 | Client inference and tool-execution telemetry vocabulary |
+| SWE-Bench Pro | PMLR Volume 306 (ICML 2026) | 2026-11-19 | External software-engineering benchmark context |
+| NVIDIA Nemotron model family | Current model-family page snapshot; no immutable revision exposed | 2026-11-19 | Model-family capability discovery only |
+| vLLM serving documentation | `d2da27eb2defb88377636fba83d9a41ad35bf44d` (main) | 2026-11-19 | Self-hosted inference serving and optimization techniques |
+
+For mutable web pages, this table records the reviewed date and explicitly notes where the publisher provides no immutable revision; it does **not** claim a content hash. When an immutable revision or content hash is required for an implementation decision, capture and retain the exact source artifact before adopting it.
 
 **Source interpretation note:** These sources inform design and research priorities. They do not certify GLORIFIER as compliant with a standard, secure against every attack, connected to an external protocol peer, entitled to a provider's free tier, or operational in production. Recheck each moving specification, model lifecycle, pricing page, and regulatory source before implementation.
 
