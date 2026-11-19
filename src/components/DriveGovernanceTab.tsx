@@ -399,7 +399,7 @@ export const DriveGovernanceTab: React.FC<DriveGovernanceTabProps> = ({
                 {filteredFiles.map((file) => (
                   <div
                     key={file.id}
-                                        className={`p-4 rounded-xl border transition-all cursor-pointer ${
+                    className={`p-4 rounded-xl border transition-all ${
                       selectedFile?.id === file.id
                         ? 'bg-slate-900 border-cyan-500/50 shadow-md ring-1 ring-cyan-500/20'
                         : 'bg-slate-900/60 hover:bg-slate-900 border-slate-800'
