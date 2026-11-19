@@ -808,6 +808,7 @@ const run = async (): Promise<void> => {
         assert.match(unavailableMcpRateLimiterBody.error.message, /rate-limit service is unavailable/i);
         assert.equal(capturedRequest, null, 'rate-limit service failures must not reach GitHub');
         mcpRateLimitThrows = false;
+        const rateLimitKeysBeforeUnknownTools = [...mcpRateLimitKeys];
 
         for (const inheritedToolName of ['constructor', 'toString', 'github_delete_repository']) {
           capturedRequest = null;
@@ -827,7 +828,7 @@ const run = async (): Promise<void> => {
           assert.equal(inheritedToolBody.result.isError, true, 'prototype properties must not be callable as MCP tools');
           assert.match(inheritedToolBody.result.content[0]?.text || '', /Unknown or unsupported GitHub tool/);
           assert.equal(capturedRequest, null, 'prototype-property tool names must not reach GitHub');
-          assert.deepEqual(mcpRateLimitKeys, ['203.0.113.42'],
+          assert.deepEqual(mcpRateLimitKeys, rateLimitKeysBeforeUnknownTools,
             'unknown/prototype tool names must not consume the upstream rate limit');
         }
 
