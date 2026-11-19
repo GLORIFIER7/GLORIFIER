@@ -1,3 +1,4 @@
+import { stripTrailingSlashes } from '../linear-string.js';
 import { createHash } from 'node:crypto';
 import { registerConnection, recordConnectionEvent } from '../connection-registry.ts';
 
@@ -37,7 +38,7 @@ function providerRequestUrl(endpoint: string, route: string, query: Record<strin
  parsed.password = '';
  parsed.search = '';
  parsed.hash = '';
- parsed.pathname = parsed.pathname.replace(/\/+$/, '') + route;
+ parsed.pathname = stripTrailingSlashes(parsed.pathname) + route;
  for (const [key, value] of Object.entries(query)) parsed.searchParams.set(key, value);
  return parsed.toString();
 }
