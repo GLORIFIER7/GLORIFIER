@@ -47,7 +47,7 @@ export function hasFingerprintAssetSegment(filename) {
 }
 
 export function extractFirstFencedContent(value, language, options = {}) {
-  const openingPattern = /```([^\\r\\n]*)\\r?\\n/.exec(value);
+  const openingPattern = /```([^\r\n]*)\r?\n/.exec(value);
   if (!openingPattern) return null;
 
   const label = openingPattern[1].trim();
@@ -56,7 +56,7 @@ export function extractFirstFencedContent(value, language, options = {}) {
   const contentStart = openingPattern.index + openingPattern[0].length;
   let closingIndex;
   if (options.requireStandaloneClosing) {
-    const closingPattern = /^ {0,3}```[ \\t]*(?:\\r?\\n|$)/gm;
+    const closingPattern = /^ {0,3}```[ \t]*(?:\r?\n|$)/gm;
     closingPattern.lastIndex = contentStart;
     closingIndex = closingPattern.exec(value)?.index ?? -1;
   } else {
