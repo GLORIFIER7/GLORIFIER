@@ -25,4 +25,6 @@ test('outer code-fence stripping handles optional language labels', () => {
   assert.equal(stripOuterCodeFence('```diff\n+one\n```', 'diff'), '+one');
   assert.equal(stripOuterCodeFence('```\ncontent\n```'), 'content');
   assert.equal(stripOuterCodeFence('not fenced  '), 'not fenced');
+  assert.equal(stripOuterCodeFence('plain content```'), 'plain content```');
+  assert.equal(stripOuterCodeFence('bare JSON `{}```'), 'bare JSON `{}```');
 });
