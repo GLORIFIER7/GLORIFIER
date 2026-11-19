@@ -111,7 +111,11 @@ verify_finalized_transaction() {
         and (.parsed as $parsed
           | $parsed != null
           and ($expected_types | index($parsed.type)) != null
-          and ($expected_authority_type == "" or $parsed.info.authorityType == $expected_authority_type)))
+          and (
+  $expected_authority_type == ""
+  or ($expected_authority_type == "metadata" and $parsed.type == "updateTokenMetadataAuthority")
+  or ($expected_authority_type == "metadataPointer" and $parsed.type == "updateMetadataPointerAuthority")
+  or $parsed.info.authorityType == $expected_authority_type)))
     ' <<< "$response" >/dev/null || {
       echo "::error::The ${label} signature is not a finalized successful transaction for this mint and expected Token-2022 operation."
       exit 1
@@ -247,7 +251,7 @@ if [[ "${SUPPLY_NOW}" == "0" ]]; then
     ACCOUNT_TX="$(printf '%s\n' "${OUTPUT}" | capture_sig)"
     verify_finalized_transaction "${ACCOUNT_TX}" "token-account creation" '["initializeAccount","initializeAccount2","initializeAccount3"]'
   else
-    verify_finalized_transaction "${ACCOUNT_TX}" "existing token-account creation" '["initializeAccount","initializeAccount2","initializeAccount3"]'
+    [[ -z "${ACCOUNT_TX}" ]] || verify_finalized_transaction "${ACCOUNT_TX}" "existing token-account creation" '["initializeAccount","initializeAccount2","initializeAccount3"]'
   fi
   OUTPUT="$(spl-token --program-2022 mint "${MINT}" "${SUPPLY}")"
   printf '%s\n' "${OUTPUT}"
