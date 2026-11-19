@@ -33,6 +33,9 @@ test('recognizes only fingerprinted asset name segments', () => {
   assert.equal(hasFingerprintAssetSegment('app.0123456789.js'), true);
   assert.equal(hasFingerprintAssetSegment('app-1234567.js'), false);
   assert.equal(hasFingerprintAssetSegment('app-1234567!.js'), false);
+  assert.equal(hasFingerprintAssetSegment('app--1234567.js'), false);
+  assert.equal(hasFingerprintAssetSegment('app---1234567.js'), false);
+  assert.equal(hasFingerprintAssetSegment('app-abc-defgh.js'), true);
 });
 
 test('strips tag-shaped markup in one forward scan', () => {
