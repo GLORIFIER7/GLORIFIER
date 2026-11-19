@@ -1,3 +1,4 @@
+import { hasFingerprintAssetSegment } from './linear-string.mjs';
 import { createReadStream } from 'node:fs';
 import { readFile, realpath, stat } from 'node:fs/promises';
 import { createServer } from 'node:http';
@@ -127,7 +128,7 @@ async function resolveStaticFile(root, pathname) {
 
 function cacheControlFor(pathname, filePath) {
   if (path.basename(filePath) === 'index.html') return 'no-store';
-  if (/^\/assets\//.test(pathname) && /[.-][a-zA-Z0-9_-]{8,}\./.test(path.basename(filePath))) {
+  if (/^\/assets\//.test(pathname) && hasFingerprintAssetSegment(path.basename(filePath))) {
     return 'public, max-age=31536000, immutable';
   }
   return 'public, max-age=300';
