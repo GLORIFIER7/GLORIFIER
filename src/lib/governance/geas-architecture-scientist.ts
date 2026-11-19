@@ -592,7 +592,11 @@ function removeActiveHtmlElements(input: string, tagName: 'script' | 'style'): s
     }
     const afterOpeningName = opening + openingTag.length;
     if (!isTagNameBoundary(source[afterOpeningName])) {
-      cursor = afterOpeningName;
+      // This is text such as a custom element (<script-widget>), not an active
+      // script tag. Preserve the candidate's leading "<" before continuing.
+      const nextSearch = opening + 1;
+      result += input.slice(cursor, nextSearch);
+      cursor = nextSearch;
       continue;
     }
 
