@@ -140,6 +140,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
+        tabIndex={-1}
         aria-labelledby="all-ai-collaboration-title"
         className="relative w-full max-w-4xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[92vh]"
         onClick={(e) => e.stopPropagation()}
