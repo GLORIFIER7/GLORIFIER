@@ -27,17 +27,20 @@ export function installAccessibleDialogBehavior(
   const focusableItems = () => Array.from(dialog.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR))
     .filter((item) => {
       if (
-        item.hidden
+        item.tabIndex < 0
+        || item.hidden
         || item.getAttribute('type')?.toLowerCase() === 'hidden'
         || item.matches(':disabled')
         || item.closest('[hidden], [inert], [aria-hidden="true"]')
       ) return false;
 
       const style = ownerDocument.defaultView?.getComputedStyle(item);
-      return !style
-        || (style.display !== 'none'
-          && style.visibility !== 'hidden'
-          && style.visibility !== 'collapse');
+      const hasLayout = item.getClientRects().length > 0;
+      return hasLayout
+        && (!style
+          || (style.display !== 'none'
+            && style.visibility !== 'hidden'
+            && style.visibility !== 'collapse'));
     })
     .map((item, index) => ({ item, index }))
     .sort((left, right) => {
