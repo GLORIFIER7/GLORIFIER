@@ -40,13 +40,16 @@ test("duplicateJsonKeys handles escaped quotes and backslashes in values", () =>
 test("standalone build entry points run package integrity and relevant prebuild checks", () => {
   const manifest = JSON.parse(packageJsonText);
   const sharedPrebuild = "npm run test:package-manifest-integrity && npm run test:brand-assets";
-  for (const script of ["build:server", "build:android"]) {
-    assert.equal(
-      manifest.scripts?.["pre" + script],
-      sharedPrebuild,
-      script + " must run package manifest integrity and brand asset gates before building",
-    );
-  }
+  assert.equal(
+    manifest.scripts?.["prebuild:android"],
+    sharedPrebuild,
+    "build:android must run package manifest integrity and brand asset gates before building",
+  );
+  assert.equal(
+    manifest.scripts?.["prebuild:server"],
+    sharedPrebuild + " && npm run test:intelligence-report-json",
+    "server builds must run package integrity, brand asset, and intelligence JSON regression gates before building",
+  );
   assert.equal(
     manifest.scripts?.prebuildFrontend,
     undefined,
