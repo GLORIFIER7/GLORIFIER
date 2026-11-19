@@ -12,7 +12,7 @@ import { buildGLRAIServiceQuote, GLR_AI_SUMMARY_SERVICE } from './src/lib/glr-co
 import { verifyEthereumGLRTransfer } from './src/lib/glr-ethereum-verifier';
 import { verifyBnbGLRTransfer } from './src/lib/glr-bnb-verifier';
 import { verifySolanaGLRTransfer } from './src/lib/glr-solana-verifier';
-import { aiOrchestrator, runSpecialistCouncil, specialistRoles } from './src/lib/ai';
+import { aiOrchestrator, runSpecialistCouncil, specialistRoles, isStandingMissionRequestAuthorized } from './src/lib/ai';
 import { initializeRepositoryProviderBudget } from './src/lib/ai/repository-provider-budget';
 import { executeThroughProviderRegistry } from './src/lib/ai/registry';
 import { DEFAULT_MODEL_COUNCIL_TIMEOUT_MS, resolveModelCouncilParticipants } from './src/lib/ai/model-council-routing.mjs';
@@ -2022,12 +2022,16 @@ app.post('/api/ai/specialist-council', async (req: Request, res: Response) => {
     if (typeof objective !== 'string' || !objective.trim()) {
       return res.status(400).json({ error: 'objective is required' });
     }
+    const standingMissionRequested = standingMission === true;
+    if (!isStandingMissionRequestAuthorized(standingMissionRequested, isOwner((req as any).auth))) {
+      return res.status(403).json({ error: 'Standing mission requests require owner authorization.' });
+    }
     const result = await runSpecialistCouncil({
       objective: objective.trim(),
       roles: Array.isArray(roles) ? roles : undefined,
       providerIds: Array.isArray(providerIds) ? providerIds : undefined,
       temperature: typeof temperature === 'number' ? temperature : undefined,
-      standingMission: standingMission === true
+      standingMission: standingMissionRequested
     });
     res.json(result);
   } catch (err: any) {
