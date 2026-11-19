@@ -1,3 +1,4 @@
+import { stripTrailingSlashes } from './linear-string.mjs';
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { evaluateRepositoryProviderAttestation, normalizeRepositoryProviderEndpoint } from "../src/lib/ai/repository-contributor-policy.mjs";
