@@ -38,7 +38,7 @@ NEVER_SET = "NOT_APPLICABLE_NEVER_SET"
 ALLOWED = {
     "initializeMetadataPointer", "initializeMint", "initializeMint2", "initializeTokenMetadata", "initializeMetadata",
     "getAccountDataSize", "initializeImmutableOwner", "initializeAccount", "initializeAccount2",
-    "initializeAccount3", "mintTo", "mintToChecked", "setAuthority", "updateTokenMetadataAuthority", "updateMetadataPointerAuthority",
+    "initializeAccount3", "transferChecked", "mintTo", "mintToChecked", "setAuthority", "updateTokenMetadataAuthority", "updateMetadataPointerAuthority",
 }
 
 
@@ -100,8 +100,10 @@ def fetch(url, mint):
         t = rpc(url, "getTransaction", [s["signature"], {
             "encoding": "jsonParsed", "commitment": "finalized", "maxSupportedTransactionVersion": 0}])
         require(t is not None, f"finalized transaction not retrievable: {s['signature']}")
+        transaction_error = t["meta"]["err"]
         txs.append({"signature": s["signature"], "slot": t["slot"], "blockTime": t["blockTime"],
-                    "err": t["meta"]["err"], "instructions": token_instructions(t)})
+                    "err": transaction_error,
+                    "instructions": [] if transaction_error is not None else token_instructions(t)})
     account = rpc(url, "getAccountInfo", [mint, {"encoding": "jsonParsed", "commitment": "finalized"}])["value"]
     return {"transactions": txs, "account": account}
 
@@ -163,6 +165,18 @@ def apply_instruction(typ, info, sig, receipts):
         # Preserve the first observed account-creation receipt; additional accounts are not
         # extra mint operations and must not make the lifecycle verifier fail.
         receipts.setdefault("tokenAccountCreationTransaction", sig)
+    elif typ == "transferChecked":
+        require(isinstance(info.get("source"), str) and info["source"],
+                f"checked transfer missing source account in {sig}")
+        require(isinstance(info.get("destination"), str) and info["destination"],
+                f"checked transfer missing destination account in {sig}")
+        amount = info.get("tokenAmount", {}).get("amount")
+        require(amount is not None and str(amount).isdigit(),
+                f"checked transfer missing or invalid amount field in {sig}")
+        require(info.get("tokenAmount", {}).get("decimals") == EXPECTED["decimals"],
+                f"checked transfer decimals mismatch in {sig}")
+        # A checked transfer moves existing units and never increases minted supply.
+        return 0
     elif typ in ("mintTo", "mintToChecked"):
         require("mintTransaction" not in receipts,
                 "multiple mintTo/mintToChecked instructions found; expected one mint transaction")
@@ -213,7 +227,10 @@ def analyze(mint, data):
     require(txs, "no finalized transaction history for mint")
     receipts, minted = {}, 0
     for t in txs:
-        require(t["err"] is None, f"failed transaction in mint history: {t['signature']}")
+        # A finalized failed transaction has no state effect; retain it in the complete
+        # history inventory, but do not let its attempted instructions affect semantics.
+        if t["err"] is not None:
+            continue
         for ins in t["instructions"]:
             if touches_mint(ins["info"], mint):
                 minted += apply_instruction(ins["type"], ins["info"], t["signature"], receipts)
