@@ -197,6 +197,15 @@ const run = async (): Promise<void> => {
         assert.equal(previewMcpWithoutRateLimit.status, 503,
           'MCP must fail closed when an isolated Preview has no rate-limit binding');
         assert.equal(previewMcpWithoutRateLimit.headers.get('cache-control'), 'no-store');
+        const previewMcpWithoutRateLimitBody = await previewMcpWithoutRateLimit.json() as {
+          jsonrpc: string;
+          id: string;
+          error: { code: number; message: string };
+        };
+        assert.equal(previewMcpWithoutRateLimitBody.jsonrpc, '2.0');
+        assert.equal(previewMcpWithoutRateLimitBody.id, 'preview');
+        assert.equal(previewMcpWithoutRateLimitBody.error.code, -32003);
+        assert.match(previewMcpWithoutRateLimitBody.error.message, /rate-limit service is not configured/i);
         assert.equal(capturedRequest, null, 'missing preview rate limiting must not reach upstream services');
 
     };
