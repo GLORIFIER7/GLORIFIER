@@ -10,6 +10,51 @@ const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.me
 const ciWorkflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
 const provenanceScriptPath = fileURLToPath(new URL('../solana/recover-deployment-provenance.sh', import.meta.url));
 const provenanceScript = readFileSync(provenanceScriptPath, 'utf8');
+const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
+const CANONICAL_MINT = '8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd';
+const FINALIZED_SIGNATURE = '1'.repeat(64);
+const verifierStart = script.indexOf('verify_finalized_transaction() {');
+const verifierFilterStart = script.indexOf('      .error == null', verifierStart);
+const verifierFilterEnd = script.indexOf('\n    \' <<< "$response"', verifierFilterStart);
+assert.ok(verifierStart >= 0 && verifierFilterStart > verifierStart && verifierFilterEnd > verifierFilterStart,
+  'could not extract the actual finalized-transaction jq filter');
+const finalizedVerifierFilter = script.slice(verifierFilterStart, verifierFilterEnd);
+
+function finalizedTransactionPayload(type, info, signature = FINALIZED_SIGNATURE) {
+  return {
+    error: null,
+    result: {
+      meta: { err: null },
+      transaction: {
+        signatures: [signature],
+        message: {
+          instructions: [{
+            programId: TOKEN_2022_PROGRAM,
+            parsed: { type, info },
+          }],
+        },
+      },
+    },
+  };
+}
+
+function finalizedTransactionIsAccepted(payload, expectedTypes, authorityType = '') {
+  try {
+    execFileSync('jq', [
+      '-e',
+      '--arg', 'signature', FINALIZED_SIGNATURE,
+      '--arg', 'mint', CANONICAL_MINT,
+      '--arg', 'program', TOKEN_2022_PROGRAM,
+      '--argjson', 'expected_types', JSON.stringify(expectedTypes),
+      '--arg', 'expected_authority_type', authorityType,
+      finalizedVerifierFilter,
+    ], { input: JSON.stringify(payload), stdio: ['pipe', 'pipe', 'pipe'] });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 
 test('recovered Token-2022 script passes Bash syntax parsing without execution', () => {
   assert.doesNotThrow(() => execFileSync('bash', ['-n', scriptPath], { stdio: 'pipe' }));
@@ -55,6 +100,51 @@ test('finalized transaction validation binds the parsed instruction to the exact
   assert.ok(verifier.includes('$parsed.info.metadataAddress == $mint'));
   assert.ok(!verifier.includes('accountKeys'));
   assert.ok(verifier.includes('.result.transaction.signatures[0] == $signature'));
+});
+
+test('the extracted jq verifier binds successful finalized transactions to the exact mint and operation', () => {
+  const valid = finalizedTransactionPayload('initializeTokenMetadata', { mint: CANONICAL_MINT });
+  assert.equal(finalizedTransactionIsAccepted(valid, ['initializeTokenMetadata']), true);
+
+  const wrongMintWithCanonicalMetadataAlias = finalizedTransactionPayload('initializeMetadataPointer', {
+    mint: 'AnotherMint1111111111111111111111111111111',
+    metadataAddress: CANONICAL_MINT,
+  });
+  assert.equal(finalizedTransactionIsAccepted(wrongMintWithCanonicalMetadataAlias, ['initializeMetadataPointer']), false);
+
+  const metadataOnly = finalizedTransactionPayload('initializeTokenMetadata', { metadata: CANONICAL_MINT });
+  assert.equal(finalizedTransactionIsAccepted(metadataOnly, ['initializeTokenMetadata']), true);
+
+  const wrongSignature = finalizedTransactionPayload('initializeTokenMetadata', { mint: CANONICAL_MINT }, '2'.repeat(64));
+  assert.equal(finalizedTransactionIsAccepted(wrongSignature, ['initializeTokenMetadata']), false);
+
+  const failedTransaction = structuredClone(valid);
+  failedTransaction.result.meta.err = { InstructionError: [0, 'Custom'] };
+  assert.equal(finalizedTransactionIsAccepted(failedTransaction, ['initializeTokenMetadata']), false);
+});
+
+test('the extracted jq verifier requires an explicit null newAuthority for each revocation form', () => {
+  const expected = ['setAuthority'];
+  assert.equal(finalizedTransactionIsAccepted(
+    finalizedTransactionPayload('setAuthority', { mint: CANONICAL_MINT, authorityType: 'mintTokens', newAuthority: null }),
+    expected, 'mintTokens',
+  ), true);
+  assert.equal(finalizedTransactionIsAccepted(
+    finalizedTransactionPayload('setAuthority', { mint: CANONICAL_MINT, authorityType: 'mintTokens' }),
+    expected, 'mintTokens',
+  ), false);
+  assert.equal(finalizedTransactionIsAccepted(
+    finalizedTransactionPayload('setAuthority', { mint: CANONICAL_MINT, authorityType: 'mintTokens', newAuthority: 'GrantedAuthority' }),
+    expected, 'mintTokens',
+  ), false);
+  assert.equal(finalizedTransactionIsAccepted(
+    finalizedTransactionPayload('updateTokenMetadataAuthority', { metadata: CANONICAL_MINT }),
+    ['updateTokenMetadataAuthority'], 'metadata',
+  ), false);
+  assert.equal(finalizedTransactionIsAccepted(
+    finalizedTransactionPayload('updateTokenMetadataAuthority', { metadata: CANONICAL_MINT, newAuthority: null }),
+    ['updateTokenMetadataAuthority'], 'metadata',
+  ), true);
 });
 
 test('metadata update-authority revocation does not require a nonexistent authorityType field', () => {
