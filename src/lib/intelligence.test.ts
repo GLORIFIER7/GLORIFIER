@@ -30,7 +30,12 @@ test('Markdown-fenced JSON preserves backticks inside JSON string values', () =>
     themes: [],
     disagreements: [],
   };
-  const response = `Here is the report:\n```json\n${JSON.stringify(expected)}\n```;
+  const response = [
+    'Here is the report:',
+    '```json',
+    JSON.stringify(expected),
+    '```',
+  ].join('\n');
 
   assert.deepEqual(parseJson(response, {}), expected);
 });
