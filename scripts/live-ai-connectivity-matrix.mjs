@@ -1,3 +1,4 @@
+import { stripTrailingSlashes } from './linear-string.mjs';
 import { createHash } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
