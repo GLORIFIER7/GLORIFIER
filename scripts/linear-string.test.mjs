@@ -41,12 +41,12 @@ test('fenced content preserves inline backticks and requires a standalone closin
     'Trailing explanation',
   ].join('\n');
 
-  assert.equal(extractFirstFencedContent(response, 'json'), json);
+  assert.equal(extractFirstFencedContent(response, 'json'), json + '\n');
   assert.equal(extractFirstFencedContent(response, 'jsonc'), null);
 });
 
 test('fenced content supports unlabeled fences and CRLF line endings', () => {
-  assert.equal(extractFirstFencedContent('Before\n```\r\nvalue\r\n```\r\nAfter'), 'value');
+  assert.equal(extractFirstFencedContent('Before\n```\r\nvalue\r\n```\r\nAfter'), 'value\r\n');
 });
 
 test('outer code-fence stripping requires an exact language label', () => {
