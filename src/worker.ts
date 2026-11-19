@@ -1,3 +1,4 @@
+import { stripTrailingSlashes } from './lib/linear-string.js';
 import { getBusinessModel } from './lib/business-model-contract';
 import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH, buildA2AAgentCard } from './lib/a2a-v1';
 import { openSeaWorkerRoute } from './lib/opensea-worker';
@@ -1180,7 +1181,7 @@ export default {
       return workerNativeReadOnlyJson(request, () => buildA2AAgentCard(incomingUrl.origin));
     }
 
-    if (incomingUrl.pathname.replace(/\/+$/, '') === GITHUB_MCP_PATH) {
+    if (stripTrailingSlashes(incomingUrl.pathname) === GITHUB_MCP_PATH) {
       if (!env.MCP_RATE_LIMITER) {
         return Response.json({
           ok: false,
@@ -1198,7 +1199,7 @@ export default {
       return githubMcpRoute(request, env.MCP_RATE_LIMITER, env.GITHUB_MCP_READ_TOKEN);
     }
 
-    if (incomingUrl.pathname.replace(/\/+$/, '') === A2A_JSONRPC_PATH) {
+    if (stripTrailingSlashes(incomingUrl.pathname) === A2A_JSONRPC_PATH) {
       // Canonicalize the accepted trailing-slash form before route matching.
       incomingUrl.pathname = A2A_JSONRPC_PATH;
       const errorResponse = (
