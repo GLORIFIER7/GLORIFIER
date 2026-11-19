@@ -52,7 +52,7 @@ export function extractFirstFencedContent(value, language) {
   if (!closing) return null;
 
   const content = value.slice(contentStart, closing.index);
-  return content.replace(/\\r?\\n$/, '');
+  return content.replace(/\r?\n$/, '');
 }
 
 export function stripOuterCodeFence(value, language) {
