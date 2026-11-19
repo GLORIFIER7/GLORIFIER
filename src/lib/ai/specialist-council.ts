@@ -2,6 +2,77 @@ import { aiOrchestrator } from './orchestrator';
 import { buildRepositoryCouncilAssignments } from './repository-contributor-policy.mjs';
 import type { AIMessage, AIProviderId, AIResponse } from './types';
 
+export const MAX_SPECIALIST_COUNCIL_ROLES = 8;
+export const MAX_SPECIALIST_COUNCIL_CONCURRENCY = 4;
+export const MAX_SPECIALIST_COUNCIL_OBJECTIVE_CHARS = 24_000;
+
+const DEFAULT_SPECIALIST_COUNCIL_ROLE_IDS = [
+  'policy-scientist',
+  'engineering-scientist',
+  'cybersecurity-scientist',
+  'operations-scientist',
+] as const;
+
+function selectSpecialistRoles(requestedRoleIds?: string[]): SpecialistRole[] {
+  const roleIds = requestedRoleIds === undefined
+    ? [...DEFAULT_SPECIALIST_COUNCIL_ROLE_IDS]
+    : requestedRoleIds;
+
+  if (!Array.isArray(roleIds) || roleIds.length === 0) {
+    throw new Error('Specialist Council requires at least one explicit specialist role.');
+  }
+  if (roleIds.length > MAX_SPECIALIST_COUNCIL_ROLES) {
+    throw new Error(`Specialist Council supports at most ${MAX_SPECIALIST_COUNCIL_ROLES} specialists per request.`);
+  }
+
+  const roleById = new Map(specialistRoles.map((role) => [role.id, role]));
+  const seen = new Set<string>();
+  const selected: SpecialistRole[] = [];
+  for (const roleId of roleIds) {
+    if (typeof roleId !== 'string' || !roleId.trim()) {
+      throw new Error('Specialist Council role IDs must be non-empty strings.');
+    }
+    const normalizedRoleId = roleId.trim();
+    if (seen.has(normalizedRoleId)) {
+      throw new Error(`Specialist Council role '${normalizedRoleId}' was requested more than once.`);
+    }
+    seen.add(normalizedRoleId);
+    const role = roleById.get(normalizedRoleId);
+    if (!role) {
+      throw new Error(`Specialist Council received unknown specialist role '${normalizedRoleId}'.`);
+    }
+    selected.push(role);
+  }
+  return selected;
+}
+
+async function settleWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  execute: (item: T, index: number) => Promise<R>,
+): Promise<PromiseSettledResult<R>[]> {
+  if (!Number.isSafeInteger(concurrency) || concurrency < 1) {
+    throw new Error('Specialist Council concurrency must be a positive safe integer.');
+  }
+  const results = new Array<PromiseSettledResult<R>>(items.length);
+  let nextIndex = 0;
+  const workerCount = Math.min(concurrency, items.length);
+
+  await Promise.all(Array.from({ length: workerCount }, async () => {
+    while (true) {
+      const index = nextIndex;
+      nextIndex += 1;
+      if (index >= items.length) return;
+      try {
+        results[index] = { status: 'fulfilled', value: await execute(items[index], index) };
+      } catch (reason) {
+        results[index] = { status: 'rejected', reason };
+      }
+    }
+  }));
+  return results;
+}
+
 export type SpecialistDomain =
   | 'policy' | 'legal' | 'patent' | 'compliance' | 'ethics' | 'finance' | 'revenue' | 'risk' | 'data'
   | 'research' | 'ai_ml' | 'engineering' | 'software_architecture' | 'cybersecurity'
@@ -135,10 +206,18 @@ function reconcile(objective: string, findings: SpecialistFinding[]) {
 }
 
 export async function runSpecialistCouncil(request: CouncilRequest) {
-  const selected = (request.roles?.length
-    ? specialistRoles.filter((role) => request.roles!.includes(role.id))
-    : specialistRoles
-  ).slice(0, 40);
+  if (typeof request.objective !== 'string' || !request.objective.trim()) {
+    throw new Error('Specialist Council objective is required.');
+  }
+  if (request.objective.length > MAX_SPECIALIST_COUNCIL_OBJECTIVE_CHARS) {
+    throw new Error(`Specialist Council objective must not exceed ${MAX_SPECIALIST_COUNCIL_OBJECTIVE_CHARS.toLocaleString('en-US')} characters.`);
+  }
+  const objective = request.objective.trim();
+  const selected = selectSpecialistRoles(request.roles);
+  const temperature = request.temperature ?? 0.2;
+  if (!Number.isFinite(temperature) || temperature < 0 || temperature > 1) {
+    throw new Error('Specialist Council temperature must be a finite number between 0 and 1.');
+  }
 
   const standingMission = request.standingMission === true;
   const explicitAssignments = request.providerSelections === undefined
@@ -155,23 +234,38 @@ export async function runSpecialistCouncil(request: CouncilRequest) {
     providerId: 'auto' as AIProviderId,
     modelId: undefined as string | undefined
   }));
-  const responses = await Promise.allSettled(executionUnits.map(async ({ role, providerId, modelId }) => {
-    const messages: AIMessage[] = [
-      { role: 'system', content: specialistPrompt(role, request.objective, standingMission) },
-      { role: 'user', content: request.objective }
-    ];
-    const temperature = request.temperature ?? 0.2;
-    const response = request.providerSelections !== undefined
-      ? await request.generateProvider!({ providerId, modelId: modelId! }, messages, temperature)
-      : await aiOrchestrator.generate({
-          provider: providerId,
-          ...(modelId ? { model: modelId } : {}),
-          messages,
-          temperature,
-          evaluate: true
-        });
-    return { role, response };
-  }));
+  const responses = await settleWithConcurrency(
+    executionUnits,
+    MAX_SPECIALIST_COUNCIL_CONCURRENCY,
+    async ({ role, providerId, modelId }) => {
+      const messages: AIMessage[] = [
+        { role: 'system', content: specialistPrompt(role, objective, standingMission) },
+        { role: 'user', content: objective }
+      ];
+      const response = request.providerSelections !== undefined
+        ? await request.generateProvider!({ providerId, modelId: modelId! }, messages, temperature)
+        : await aiOrchestrator.generate({
+            provider: providerId,
+            ...(modelId ? { model: modelId } : {}),
+            messages,
+            temperature,
+            evaluate: true
+          });
+
+      if (!response || typeof response.text !== 'string' || !response.text.trim()) {
+        throw new Error(`Specialist '${role.id}' returned empty specialist output.`);
+      }
+      if (typeof response.provider !== 'string' || !response.provider.trim()
+          || typeof response.model !== 'string' || !response.model.trim()) {
+        throw new Error(`Specialist '${role.id}' returned incomplete provider/model metadata.`);
+      }
+      if (request.providerSelections !== undefined
+          && (response.provider !== providerId || response.model !== modelId)) {
+        throw new Error(`Specialist '${role.id}' returned unexpected provider/model; the explicit assignment was not honored.`);
+      }
+      return { role, response };
+    },
+  );
 
   if (request.providerSelections !== undefined) {
     const failedAssignments = responses
@@ -194,7 +288,7 @@ export async function runSpecialistCouncil(request: CouncilRequest) {
       role: r.value.role,
       provider: r.value.response.provider,
       model: r.value.response.model,
-      output: r.value.response.text,
+      output: r.value.response.text.trim(),
       evaluation: r.value.response.evaluation,
       latencyMs: r.value.response.latencyMs
     }));
@@ -206,6 +300,11 @@ export async function runSpecialistCouncil(request: CouncilRequest) {
     availableRoles: specialistRoles,
     selectedRoles: selected,
     providerAssignments: explicitAssignments?.map(({ role, providerId, modelId }) => ({ roleId: role.id, providerId, modelId })) ?? null,
-    result: reconcile(request.objective, findings)
+    result: reconcile(objective, findings),
+    execution: {
+      selectedSpecialistCount: selected.length,
+      providerCallCount: executionUnits.length,
+      maxConcurrentProviderCalls: MAX_SPECIALIST_COUNCIL_CONCURRENCY,
+    }
   };
 }
