@@ -1,4 +1,3 @@
-import { stripTrailingZeros } from '../linear-string.js';
 /**
  * OpenTelemetry runtime evidence assessment.
  *
@@ -9,6 +8,7 @@ import { stripTrailingZeros } from '../linear-string.js';
  * evidence and its own independent probe result.
  */
 
+import { stripTrailingZeros } from '../linear-string.js';
 export const DEFAULT_OTEL_EVIDENCE_MAX_AGE_MS = 5 * 60 * 1000;
 
 export type OTelSignalName = 'traces' | 'metrics' | 'logs';
