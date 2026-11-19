@@ -165,9 +165,9 @@ The current main branch and its architecture records already provide a strong ba
 Two important evidence boundaries remain visible in current repository documentation:
 
 - The interoperability matrix marks full A2A 1.0.1 and MCP 2026-07-28 external conformance as NOT VERIFIED; the existence of local tests and workflows does not change that status.
-- The November 18 architecture landscape records the agent control registry in `src/lib/governance/agent-control-plane.ts` as process-local state. Do not treat that file alone as proof of durable cross-instance agent identity and authorization state.
+- The [November 18 architecture landscape](open-source-agent-orchestration-landscape-2026-11-18.md) records the agent control registry in `src/lib/governance/agent-control-plane.ts` as process-local state. Do not treat that file alone as proof of durable cross-instance agent identity and authorization state.
 
-The current Autopilot Cloudflare migration record also states that the production free-plan entitlement is not independently verified and inference remains disabled in the described production configuration. This blueprint does not authorize model calls, external egress, paid inference, or new credentials.
+The [Autopilot Cloudflare migration record](../operations/AUTOPILOT-CLOUDFLARE-MIGRATION.md) also states that the production free-plan entitlement is not independently verified and inference remains disabled in the described production configuration. This blueprint does not authorize model calls, external egress, paid inference, or new credentials.
 
 Related existing architecture documents:
 
