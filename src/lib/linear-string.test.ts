@@ -33,6 +33,9 @@ test('recognizes only fingerprinted asset name segments', () => {
   assert.equal(hasFingerprintAssetSegment('app.0123456789.js'), true);
   assert.equal(hasFingerprintAssetSegment('app-1234567.js'), false);
   assert.equal(hasFingerprintAssetSegment('app-1234567!.js'), false);
+  assert.equal(hasFingerprintAssetSegment('app--1234567.js'), false);
+  assert.equal(hasFingerprintAssetSegment('app---1234567.js'), false);
+  assert.equal(hasFingerprintAssetSegment('app-abc-defgh.js'), true);
 });
 
 test('strips tag-shaped markup in one forward scan', () => {
@@ -75,7 +78,11 @@ test('shared fenced-content extraction ignores inline backticks and requires exa
 
   assert.equal(
     extractFirstFencedContent(response, 'json', { requireStandaloneClosing: true }),
-    '{"summary":"preserve the inline marker ``` in this value"}' + '\n',
+    '{"summary":"preserve the inline marker ``` in this value"}\n',
+  );
+  assert.equal(
+    extractFirstFencedContent('before ```jsonc\n{"ok":true}\n```', 'json', { requireStandaloneClosing: true }),
+    null,
   );
   assert.equal(
     extractFirstFencedContent('before ```jsonc\n{"ok":true}\n```', 'json'),

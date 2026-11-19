@@ -30,9 +30,17 @@ export function hasFingerprintAssetSegment(filename) {
       continue;
     }
 
-    let end = index + 1;
+    const hashStart = index + 1;
+    // A hyphen starts a segment; it must not also become the first hash
+    // character, otherwise a repeated separator can satisfy the length gate.
+    if (filename[hashStart] === '-' || !isHashCharacter(filename[hashStart] ?? '')) {
+      index += 1;
+      continue;
+    }
+
+    let end = hashStart;
     while (end < filename.length && isHashCharacter(filename[end])) end += 1;
-    if (end - index - 1 >= 8 && filename[end] === '.') return true;
+    if (end - hashStart >= 8 && filename[end] === '.') return true;
     index = end;
   }
   return false;
