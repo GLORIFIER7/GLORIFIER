@@ -38,20 +38,24 @@ export function hasFingerprintAssetSegment(filename) {
   return false;
 }
 
-export function extractFirstFencedContent(value, language) {
-  const openingPattern = /```([^\r\n]*)\r?\n/.exec(value);
+export function extractFirstFencedContent(value, language, options = {}) {
+  const openingPattern = /```([^\\r\\n]*)\\r?\\n/.exec(value);
   if (!openingPattern) return null;
 
   const label = openingPattern[1].trim();
   if (language && label.toLowerCase() !== language.toLowerCase()) return null;
 
   const contentStart = openingPattern.index + openingPattern[0].length;
-  const closingPattern = /^ {0,3}```(?:[ \t]+[^\r\n]*)?[ \t]*(?:\r?\n|$)/gm;
-  closingPattern.lastIndex = contentStart;
-  const closing = closingPattern.exec(value);
-  if (!closing) return null;
+  let closingIndex;
+  if (options.requireStandaloneClosing) {
+    const closingPattern = /^ {0,3}```[ \\t]*(?:\\r?\\n|$)/gm;
+    closingPattern.lastIndex = contentStart;
+    closingIndex = closingPattern.exec(value)?.index ?? -1;
+  } else {
+    closingIndex = value.indexOf('```', contentStart);
+  }
 
-  return value.slice(contentStart, closing.index);
+  return closingIndex < 0 ? null : value.slice(contentStart, closingIndex);
 }
 
 export function stripOuterCodeFence(value, language) {
