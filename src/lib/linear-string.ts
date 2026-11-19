@@ -1,21 +1,21 @@
 /**
- * Linear-time string helpers used where regular expressions were previously
- * used for repeated suffix trimming and simple delimiter extraction.
+ * Typed facade for shared linear-time helpers in the Node/browser utility module.
+ * Keep shared implementations in scripts/linear-string.mjs so script and app
+ * code exercise the same implementation.
  */
+import {
+  hasFingerprintAssetSegment,
+  stripOuterCodeFence,
+  stripTrailingCharacter,
+  stripTrailingSlashes,
+} from '../../scripts/linear-string.mjs';
 
-export function stripTrailingCharacter(value: string, character: string): string {
-  if (character.length !== 1) {
-    throw new TypeError('The trailing character must be exactly one character.');
-  }
-
-  let end = value.length;
-  while (end > 0 && value[end - 1] === character) end -= 1;
-  return value.slice(0, end);
-}
-
-export function stripTrailingSlashes(value: string): string {
-  return stripTrailingCharacter(value, '/');
-}
+export {
+  hasFingerprintAssetSegment,
+  stripOuterCodeFence,
+  stripTrailingCharacter,
+  stripTrailingSlashes,
+};
 
 export function stripTrailingZeros(value: string): string {
   return stripTrailingCharacter(value, '0');
@@ -23,30 +23,6 @@ export function stripTrailingZeros(value: string): string {
 
 export function stripBase64Padding(value: string): string {
   return stripTrailingCharacter(value, '=');
-}
-
-export function hasFingerprintAssetSegment(filename: string): boolean {
-  const isHashCharacter = (character: string): boolean =>
-    (character >= 'a' && character <= 'z')
-    || (character >= 'A' && character <= 'Z')
-    || (character >= '0' && character <= '9')
-    || character === '_'
-    || character === '-';
-
-  let index = 0;
-  while (index < filename.length) {
-    if (filename[index] !== '.' && filename[index] !== '-') {
-      index += 1;
-      continue;
-    }
-
-    let end = index + 1;
-    while (end < filename.length && isHashCharacter(filename[end])) end += 1;
-    if (end - index - 1 >= 8 && filename[end] === '.') return true;
-    index = end;
-  }
-
-  return false;
 }
 
 export function stripHtmlTags(value: string): string {
@@ -98,28 +74,6 @@ export function extractAngleBracketContent(value: string): string | null {
 
 function isWhitespace(character: string | undefined): boolean {
   return character !== undefined && character.trim() === '';
-}
-
-export function stripOuterCodeFence(value: string, language?: string): string {
-  let result = value.trim();
-
-  if (result.startsWith('```')) {
-    let start = 3;
-    if (language && result.slice(start, start + language.length).toLowerCase() === language.toLowerCase()) {
-      start += language.length;
-    }
-    while (isWhitespace(result[start])) start += 1;
-    result = result.slice(start);
-  }
-
-  let end = result.length;
-  while (end > 0 && isWhitespace(result[end - 1])) end -= 1;
-  if (result.slice(Math.max(0, end - 3), end) === '```') {
-    end -= 3;
-    while (end > 0 && isWhitespace(result[end - 1])) end -= 1;
-  }
-
-  return result.slice(0, end);
 }
 
 export function extractFirstFencedContent(value: string, language?: string): string | null {
