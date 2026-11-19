@@ -1,3 +1,4 @@
+import { stripTrailingZeros } from './linear-string.js';
 import crypto from 'node:crypto';
 import { getPostgresPool } from './db/postgres';
 
@@ -53,7 +54,7 @@ export function normalizeGLRAmount(value: string | number): string {
   }
   const [wholeRaw, fraction = ''] = raw.split('.');
   const whole = wholeRaw.replace(/^0+(?=\d)/, '');
-  const normalizedFraction = fraction.replace(/0+$/, '');
+  const normalizedFraction = stripTrailingZeros(fraction);
   return normalizedFraction ? `${whole}.${normalizedFraction}` : whole;
 }
 
