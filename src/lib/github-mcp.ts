@@ -626,7 +626,7 @@ const resolveMcpProtocolMode = (
         response: rpcError(
           id,
           -32020,
-          'Header mismatch: modern HTTP requests must repeat the per-request protocol version in the MCP-Protocol-Version header.',
+          'Header mismatch: modern HTTP requests must declare the same protocol version in both params._meta and the MCP-Protocol-Version header.',
           400,
         ),
       };
