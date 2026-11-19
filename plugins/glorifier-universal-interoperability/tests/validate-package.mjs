@@ -50,11 +50,14 @@ check("every packaged skill has valid frontmatter and required metadata", async 
     const descriptionIndex = headerLines.findIndex((line) => line.startsWith('description:'));
     const descriptionLine = descriptionIndex >= 0 ? headerLines[descriptionIndex] : '';
     const inlineDescription = descriptionLine.slice('description:'.length).trim();
-    const hasIndentedDescription = headerLines.slice(descriptionIndex + 1).some((line) => (
-      line.trim().length > 0
-      && /^\s+/.test(line)
-      && !/^[a-z0-9_-]+:\s*/i.test(line.trim())
-    ));
+    const descriptionContinuation = descriptionIndex >= 0
+      ? headerLines.slice(descriptionIndex + 1).find((line) => line.trim().length > 0)
+      : undefined;
+    const hasIndentedDescription = Boolean(
+      descriptionContinuation
+      && /^\s+/.test(descriptionContinuation)
+      && !/^[a-z0-9_-]+:\s*/i.test(descriptionContinuation.trim())
+    );
     assert.ok(
       inlineDescription.length > 0 || hasIndentedDescription,
       file + ": missing description",
