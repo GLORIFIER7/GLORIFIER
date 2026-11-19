@@ -1,3 +1,4 @@
+import { stripTrailingSlashes } from '../src/lib/linear-string.js';
 export interface GeasRunProvenance {
   schemaVersion: 'GEAS-RUN-PROVENANCE-2';
   eventName: string | null;
@@ -72,7 +73,7 @@ export function buildGeasRunProvenance(
     try {
       const server = new URL(serverValue);
       if (server.protocol === 'https:') {
-        runUrl = server.toString().replace(/\/+$/, '') + '/' + repository + '/actions/runs/' + runId;
+        runUrl = stripTrailingSlashes(server.toString()) + '/' + repository + '/actions/runs/' + runId;
       }
     } catch {
       runUrl = null;
