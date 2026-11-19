@@ -66,7 +66,7 @@ export const AllAiCollaborationModal: React.FC<AllAiCollaborationModalProps> = (
   const [councilResult, setCouncilResult] = useState<CouncilConsensusResult | null>(null);
   const [providerFailures, setProviderFailures] = useState<ModelCouncilProviderFailure[]>([]);
   const [statusFeedback, setStatusFeedback] = useState<string | null>(null);
-  const dialogRef = useAccessibleDialog(isOpen, onClose);
+  const dialogRef = useAccessibleDialog<HTMLDivElement>(isOpen, onClose);
 
   if (!isOpen) return null;
 
