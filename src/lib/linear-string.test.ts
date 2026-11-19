@@ -56,6 +56,8 @@ test('normalizes outer JSON and diff fences without regular expressions', () => 
   assert.equal(stripOuterCodeFence('```json\n{"ok":true}\n```', 'json'), '{"ok":true}');
   assert.equal(stripOuterCodeFence('```diff\n+line\n```', 'diff'), '+line');
   assert.equal(stripOuterCodeFence('plain text  ', 'diff'), 'plain text');
+  assert.equal(stripOuterCodeFence('plain content```'), 'plain content```');
+  assert.equal(stripOuterCodeFence('bare JSON `{}```'), 'bare JSON `{}```');
 });
 
 test('extracts the first fenced block with an optional language marker', () => {
