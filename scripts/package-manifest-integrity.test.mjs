@@ -54,7 +54,7 @@ test("standalone build entry points run package integrity and relevant prebuild 
   );
   assert.equal(
     manifest.scripts?.["prebuild:frontend"],
-    sharedPrebuild + " && npm run test:service-worker-cache && npm run test:firebase-hosting-config && npm run test:picomatch-redos && npm run test:dependency-security-exceptions",
+    sharedPrebuild + " && npm run test:service-worker-cache && npm run test:firebase-hosting-config && npm run test:picomatch-redos && npm run test:dependency-security-exceptions && npm run test:linear-string-normalization && npm run test:accessible-dialog",
     "frontend builds must verify retired service-worker cache cleanup and Firebase Hosting configuration",
   );
   assert.equal(
