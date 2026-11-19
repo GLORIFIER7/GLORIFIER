@@ -14,11 +14,13 @@ test('valid raw JSON preserves triple-backtick values inside report fields', () 
 
 test('Markdown-fenced JSON is parsed when the response is not raw JSON', () => {
   const expected = { executiveSummary: 'A valid report', themes: [], disagreements: [] };
-  const response = `Here is the requested report:
-```json
-${JSON.stringify(expected)}
-```
-`;
+  const response = [
+    'Here is the requested report:',
+    '```json',
+    JSON.stringify(expected),
+    '```',
+    '',
+  ].join('\n');
 
   assert.deepEqual(parseJson(response, {}), expected);
 });
