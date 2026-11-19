@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import {
   extractFirstFencedContent,
@@ -55,4 +56,23 @@ test('fenced content supports unlabeled fences and CRLF line endings', () => {
 test('outer code-fence stripping requires an exact language label', () => {
   assert.equal(stripOuterCodeFence('```jsonc\n{"ok":true}\n```', 'json'), 'jsonc\n{"ok":true}');
   assert.equal(stripOuterCodeFence('```json\n{"ok":true}\n```', 'json'), '{"ok":true}');
+});
+
+test('fenced-content extraction stays linear for very long opening labels', () => {
+  const source = readFileSync(new URL('./linear-string.mjs', import.meta.url), 'utf8');
+  assert.equal(source.includes('const openingPattern = /'), false);
+
+  const label = 'x'.repeat(250_000);
+  const lineEnding = String.fromCharCode(13, 10);
+  const payload = 'payload' + lineEnding;
+  const fence = String.fromCharCode(96).repeat(3);
+  const input = 'Prefix ' + fence + label + lineEnding + payload + fence;
+  assert.equal(extractFirstFencedContent(input), payload);
+});
+
+
+test('fenced-content extraction resumes after a bare carriage-return boundary', () => {
+  const fence = String.fromCharCode(96).repeat(3);
+  const input = 'Prompt ' + fence + 'invalid\rtext ' + fence + 'json\nbody\n' + fence;
+  assert.equal(extractFirstFencedContent(input, 'json'), 'body\n');
 });

@@ -4341,4 +4341,7 @@ async function startServer() {
   });
 }
 
-startServer();
+void startServer().catch((error: unknown) => {
+  console.error('[ServerStartup] failed to start:', error instanceof Error ? error.message : error);
+  process.exitCode = 1;
+});

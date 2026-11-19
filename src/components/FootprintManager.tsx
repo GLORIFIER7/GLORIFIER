@@ -313,7 +313,7 @@ export const FootprintManager: React.FC<FootprintManagerProps> = ({
                         max="1.2"
                         step="0.05"
                         value={fp.privacyEpsilon}
-                        onChange={(e) => onUpdatePrivacyTier(fp.id, fp.privacyTier, parseFloat(e.target.value))}
+                        onChange={(e) => onUpdatePrivacyTier(fp.id, fp.privacyTier, Number.parseFloat(e.target.value))}
                         className="w-full accent-emerald-500 cursor-pointer h-1.5 bg-slate-805 rounded-lg"
                       />
 

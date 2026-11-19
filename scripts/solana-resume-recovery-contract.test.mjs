@@ -16,9 +16,19 @@ const FINALIZED_SIGNATURE = '1'.repeat(64);
 const verifierStart = script.indexOf('verify_finalized_transaction() {');
 const verifierFilterStart = script.indexOf('      .error == null', verifierStart);
 const verifierFilterEnd = script.indexOf('\n    \' <<< "$response"', verifierFilterStart);
-assert.ok(verifierStart >= 0 && verifierFilterStart > verifierStart && verifierFilterEnd > verifierFilterStart,
-  'could not extract the actual finalized-transaction jq filter');
 const finalizedVerifierFilter = script.slice(verifierFilterStart, verifierFilterEnd);
+const testFileSource = readFileSync(new URL(import.meta.url), 'utf8');
+
+test('the test module keeps all assertions inside node:test cases', () => {
+  const firstTestIndex = testFileSource.indexOf('\\ntest(');
+  assert.notEqual(firstTestIndex, -1);
+  assert.equal(testFileSource.slice(0, firstTestIndex).includes('assert.ok('), false);
+});
+
+test('extracts the actual finalized-transaction jq filter before exercising it', () => {
+  assert.ok(verifierStart >= 0 && verifierFilterStart > verifierStart && verifierFilterEnd > verifierFilterStart,
+    'could not extract the actual finalized-transaction jq filter');
+});
 
 function finalizedTransactionPayload(type, info, signature = FINALIZED_SIGNATURE) {
   return {

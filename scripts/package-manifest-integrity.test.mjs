@@ -57,8 +57,13 @@ test("standalone build entry points run package integrity and relevant prebuild 
   );
   assert.equal(
     manifest.scripts?.["prebuild:frontend"],
-    sharedPrebuild + " && npm run test:service-worker-cache && npm run test:firebase-hosting-config && npm run test:picomatch-redos && npm run test:dependency-security-exceptions && npm run test:linear-string-normalization && npm run test:accessible-dialog",
+    "npm run test:sonarcloud-main-findings && " + sharedPrebuild + " && npm run test:service-worker-cache && npm run test:firebase-hosting-config && npm run test:picomatch-redos && npm run test:dependency-security-exceptions && npm run test:linear-string-normalization && npm run test:accessible-dialog",
     "frontend builds must verify retired service-worker cache cleanup and Firebase Hosting configuration",
+  );
+  assert.equal(
+    manifest.scripts?.["test:sonarcloud-main-findings"],
+    "node --test scripts/sonarcloud-main-findings.test.mjs",
+    "the SonarCloud remediation contract test must be runnable independently",
   );
   assert.equal(
     manifest.scripts?.["test:service-worker-cache"],
