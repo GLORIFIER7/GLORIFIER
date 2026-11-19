@@ -606,16 +606,27 @@ const resolveMcpProtocolMode = (
   const modernRequested = metadataVersion === MODERN_PROTOCOL_VERSION ||
     headerVersion === MODERN_PROTOCOL_VERSION;
 
-  // On Streamable HTTP, the modern per-request metadata is mandatory and the
-  // HTTP version header must repeat the same value. A missing or mismatched
-  // declaration is an invalid request, not an unsupported protocol version.
+  // The modern request body must declare its protocol version before the
+  // transport header can be compared. Missing per-request metadata is invalid
+  // params (-32602); a present but absent/mismatched HTTP header is a header
+  // mismatch (-32020).
   if (modernRequested) {
-    if (!metadataVersion || !headerVersion) {
+    if (!metadataVersion) {
+      return {
+        response: rpcError(
+          id,
+          -32602,
+          'Invalid params: modern MCP requests must include params._meta.io.modelcontextprotocol/protocolVersion.',
+          400,
+        ),
+      };
+    }
+    if (!headerVersion) {
       return {
         response: rpcError(
           id,
           -32020,
-          'Header mismatch: modern HTTP requests must declare the same protocol version in both params._meta and the MCP-Protocol-Version header.',
+          'Header mismatch: modern HTTP requests must repeat the per-request protocol version in the MCP-Protocol-Version header.',
           400,
         ),
       };
@@ -800,19 +811,26 @@ const enforceMcpToolRateLimit = async (
 ): Promise<Response | null> => {
   if (message.method !== 'tools/call') return null;
   const key = request.headers.get('cf-connecting-ip')?.trim() || 'unknown-client';
+  const id = typeof message.id === 'string' || typeof message.id === 'number' || message.id === null
+    ? message.id
+    : null;
   try {
     const result = await rateLimiter.limit({ key });
     return result.success
       ? null
-      : jsonResponse({ error: 'MCP tool-call rate limit exceeded.' }, 429, { 'Retry-After': '60' });
+      : jsonResponse({
+          jsonrpc: '2.0',
+          id,
+          error: { code: -32029, message: 'MCP tool-call rate limit exceeded.' },
+        }, 429, { 'Retry-After': '60' });
   } catch {
-    return jsonResponse({ error: 'MCP rate-limit service is unavailable.' }, 503);
+    return rpcError(id, -32003, 'MCP rate-limit service is unavailable.', 503);
   }
 };
 
 export const githubMcpRoute = async (
   request: Request,
-  rateLimiter: GithubMcpRateLimiter,
+  rateLimiter: GithubMcpRateLimiter | undefined,
   readToken?: string,
 ): Promise<Response> => {
   const headerFailure = await validateMcpRequestHeaders(request);
@@ -820,6 +838,13 @@ export const githubMcpRoute = async (
 
   const parsed = await parseMcpRequest(request);
   if ('response' in parsed) return parsed.response;
+
+  if (!rateLimiter) {
+    const id = typeof parsed.message.id === 'string' || typeof parsed.message.id === 'number' || parsed.message.id === null
+      ? parsed.message.id
+      : null;
+    return rpcError(id, -32003, 'MCP rate-limit service is not configured.', 503);
+  }
 
   const rateLimitFailure = await enforceMcpToolRateLimit(request, parsed.message, rateLimiter);
   if (rateLimitFailure) return rateLimitFailure;
