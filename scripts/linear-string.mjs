@@ -43,7 +43,11 @@ export function stripOuterCodeFence(value, language) {
   if (!result.startsWith('```')) return result;
 
   let start = 3;
-  if (language && result.slice(start, start + language.length).toLowerCase() === language.toLowerCase()) {
+  if (
+    language
+    && result.slice(start, start + language.length).toLowerCase() === language.toLowerCase()
+    && !/[a-z0-9_-]/i.test(result[start + language.length] ?? '')
+  ) {
     start += language.length;
   }
   while (result[start] !== undefined && result[start].trim() === '') start += 1;
