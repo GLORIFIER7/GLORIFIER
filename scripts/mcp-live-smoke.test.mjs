@@ -206,3 +206,9 @@ test('modern read-only smoke runs before the exhaustive MCP TCK to avoid rate-li
   const officialStep = workflow.slice(officialTckStep, officialTckStep + 320);
   assert.ok(officialStep.includes('if: ${{ always()'), 'official TCK must still run when the earlier smoke fails');
 });
+
+
+test('stable MCP object keys use an explicit locale-aware comparison', async () => {
+  const source = await readFile(new URL('./mcp-live-smoke.mjs', import.meta.url), 'utf8');
+  assert.ok(source.includes("Object.keys(value).sort((left, right) => left.localeCompare(right, 'en'))"));
+});

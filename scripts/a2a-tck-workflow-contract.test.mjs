@@ -64,3 +64,14 @@ test('A2A TCK gives distinct staging configuration errors and rejects reserved p
   assert.match(workflow, /reserved placeholder hostname/);
   assert.match(workflow, /endpoint\.hostname\.lower\(\) != parsed\.hostname\.lower\(\)/);
 });
+
+
+test('A2A TCK installs only from the lockfile tied to the pinned upstream revision', () => {
+  const lockfile = readFileSync(new URL('../scripts/lockfiles/a2a-tck-uv.lock', import.meta.url), 'utf8');
+  assert.ok(workflow.includes('scripts/lockfiles/a2a-tck-uv.lock'));
+  assert.ok(workflow.includes('uv sync --locked --no-dev'));
+  assert.equal(workflow.includes('uv pip install'), false);
+  assert.ok(lockfile.includes('name = "a2a-tck"'));
+  assert.ok(lockfile.includes('requires-python = ">=3.15"'));
+  assert.ok(lockfile.includes('source = { editable = "." }'));
+});

@@ -55,6 +55,12 @@ const PROVIDER_PROFILES = Object.freeze([
 
 const PROFILE_BY_ID = new Map(PROVIDER_PROFILES.map((profile) => [profile.id, profile]));
 
+function stripTrailingPathSlashes(pathname) {
+  let end = pathname.length;
+  while (end > 0 && pathname[end - 1] === '/') end -= 1;
+  return pathname.slice(0, end);
+}
+
 const isRecord = (value) => typeof value === 'object' && value !== null && !Array.isArray(value);
 const parseTime = (value) => {
   if (typeof value !== 'string' || !value.trim()) return Number.NaN;
@@ -129,7 +135,7 @@ export function normalizeRepositoryProviderEndpoint(providerIdValue, rawUrl) {
       if (url.protocol !== 'https:' || (url.port && url.port !== '443') ||
           !allowedHosts.some((host) => hostname === host || hostname.endsWith('.' + host))) return null;
     }
-    const normalizedPath = url.pathname.replace(/\/+$/, '');
+    const normalizedPath = stripTrailingPathSlashes(url.pathname);
     return url.origin + normalizedPath;
   } catch {
     return null;

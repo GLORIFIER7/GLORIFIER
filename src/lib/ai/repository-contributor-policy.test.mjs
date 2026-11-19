@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { readFileSync } from 'node:fs';
 import {
   buildRepositoryCouncilAssignments,
   evaluateRepositoryProviderAttestation,
@@ -447,4 +448,16 @@ test('a mission public-content approval can be revoked before a subsequent provi
   assert.equal(isRepositoryMissionPublicContentApproved(env, 'mission-revocable'), true);
   env.GLORIFIER_REPOSITORY_PUBLIC_CONTENT_APPROVED_MISSION_IDS_JSON = '[]';
   assert.equal(isRepositoryMissionPublicContentApproved(env, 'mission-revocable'), false);
+});
+
+
+test('normalizes endpoint path separators with a bounded scan', () => {
+  const source = readFileSync(new URL('./repository-contributor-policy.mjs', import.meta.url), 'utf8');
+  assert.equal(source.includes('url.pathname.replace('), false);
+
+  const repeatedSlashes = 'https://generativelanguage.googleapis.com/v1' + '/'.repeat(100_000);
+  assert.equal(
+    normalizeRepositoryProviderEndpoint('gemini', repeatedSlashes),
+    'https://generativelanguage.googleapis.com/v1',
+  );
 });

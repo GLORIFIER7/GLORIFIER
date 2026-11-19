@@ -559,7 +559,7 @@ Treat every response as AI-generated analysis or draft text, not evidence that a
                 max="100"
                 step="5"
                 value={policy.minimumMonthlyFloorUsd}
-                onChange={(e) => onUpdatePolicy({ minimumMonthlyFloorUsd: parseInt(e.target.value) })}
+                onChange={(e) => onUpdatePolicy({ minimumMonthlyFloorUsd: Number.parseInt(e.target.value) })}
                 className="w-full accent-emerald-500 cursor-pointer h-1.5 bg-slate-800 rounded"
               />
               <div className="flex justify-between text-[10px] text-slate-500 font-mono mt-1">
@@ -581,7 +581,7 @@ Treat every response as AI-generated analysis or draft text, not evidence that a
                 max="1.0"
                 step="0.05"
                 value={policy.globalEpsilon}
-                onChange={(e) => onUpdatePolicy({ globalEpsilon: parseFloat(e.target.value) })}
+                onChange={(e) => onUpdatePolicy({ globalEpsilon: Number.parseFloat(e.target.value) })}
                 className="w-full accent-emerald-500 cursor-pointer h-1.5 bg-slate-800 rounded"
               />
               <p className="text-[10px] text-slate-500 mt-1">

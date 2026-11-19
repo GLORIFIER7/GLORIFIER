@@ -91,7 +91,7 @@ export const DriveGovernanceTab: React.FC<DriveGovernanceTabProps> = ({
 
   useEffect(() => {
     if (currentUser && hasAccessToken && files.length === 0) {
-      fetchDriveFiles();
+      void fetchDriveFiles();
     }
   }, [currentUser, hasAccessToken]);
 
@@ -150,7 +150,7 @@ export const DriveGovernanceTab: React.FC<DriveGovernanceTabProps> = ({
       setExportSuccessLink({ name: result.name, link: result.webViewLink });
       
       // Refresh list
-      fetchDriveFiles();
+      await fetchDriveFiles();
     } catch (err: any) {
       setError(`Failed to export manifest: ${err.message}`);
     } finally {

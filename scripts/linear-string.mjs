@@ -47,13 +47,43 @@ export function hasFingerprintAssetSegment(filename) {
 }
 
 export function extractFirstFencedContent(value, language, options = {}) {
-  const openingPattern = /```([^\r\n]*)\r?\n/.exec(value);
-  if (!openingPattern) return null;
+  let openingFenceIndex = -1;
+  let openingLineEnd = -1;
+  let contentStart = -1;
 
-  const label = openingPattern[1].trim();
+  for (let index = 0; index < value.length; index += 1) {
+    const character = value[index];
+
+    if (character === '\r' && value[index + 1] !== '\n') {
+      openingFenceIndex = -1;
+      continue;
+    }
+
+    if (character === '\n') {
+      if (openingFenceIndex >= 0) {
+        openingLineEnd = index > 0 && value[index - 1] === '\r' ? index - 1 : index;
+        contentStart = index + 1;
+        break;
+      }
+      openingFenceIndex = -1;
+      continue;
+    }
+
+    if (
+      openingFenceIndex < 0
+      && value.charCodeAt(index) === 96
+      && value.charCodeAt(index + 1) === 96
+      && value.charCodeAt(index + 2) === 96
+    ) {
+      openingFenceIndex = index;
+    }
+  }
+
+  if (openingFenceIndex < 0 || contentStart < 0) return null;
+
+  const label = value.slice(openingFenceIndex + 3, openingLineEnd).trim();
   if (language && label.toLowerCase() !== language.toLowerCase()) return null;
 
-  const contentStart = openingPattern.index + openingPattern[0].length;
   let closingIndex;
   if (options.requireStandaloneClosing) {
     const closingPattern = /^ {0,3}```[ \t]*(?:\r?\n|$)/gm;
