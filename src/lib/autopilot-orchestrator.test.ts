@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { validateAutopilotPlan, isAutopilotInferenceAuthorized, isAutopilotRepositoryFreeInferenceAuthorized, getAutopilotRepositoryContributorPolicy, startAutopilotMissionLeaseHeartbeat, getAutopilotMaintenanceBranchName, formatAutopilotA2AContext, formatAutopilotUntrustedContext, getAutopilotOrchestrationStatus, buildRepositoryContributionAttribution, appendRepositoryContributionAttribution } from './autopilot-orchestrator.ts';
+import { validateAutopilotPlan, isAutopilotInferenceAuthorized, isAutopilotRepositoryFreeInferenceAuthorized, getAutopilotRepositoryContributorPolicy, startAutopilotMissionLeaseHeartbeat, getAutopilotMaintenanceBranchName, formatAutopilotA2AContext, formatAutopilotUntrustedContext, buildAutopilotMissionPlanningContext, getAutopilotOrchestrationStatus, buildRepositoryContributionAttribution, appendRepositoryContributionAttribution } from './autopilot-orchestrator.ts';
 import { authorizeCapability } from './capability-authorization.ts';
 import { evaluateGeasPolicy } from './governance/geas-policy-engine.ts';
 
@@ -521,4 +521,27 @@ test('Autopilot wraps mission and tool context as untrusted JSON data', () => {
 test('Autopilot rejects unserializable or oversized untrusted context', () => {
   assert.throws(() => formatAutopilotUntrustedContext('tool-analysis', undefined), /JSON data/i);
   assert.throws(() => formatAutopilotUntrustedContext('mission-planning', 'x'.repeat(120_001)), /120,000 characters/i);
+});
+
+
+test('Autopilot falls back to read-only planning when inspected source makes the serialized mission context oversized', () => {
+  const context = buildAutopilotMissionPlanningContext({
+    objective: 'x'.repeat(110_000),
+    expectedBranch: 'autopilot/mission-test',
+    inspectedFiles: [{
+      path: 'src/lib/example.ts',
+      content: 'x'.repeat(24_000),
+      expectedContentSha256: 'a'.repeat(64),
+      sourceSha256: 'b'.repeat(64),
+    }],
+    specialistFindings: [],
+    writePlanningEnabled: true,
+  });
+
+  assert.equal(context.writePlanningEnabled, false);
+  assert.deepEqual(context.inspectedFiles, []);
+  assert.ok(context.content.length <= 120_000);
+  const payload = JSON.parse(context.content.slice(context.content.indexOf('\\n') + 1));
+  assert.deepEqual(payload.inspectedFiles, []);
+  assert.equal(payload.expectedBranch, undefined);
 });
