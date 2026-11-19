@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { runSpecialistCouncil, isStandingMissionRequestAuthorized } from './specialist-council.ts';
+import { aiOrchestrator } from './orchestrator';
 
 const roles = ['engineering-scientist', 'software-architect'];
 const providerSelections = [
@@ -250,4 +251,31 @@ test('standing revenue mission requests require verified owner authority', () =>
   assert.equal(isStandingMissionRequestAuthorized(false, true), true);
   assert.equal(isStandingMissionRequestAuthorized(true, false), false);
   assert.equal(isStandingMissionRequestAuthorized(true, true), true);
+});
+
+
+test('automatic specialist provider failures fail closed without exposing provider errors', async () => {
+  const originalGenerate = aiOrchestrator.generate;
+  let calls = 0;
+  aiOrchestrator.generate = async () => {
+    calls += 1;
+    throw new Error('provider credential must-not-leak');
+  };
+  try {
+    await assert.rejects(
+      () => runSpecialistCouncil({
+        objective: 'Inspect a repository change.',
+        roles: [roles[0]],
+      }),
+      (error: unknown) => {
+        assert.ok(error instanceof Error);
+        assert.match(error.message, /1 of 1.*specialist provider calls failed/i);
+        assert.doesNotMatch(error.message, /must-not-leak/);
+        return true;
+      },
+    );
+    assert.equal(calls, 1);
+  } finally {
+    aiOrchestrator.generate = originalGenerate;
+  }
 });
