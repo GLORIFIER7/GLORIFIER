@@ -763,7 +763,7 @@ if (stripHtml('before<script>hidden</script data="x">after<style>hidden</style d
 }
 const unclosedScriptHtml = '<script' + '<'.repeat(512 * 1024);
 if (stripHtml(unclosedScriptHtml) !== unclosedScriptHtml) {
-  throw new Error('an unclosed script tag must preserve the input without scanning the remaining page repeatedly');
+  throw new Error('an unclosed script tag must preserve the input unchanged');
 }
 
 const semanticEvidenceHtml = [
