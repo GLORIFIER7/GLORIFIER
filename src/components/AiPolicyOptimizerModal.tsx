@@ -150,6 +150,7 @@ export const AiPolicyOptimizerModal: React.FC<AiPolicyOptimizerModalProps> = ({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
+        tabIndex={-1}
         aria-labelledby="ai-policy-optimizer-title"
         className="relative w-full max-w-3xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
