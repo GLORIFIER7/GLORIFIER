@@ -41,6 +41,9 @@ export function hasFingerprintAssetSegment(filename) {
     let end = hashStart;
     while (end < filename.length && isHashCharacter(filename[end])) end += 1;
     if (end - hashStart >= 8 && filename[end] === '.') return true;
+    let end = index + 1;
+    while (end < filename.length && isHashCharacter(filename[end])) end += 1;
+    if (end - index - 1 >= 8 && filename[end] === '.') return true;
     index = end;
   }
   return false;
