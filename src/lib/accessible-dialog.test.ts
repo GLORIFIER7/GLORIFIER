@@ -23,8 +23,21 @@ function createDialogHarness(focusableCount = 2) {
   const items: HTMLElement[] = [];
   for (let index = 0; index < focusableCount; index += 1) {
     let item: HTMLElement;
+    const attributes = new Map<string, string>();
     item = {
+      tabIndex: 0,
+      hidden: false,
       focus: () => { documentLike.activeElement = item; },
+      getAttribute: (name: string) => attributes.get(name) ?? null,
+      setAttribute: (name: string, value: string) => { attributes.set(name, value); },
+      matches: (selector: string) => selector === ':disabled' && attributes.has('disabled'),
+      closest: (selector: string) => {
+        const hiddenAncestor = selector.includes('[hidden]') && item.hidden;
+        const inertAncestor = selector.includes('[inert]') && attributes.has('inert');
+        const ariaHiddenAncestor = selector.includes('[aria-hidden="true"]')
+          && attributes.get('aria-hidden') === 'true';
+        return hiddenAncestor || inertAncestor || ariaHiddenAncestor ? item : null;
+      },
     } as unknown as HTMLElement;
     items.push(item);
   }
@@ -33,6 +46,7 @@ function createDialogHarness(focusableCount = 2) {
     ownerDocument: documentLike,
     querySelectorAll: () => items,
     contains: (node: Node | null) => node === dialog || items.includes(node as HTMLElement),
+    tabIndex: -1,
     focus: () => { documentLike.activeElement = dialog as unknown as HTMLElement; },
   } as unknown as HTMLElement;
   const previousFocusState = { focused: false };
@@ -166,4 +180,71 @@ test('keeps dialog stacks isolated between documents', () => {
 
   secondCleanup();
   firstCleanup();
+});
+
+test('orders positive tabindex controls before ordinary tab stops', () => {
+  const harness = createDialogHarness(3);
+  harness.items[0].tabIndex = 0;
+  harness.items[1].tabIndex = 2;
+  harness.items[2].tabIndex = 1;
+
+  installAccessibleDialogBehavior(
+    harness.dialog,
+    () => undefined,
+    harness.documentLike as unknown as Document,
+  );
+
+  assert.equal(harness.documentLike.activeElement, harness.items[2]);
+  harness.documentLike.activeElement = harness.items[0];
+  assert.equal(harness.dispatch('Tab'), true);
+  assert.equal(harness.documentLike.activeElement, harness.items[2]);
+  assert.equal(harness.dispatch('Tab', true), true);
+  assert.equal(harness.documentLike.activeElement, harness.items[0]);
+});
+
+test('skips hidden, hidden-type, disabled, and aria-hidden controls', () => {
+  const harness = createDialogHarness(5);
+  harness.items[0].hidden = true;
+  harness.items[1].setAttribute('type', 'hidden');
+  harness.items[2].setAttribute('disabled', '');
+  harness.items[3].setAttribute('aria-hidden', 'true');
+
+  installAccessibleDialogBehavior(
+    harness.dialog,
+    () => undefined,
+    harness.documentLike as unknown as Document,
+  );
+
+  assert.equal(harness.documentLike.activeElement, harness.items[4]);
+});
+
+test('closing a lower dialog does not steal focus from the topmost dialog', () => {
+  const harness = createDialogHarness(1);
+  const lowerCleanup = installAccessibleDialogBehavior(
+    harness.dialog,
+    () => undefined,
+    harness.documentLike as unknown as Document,
+  );
+  let topItem: HTMLElement;
+  topItem = {
+    focus: () => { harness.documentLike.activeElement = topItem; },
+  } as unknown as HTMLElement;
+  let topDialog: HTMLElement;
+  topDialog = {
+    ownerDocument: harness.documentLike,
+    querySelectorAll: () => [topItem],
+    contains: (node: Node | null) => node === topDialog || node === topItem,
+    focus: () => { harness.documentLike.activeElement = topDialog; },
+    tabIndex: -1,
+  } as unknown as HTMLElement;
+  const topCleanup = installAccessibleDialogBehavior(
+    topDialog,
+    () => undefined,
+    harness.documentLike as unknown as Document,
+  );
+
+  assert.equal(harness.documentLike.activeElement, topItem);
+  lowerCleanup();
+  assert.equal(harness.documentLike.activeElement, topItem);
+  topCleanup();
 });
