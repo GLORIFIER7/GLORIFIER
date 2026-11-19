@@ -807,13 +807,22 @@ const parseMcpRequest = async (request: Request): Promise<ParsedMcpRequest> => {
 const enforceMcpToolRateLimit = async (
   request: Request,
   message: McpMessage,
-  rateLimiter: GithubMcpRateLimiter,
+  rateLimiter: GithubMcpRateLimiter | undefined,
 ): Promise<Response | null> => {
   if (message.method !== 'tools/call') return null;
-  const key = request.headers.get('cf-connecting-ip')?.trim() || 'unknown-client';
+  const params = isRecord(message.params) ? message.params : {};
+  // Only the four allowlisted read tools make upstream GitHub API requests.
+  // Unknown tools are rejected locally and must not consume the upstream quota.
+  if (typeof params.name !== 'string' ||
+      !AUTOPILOT_READ_TOOL_NAMES.has(params.name as GithubReadToolName)) return null;
+
   const id = typeof message.id === 'string' || typeof message.id === 'number' || message.id === null
     ? message.id
     : null;
+  if (!rateLimiter) {
+    return rpcError(id, -32003, 'MCP rate-limit service is not configured.', 503);
+  }
+  const key = request.headers.get('cf-connecting-ip')?.trim() || 'unknown-client';
   try {
     const result = await rateLimiter.limit({ key });
     return result.success
@@ -838,13 +847,6 @@ export const githubMcpRoute = async (
 
   const parsed = await parseMcpRequest(request);
   if ('response' in parsed) return parsed.response;
-
-  if (!rateLimiter) {
-    const id = typeof parsed.message.id === 'string' || typeof parsed.message.id === 'number' || parsed.message.id === null
-      ? parsed.message.id
-      : null;
-    return rpcError(id, -32003, 'MCP rate-limit service is not configured.', 503);
-  }
 
   const rateLimitFailure = await enforceMcpToolRateLimit(request, parsed.message, rateLimiter);
   if (rateLimitFailure) return rateLimitFailure;
