@@ -28,6 +28,7 @@ function createDialogHarness(focusableCount = 2) {
       tabIndex: 0,
       hidden: false,
       focus: () => { documentLike.activeElement = item; },
+      getClientRects: () => [{ width: 1, height: 1 }],
       getAttribute: (name: string) => attributes.get(name) ?? null,
       setAttribute: (name: string, value: string) => { attributes.set(name, value); },
       matches: (selector: string) => selector === ':disabled' && attributes.has('disabled'),
@@ -215,12 +216,13 @@ test('orders positive tabindex controls before ordinary tab stops', () => {
   assert.equal(harness.documentLike.activeElement, harness.items[0]);
 });
 
-test('skips hidden, hidden-type, disabled, and aria-hidden controls', () => {
-  const harness = createDialogHarness(5);
+test('skips hidden, hidden-type, disabled, aria-hidden, and negative-tabindex controls', () => {
+  const harness = createDialogHarness(6);
   harness.items[0].hidden = true;
   harness.items[1].setAttribute('type', 'hidden');
   harness.items[2].setAttribute('disabled', '');
   harness.items[3].setAttribute('aria-hidden', 'true');
+  harness.items[4].tabIndex = -1;
 
   installAccessibleDialogBehavior(
     harness.dialog,
@@ -228,7 +230,7 @@ test('skips hidden, hidden-type, disabled, and aria-hidden controls', () => {
     harness.documentLike as unknown as Document,
   );
 
-  assert.equal(harness.documentLike.activeElement, harness.items[4]);
+  assert.equal(harness.documentLike.activeElement, harness.items[5]);
 });
 
 test('closing a lower dialog does not steal focus from the topmost dialog', () => {
