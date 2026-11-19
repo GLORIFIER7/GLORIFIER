@@ -122,6 +122,26 @@ Store evaluation datasets, expected results, grader versions, model/provider rev
 
 Important lifecycle note: OpenAI's current deprecation page states that its Evals dashboard/API/graders became read-only on 2026-10-31 and are scheduled to shut down on 2026-11-30. GLORIFIER should therefore own a portable evaluation corpus and runner rather than make the system dependent on one provider's hosted evaluation product. The platform's trace-grading concepts remain useful as design input.
 
+### OpenAI Evals retirement: GLORIFIER dependency decision
+
+OpenAI's [deprecation notice](https://developers.openai.com/api/docs/deprecations) lists the Evals dashboard, API, and graders as read-only, with shutdown scheduled for **2026-11-30**; its [migration guide](https://developers.openai.com/cookbook/examples/evaluation/moving-from-openai-evals-to-promptfoo) recommends Promptfoo as a portable replacement.
+
+A targeted source search of the GLORIFIER repository and the current AI-blueprint branch found no direct OpenAI Evals API/dashboard integration references such as `client.evals`, `openai.evals`, `/v1/evals`, `OPENAI_EVALS`, or an existing Promptfoo configuration. The repository's `openai` SDK dependency is used for ordinary model-provider access; that dependency alone does not establish use of the retired Evals product. This is a scoped source-code finding, not proof that no datasets, graders, or historical runs exist only in an OpenAI organization account.
+
+**Disposition:** a code migration away from hosted OpenAI Evals is not currently required by the inspected repository. The owner should still check the relevant OpenAI organization account and export any hosted datasets, grader definitions, prompts, or run records that remain operationally important before shutdown. Existing Evals became read-only on 2026-10-31; the remaining window is for preserving and inspecting existing assets, not creating or editing new evaluations.
+
+### Portable evaluation patterns GLORIFIER should retain
+
+- **Datasets and cases:** keep task inputs, expected constraints, provenance, risk tier, and corpus version in source control. Keep private/customer data out of public fixtures.
+- **Graders:** prefer deterministic assertions for schema validity, authorization, capability scope, evidence provenance, state transitions, and tool outcomes. Use model-based graders only for qualitative dimensions, calibrate them against human-labelled examples, and never let a model judge authorize a consequential action.
+- **Provider comparisons:** replay the same task corpus against explicitly authorized provider/model versions, normalize comparable outputs, and record failures and limitations. Do not turn one aggregate score into a universal model ranking.
+- **Run evidence:** bind each result to the commit SHA, corpus version, harness version, provider/model revision (when inference is used), test timestamp, and retained CI artifact or run URL.
+- **Adversarial coverage:** keep prompt-injection, untrusted-tool-output, privilege-escalation, data-leakage, and unsafe-action cases as regression tests.
+
+GLORIFIER already has deterministic CI coverage for provider selection/discovery/routing, GEAS claim and state verification, capability authorization, Autopilot mission control/graph/execution, and related evidence boundaries. The Specialist Council also has an offline regression suite that checks guarded provider assignments, rejection of unguarded fallback, and fail-closed behavior on provider failure; this change adds that suite to the primary `GLORIFIER CI` workflow. These tests make no live provider calls and do not replace future task-quality evaluations.
+
+Promptfoo remains an **optional adapter**, not a required runtime dependency. Introduce it only if a measured need arises for richer prompt-level comparisons or red-team workflows; any such integration must preserve the same versioned corpus, provider-neutral contracts, GEAS authorization, data boundaries, and cost controls. No Promptfoo package, provider credential, paid inference, or external endpoint is added by this change.
+
 Benchmarks such as SWE-Bench Pro are useful for comparing research capabilities on defined task sets, but benchmark results do not prove GLORIFIER's performance on its own repository, customer workflows, or production environment. Maintain a private, versioned GLORIFIER task corpus and report the exact model, harness, tool permissions, environment, and commit tested.
 
 ## 5. Observability and economic truth
@@ -191,7 +211,7 @@ Related existing architecture documents:
 
 ### P1 — make quality measurable and portable
 
-- Create a repository-owned evaluation corpus and runner for model selection, agent workflows, provider failover, retrieval grounding, safety, and coding tasks.
+- Consolidate the existing GEAS, provider, Specialist Council, and Autopilot regression suites into a repository-owned, versioned evaluation corpus and runner for model selection, agent workflows, provider failover, retrieval grounding, safety, and coding tasks. Use deterministic tests as the baseline; keep model-graded runs optional, calibrated, provider-neutral, and disabled by default without explicit inference authorization.
 - Add trace correlation from mission to agent, provider, policy decision, tool, evidence, and final verification.
 - Establish per-task model capability profiles and model deprecation/replacement tests.
 - Extend durable agent identity/control state where process-local state is insufficient for multi-instance execution.
