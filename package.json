@@ -22,7 +22,7 @@
     "build:android": "cross-env CAPACITOR_BUILD=true vite build",
     "android:sync": "npm run build:android && npx cap sync android",
     "android:open": "npx cap open android",
-    "prebuild:server": "npm run test:package-manifest-integrity && npm run test:brand-assets",
+    "prebuild:server": "npm run test:package-manifest-integrity && npm run test:brand-assets && npm run test:intelligence-report-json",
     "build:server": "esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
     "test:harness": "node --import tsx/esm --test src/lib/ai/agent-harness.test.ts",
     "test:provider-model-selection": "node --import tsx/esm --test src/lib/ai/registry.model-selection.test.ts",
@@ -145,7 +145,8 @@
     "test:autopilot-graph": "node --import tsx/esm --test src/lib/autopilot-graph.test.ts",
     "test:linear-string-normalization": "node --test scripts/linear-string.test.mjs && node --import tsx/esm --test src/lib/linear-string.test.ts",
     "test:accessible-dialog": "node --import tsx/esm --test src/lib/accessible-dialog.test.ts",
-    "test:solana-resume-recovery-contract": "node --test scripts/solana-resume-recovery-contract.test.mjs"
+    "test:solana-resume-recovery-contract": "node --test scripts/solana-resume-recovery-contract.test.mjs",
+    "test:intelligence-report-json": "node --import tsx/esm --test src/lib/intelligence.test.ts"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",
