@@ -4,6 +4,7 @@
  * code exercise the same implementation.
  */
 import {
+  extractFirstFencedContent,
   hasFingerprintAssetSegment,
   stripOuterCodeFence,
   stripTrailingCharacter,
@@ -11,6 +12,7 @@ import {
 } from '../../scripts/linear-string.mjs';
 
 export {
+  extractFirstFencedContent,
   hasFingerprintAssetSegment,
   stripOuterCodeFence,
   stripTrailingCharacter,
@@ -72,21 +74,3 @@ export function extractAngleBracketContent(value: string): string | null {
   return null;
 }
 
-function isWhitespace(character: string | undefined): boolean {
-  return character !== undefined && character.trim() === '';
-}
-
-export function extractFirstFencedContent(value: string, language?: string): string | null {
-  const opening = value.indexOf('```');
-  if (opening < 0) return null;
-
-  let start = opening + 3;
-  if (language && value.slice(start, start + language.length).toLowerCase() === language.toLowerCase()) {
-    start += language.length;
-  }
-  while (isWhitespace(value[start])) start += 1;
-
-  const closing = value.indexOf('```', start);
-  if (closing < 0) return null;
-  return value.slice(start, closing);
-}
