@@ -549,9 +549,9 @@ test('Autopilot falls back to read-only planning when inspected source makes the
 
 test('Autopilot tool analysis serializes prompt and readback as one untrusted JSON object', () => {
   const prompt = 'Inspect the completed GitHub operation.';
-  const options = { result: { status: 'ok', content: 'Readback text with \\"quotes\\".' } };
+  const options = { result: { status: 'ok', content: 'Readback text with "quotes".' } };
   const formatted = formatAutopilotUntrustedContext('tool-analysis', { prompt, options });
-  const payload = JSON.parse(formatted.slice(formatted.indexOf('\\n') + 1));
+  const payload = JSON.parse(formatted.slice(formatted.indexOf('\n') + 1));
   assert.deepEqual(payload, { prompt, options });
-  assert.equal(payload.options.result.content, 'Readback text with \\"quotes\\".');
+  assert.equal(payload.options.result.content, 'Readback text with "quotes".');
 });
