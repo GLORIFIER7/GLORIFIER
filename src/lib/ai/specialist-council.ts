@@ -6,6 +6,11 @@ export const MAX_SPECIALIST_COUNCIL_ROLES = 8;
 export const MAX_SPECIALIST_COUNCIL_CONCURRENCY = 4;
 export const MAX_SPECIALIST_COUNCIL_OBJECTIVE_CHARS = 24_000;
 
+/** A standing revenue mandate changes a one-off analysis into a persistent system objective. */
+export function isStandingMissionRequestAuthorized(requested: boolean, requesterIsOwner: boolean): boolean {
+  return requested !== true || requesterIsOwner === true;
+}
+
 const DEFAULT_SPECIALIST_COUNCIL_ROLE_IDS = [
   'policy-scientist',
   'engineering-scientist',
