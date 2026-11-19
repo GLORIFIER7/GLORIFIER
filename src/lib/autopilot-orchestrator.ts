@@ -1,3 +1,4 @@
+import { stripOuterCodeFence } from './linear-string.js';
 import { createHash } from 'node:crypto';
 import { aiCeoPolicy } from './ai-ceo';
 import { aiOrchestrator } from './ai/orchestrator';
@@ -281,7 +282,7 @@ export function validateAutopilotPlan(
   if (typeof text !== 'string' || text.length > 120_000) {
     throw new Error('AI CEO plan must be bounded text no larger than 120,000 characters.');
   }
-  const source = text.trim().replace(/^\`\`\`(?:json)?\s*/i, '').replace(/\s*\`\`\`$/, '');
+  const source = stripOuterCodeFence(text, 'json');
   const parsed = JSON.parse(source) as { steps?: unknown };
   if (!parsed || !Array.isArray(parsed.steps) || parsed.steps.length < 1 || parsed.steps.length > 6) {
     throw new Error('AI CEO plan must contain between 1 and 6 steps.');
@@ -455,9 +456,7 @@ async function planMission(objective: string, missionId: string) {
     ];
     try {
       const discovery = await generateRepositoryFreeProvider(discoveryProvider, discoveryMessages, 0.1, missionId);
-      const discoveryText = discovery.text.trim()
-        .replace(/^\`\`\`(?:json)?\s*/i, '')
-        .replace(/\s*\`\`\`$/, '');
+      const discoveryText = stripOuterCodeFence(discovery.text, 'json');
       const discovered = JSON.parse(discoveryText) as { paths?: unknown };
       if (Array.isArray(discovered.paths)) {
         const paths = [...new Set(discovered.paths.filter(isAllowedAutopilotWritePath))].slice(0, 2);

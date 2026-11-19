@@ -1,3 +1,4 @@
+import { stripTrailingSlashes } from '../linear-string.js';
 /**
  * Claim-level evidence admission for GEAS.
  *
@@ -67,7 +68,7 @@ const RFC3339_TIMESTAMP_PATTERN = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{
 const DAYS_PER_MILLISECOND = 86_400_000;
 
 const normalizeSourceResource = (value: URL): string => {
-  const pathname = value.pathname.length > 1 ? value.pathname.replace(/\/+$/, '') : value.pathname;
+  const pathname = value.pathname.length > 1 ? stripTrailingSlashes(value.pathname) : value.pathname;
   return `${value.origin}${pathname}${value.search}`;
 };
 

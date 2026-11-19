@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { stripOuterCodeFence } from './linear-string.mjs';
 import { execFileSync } from 'node:child_process';
 import { applyUnifiedDiff } from './apply-unified-diff.mjs';
 
@@ -47,7 +48,7 @@ async function askGemini() {
   return (await r.json()).candidates?.[0]?.content?.parts?.map(p=>p.text||'').join('') || '';
 }
 let patch = (provider === 'gemini' ? await askGemini() : await askOpenAI()).trim();
-patch = patch.replace(/^\`\`\`(?:diff)?\s*/i,'').replace(/\s*\`\`\`$/i,'').trim();
+patch = stripOuterCodeFence(patch, 'diff');
 if (!patch.startsWith('diff --git ')) throw new Error('Guardian did not return a valid unified diff.');
 const changedPaths = [...patch.matchAll(/^diff --git a\/(.+?) b\/(.+)$/gm)].flatMap(m => [m[1], m[2]]);
 if (changedPaths.some(path => protectedPaths.some(rule => rule.endsWith('/') ? path.startsWith(rule) : path === rule))) throw new Error('Safety policy rejected a protected-file change.');

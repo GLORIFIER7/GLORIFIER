@@ -1,3 +1,4 @@
+import { extractFirstFencedContent, stripHtmlTags } from './linear-string.js';
 import { getOptionalPostgresPool } from './db/postgres';
 
 export type IntelligenceEvidence = {
@@ -74,7 +75,7 @@ const ensureSchema = async () => {
 };
 
 function stripHtml(value: string) {
-  const withoutTags = value.replace(/<[^>]+>/g, ' ');
+  const withoutTags = stripHtmlTags(value);
   // Decode each supported entity once. A combined callback replacement does not
   // reprocess the ampersand produced by decoding &amp; (avoids double-unescaping).
   return withoutTags
@@ -209,13 +210,25 @@ async function collectSources(windowHours: number) {
   return { evidence: deduped.slice(0, 50), sourceStatus };
 }
 
-function parseJson<T>(text: string, fallback: T): T {
+export function parseJson<T>(text: string, fallback: T): T {
+  const raw = text.trim();
   try {
-    const fenced = text.match(/\`\`\`(?:json)?\s*([\s\S]*?)\`\`\`/i)?.[1] || text;
-    return JSON.parse(fenced.trim()) as T;
+    return JSON.parse(raw) as T;
   } catch {
-    return fallback;
+    // A valid JSON string may itself contain fenced code in a field value.
+    // Parse the entire response first; only unwrap a Markdown fence after raw JSON fails.
   }
+
+  const fenced = extractFirstFencedContent(text, 'json', { requireStandaloneClosing: true });
+  if (fenced !== null) {
+    try {
+      return JSON.parse(fenced.trim()) as T;
+    } catch {
+      return fallback;
+    }
+  }
+
+  return fallback;
 }
 
 export async function generateIntelligenceReport(deps: {

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { stripOuterCodeFence, stripTrailingSlashes } from './linear-string.mjs';
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { applyUnifiedDiff } from './apply-unified-diff.mjs';
@@ -67,7 +68,7 @@ async function askGemini() {
   return (await response.json()).candidates?.[0]?.content?.parts?.map((part)=>part.text||'').join('') || '';
 }
 async function askMeta() {
-  const baseUrl=(process.env.META_BASE_URL || 'https://api.groq.com/openai/v1').replace(/\/+$/,'');
+  const baseUrl=stripTrailingSlashes(process.env.META_BASE_URL || 'https://api.groq.com/openai/v1');
   const response=await fetch(`${baseUrl}/chat/completions`,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${process.env.META_API_KEY}`},body:JSON.stringify({model:process.env.META_MODEL || 'meta-default',temperature:0,messages:[{role:'system',content:system},{role:'user',content:user}]})});
   if (!response.ok) throw new Error(`Meta HTTP ${response.status}: ${(await response.text()).slice(0,300)}`);
   return (await response.json()).choices?.[0]?.message?.content || '';
@@ -101,7 +102,7 @@ if (!patch) {
   process.exit(1);
 }
 if (patch==='NO_CHANGE') { console.log('GLORIFIER_NO_CHANGE'); process.exit(0); }
-patch=patch.replace(/^\`\`\`(?:diff)?\s*/i,'').replace(/\s*\`\`\`$/i,'').trim();
+patch=stripOuterCodeFence(patch, 'diff');
 if (!patch.startsWith('diff --git ')) throw new Error('Agent did not return a valid unified diff.');
 
 const changedPaths=[...patch.matchAll(/^diff --git a\/(.+?) b\/(.+)$/gm)].flatMap((m)=>[m[1],m[2]]);

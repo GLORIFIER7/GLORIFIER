@@ -26,6 +26,7 @@ ENV NODE_ENV=production \
 WORKDIR /app
 COPY --from=build --chown=node:node /app/dist ./dist
 COPY --chown=node:node scripts/serve-frontend.mjs ./scripts/serve-frontend.mjs
+COPY --chown=node:node scripts/linear-string.mjs ./scripts/linear-string.mjs
 
 USER node
 EXPOSE 8080

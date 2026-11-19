@@ -1,3 +1,4 @@
+import { stripTrailingZeros } from './linear-string.js';
 import crypto from 'node:crypto';
 import { registerAssetAccount, recordAssetAccountEvent, recordAssetEvidence } from './asset-registry';
 
@@ -40,7 +41,7 @@ function addDecimalStrings(a: string, b: string) {
   const divisor = 10n ** BigInt(scale);
   const whole = units / divisor;
   if (scale === 0) return whole.toString();
-  const fraction = (units % divisor).toString().padStart(scale, '0').replace(/0+$/, '');
+  const fraction = stripTrailingZeros((units % divisor).toString().padStart(scale, '0'));
   return fraction ? whole.toString() + '.' + fraction : whole.toString();
 }
 

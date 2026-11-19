@@ -1,3 +1,4 @@
+import { stripTrailingZeros } from '../linear-string.js';
 import { compareCodeUnits } from '../deterministic-string-order';
 
 /**
@@ -170,7 +171,7 @@ const formatUnits = (value: bigint, scale: number): string => {
   const sign = negative ? '-' : '';
   if (scale === 0) return `${sign}${digits}`;
   const whole = digits.slice(0, -scale);
-  const fraction = digits.slice(-scale).replace(/0+$/, '');
+  const fraction = stripTrailingZeros(digits.slice(-scale));
   return fraction ? `${sign}${whole}.${fraction}` : `${sign}${whole}`;
 };
 

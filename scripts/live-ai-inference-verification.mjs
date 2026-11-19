@@ -1,3 +1,4 @@
+import { stripTrailingSlashes } from './linear-string.mjs';
 import { createHash } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import { evaluateRepositoryProviderAttestation, normalizeRepositoryProviderEndpoint } from "../src/lib/ai/repository-contributor-policy.mjs";
@@ -62,7 +63,7 @@ function safeRequestUrl(base, suffix) {
   url.hash = "";
   const queryIndex = suffix.indexOf("?");
   const pathnameSuffix = queryIndex >= 0 ? suffix.slice(0, queryIndex) : suffix;
-  url.pathname = url.pathname.replace(/\/+$/, "") + pathnameSuffix;
+  url.pathname = stripTrailingSlashes(url.pathname) + pathnameSuffix;
   if (queryIndex >= 0) url.search = suffix.slice(queryIndex);
   return url.toString();
 }

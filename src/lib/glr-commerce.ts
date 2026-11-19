@@ -1,3 +1,4 @@
+import { stripTrailingZeros } from './linear-string.js';
 /**
  * GLORIFIER paid AI service primitives.
  *
@@ -35,7 +36,7 @@ const formatDecimal = (units: bigint, scale: number): string => {
   const digits = units.toString().padStart(scale + 1, '0');
   if (scale === 0) return digits;
   const whole = digits.slice(0, -scale);
-  const fraction = digits.slice(-scale).replace(/0+$/, '');
+  const fraction = stripTrailingZeros(digits.slice(-scale));
   return fraction ? `${whole}.${fraction}` : whole;
 };
 

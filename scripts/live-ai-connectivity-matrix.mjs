@@ -1,3 +1,4 @@
+import { stripTrailingSlashes } from './linear-string.mjs';
 import { createHash } from "node:crypto";
 import { writeFile } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
@@ -94,8 +95,8 @@ function baseFor(provider, env) {
   if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) {
     throw new Error("Unsafe provider origin.");
   }
-  url.pathname = url.pathname.replace(/\/+$/, "");
-  return url.toString().replace(/\/$/, "");
+  url.pathname = stripTrailingSlashes(url.pathname);
+  return stripTrailingSlashes(url.toString());
 }
 
 function headersFor(provider, key) {
