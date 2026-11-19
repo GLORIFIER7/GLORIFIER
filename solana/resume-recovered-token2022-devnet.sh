@@ -116,11 +116,14 @@ verify_finalized_transaction() {
           )
           and (
             $expected_authority_type == ""
-            or ($parsed.type == "updateTokenMetadataAuthority"
-                and ($parsed.info | type == "object" and has("newAuthority") and .newAuthority == null))
-            or ($parsed.type == "updateMetadataPointerAuthority"
-                and ($parsed.info | type == "object" and has("newAuthority") and .newAuthority == null))
-            or $parsed.info.authorityType == $expected_authority_type
+            or (
+              ($parsed.info | type == "object" and has("newAuthority") and .newAuthority == null)
+              and (
+                $parsed.info.authorityType == $expected_authority_type
+                or ($parsed.type == "updateTokenMetadataAuthority" and $expected_authority_type == "metadata")
+                or ($parsed.type == "updateMetadataPointerAuthority" and $expected_authority_type == "metadataPointer")
+              )
+            )
           )))
     ' <<< "$response" >/dev/null || {
       echo "::error::The ${label} signature is not a finalized successful transaction for this mint and expected Token-2022 operation."
