@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import {
+  extractFirstFencedContent,
   hasFingerprintAssetSegment,
   stripOuterCodeFence,
   stripTrailingCharacter,
@@ -27,6 +28,25 @@ test('outer code-fence stripping handles optional language labels', () => {
   assert.equal(stripOuterCodeFence('not fenced  '), 'not fenced');
   assert.equal(stripOuterCodeFence('plain content```'), 'plain content```');
   assert.equal(stripOuterCodeFence('bare JSON `{}```'), 'bare JSON `{}```');
+});
+
+
+test('fenced content preserves inline backticks and requires a standalone closing fence', () => {
+  const json = JSON.stringify({ summary: 'Keep the marker ```typescript as data.' });
+  const response = [
+    'Model response:',
+    '```json',
+    json,
+    '```',
+    'Trailing explanation',
+  ].join('\n');
+
+  assert.equal(extractFirstFencedContent(response, 'json'), json);
+  assert.equal(extractFirstFencedContent(response, 'jsonc'), null);
+});
+
+test('fenced content supports unlabeled fences and CRLF line endings', () => {
+  assert.equal(extractFirstFencedContent('Before\n```\r\nvalue\r\n```\r\nAfter'), 'value');
 });
 
 test('outer code-fence stripping requires an exact language label', () => {
