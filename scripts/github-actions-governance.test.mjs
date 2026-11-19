@@ -192,3 +192,13 @@ test('main branch protection has one always-present aggregate CI check', () => {
   assert.ok(requiredCi.includes('[[ "$AGENT_STATE_POSTGRES_RESULT" == "success" ]]'));
   assert.ok(requiredCi.includes('[[ "$SUPABASE_DEFAULT_PRIVILEGES_RESULT" == "success" ]]'));
 });
+
+
+test('Specialist Council provider and provenance regression tests are required by GLORIFIER CI', () => {
+  const councilStep = sliceBetweenMarkers(
+    ci,
+    '      - name: Specialist Council provider and provenance regression tests',
+    '      - name: OpenAI-compatible provider abort tests',
+  );
+  assert.match(councilStep, /run: npm run test:specialist-council/);
+});
