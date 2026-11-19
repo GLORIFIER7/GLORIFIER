@@ -184,7 +184,7 @@ jobs:
           set -euo pipefail
           cp "$GITHUB_WORKSPACE/scripts/lockfiles/a2a-tck-uv.lock" uv.lock
           uv venv
-          uv sync --locked --no-dev --no-install-project
+          uv sync --locked --no-dev --no-install-project --no-build
 
       - name: Run full declared JSON-RPC transport conformance
         working-directory: .a2a-tck
