@@ -2,13 +2,20 @@ import { aiOrchestrator } from './orchestrator';
 import { buildRepositoryCouncilAssignments } from './repository-contributor-policy.mjs';
 import type { AIMessage, AIProviderId, AIResponse } from './types';
 
+export class SpecialistCouncilInputError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SpecialistCouncilInputError';
+  }
+}
+
 export const MAX_SPECIALIST_COUNCIL_ROLES = 8;
 export const MAX_SPECIALIST_COUNCIL_CONCURRENCY = 4;
 export const MAX_SPECIALIST_COUNCIL_OBJECTIVE_CHARS = 24_000;
 
 /** A standing revenue mandate changes a one-off analysis into a persistent system objective. */
-export function isStandingMissionRequestAuthorized(requested: boolean, requesterIsOwner: boolean): boolean {
-  return requested !== true || requesterIsOwner === true;
+export function isStandingMissionRequestAuthorized(requested: boolean, requesterIsAuthorizedPrincipal: boolean): boolean {
+  return requested !== true || requesterIsAuthorizedPrincipal === true;
 }
 
 const DEFAULT_SPECIALIST_COUNCIL_ROLE_IDS = [
@@ -24,10 +31,10 @@ function selectSpecialistRoles(requestedRoleIds?: string[]): SpecialistRole[] {
     : requestedRoleIds;
 
   if (!Array.isArray(roleIds) || roleIds.length === 0) {
-    throw new Error('Specialist Council requires at least one explicit specialist role.');
+    throw new SpecialistCouncilInputError('Specialist Council requires at least one explicit specialist role.');
   }
   if (roleIds.length > MAX_SPECIALIST_COUNCIL_ROLES) {
-    throw new Error(`Specialist Council supports at most ${MAX_SPECIALIST_COUNCIL_ROLES} specialists per request.`);
+    throw new SpecialistCouncilInputError(`Specialist Council supports at most ${MAX_SPECIALIST_COUNCIL_ROLES} specialists per request.`);
   }
 
   const roleById = new Map(specialistRoles.map((role) => [role.id, role]));
@@ -35,16 +42,16 @@ function selectSpecialistRoles(requestedRoleIds?: string[]): SpecialistRole[] {
   const selected: SpecialistRole[] = [];
   for (const roleId of roleIds) {
     if (typeof roleId !== 'string' || !roleId.trim()) {
-      throw new Error('Specialist Council role IDs must be non-empty strings.');
+      throw new SpecialistCouncilInputError('Specialist Council role IDs must be non-empty strings.');
     }
     const normalizedRoleId = roleId.trim();
     if (seen.has(normalizedRoleId)) {
-      throw new Error(`Specialist Council role '${normalizedRoleId}' was requested more than once.`);
+      throw new SpecialistCouncilInputError(`Specialist Council role '${normalizedRoleId}' was requested more than once.`);
     }
     seen.add(normalizedRoleId);
     const role = roleById.get(normalizedRoleId);
     if (!role) {
-      throw new Error(`Specialist Council received unknown specialist role '${normalizedRoleId}'.`);
+      throw new SpecialistCouncilInputError(`Specialist Council received unknown specialist role '${normalizedRoleId}'.`);
     }
     selected.push(role);
   }
@@ -212,16 +219,16 @@ function reconcile(objective: string, findings: SpecialistFinding[]) {
 
 export async function runSpecialistCouncil(request: CouncilRequest) {
   if (typeof request.objective !== 'string' || !request.objective.trim()) {
-    throw new Error('Specialist Council objective is required.');
+    throw new SpecialistCouncilInputError('Specialist Council objective is required.');
   }
   if (request.objective.length > MAX_SPECIALIST_COUNCIL_OBJECTIVE_CHARS) {
-    throw new Error(`Specialist Council objective must not exceed ${MAX_SPECIALIST_COUNCIL_OBJECTIVE_CHARS.toLocaleString('en-US')} characters.`);
+    throw new SpecialistCouncilInputError(`Specialist Council objective must not exceed ${MAX_SPECIALIST_COUNCIL_OBJECTIVE_CHARS.toLocaleString('en-US')} characters.`);
   }
   const objective = request.objective.trim();
   const selected = selectSpecialistRoles(request.roles);
   const temperature = request.temperature ?? 0.2;
   if (!Number.isFinite(temperature) || temperature < 0 || temperature > 1) {
-    throw new Error('Specialist Council temperature must be a finite number between 0 and 1.');
+    throw new SpecialistCouncilInputError('Specialist Council temperature must be a finite number between 0 and 1.');
   }
 
   const standingMission = request.standingMission === true;
