@@ -13,6 +13,7 @@ type TestEnv = CloudflareEnv;
 const originalFetch = globalThis.fetch;
 let capturedRequest: Request | null = null;
 let mcpRateLimitAllowed = true;
+let mcpRateLimitThrows = false;
 const mcpRateLimitKeys: string[] = [];
 const requestedUrls: string[] = [];
 let upstreamResponses: Response[] = [];
@@ -63,6 +64,7 @@ const env: TestEnv = {
   MCP_RATE_LIMITER: {
     limit({ key }: { key: string }) {
       mcpRateLimitKeys.push(key);
+      if (mcpRateLimitThrows) return Promise.reject(new Error('simulated rate-limit backend outage'));
       return Promise.resolve({ success: mcpRateLimitAllowed });
     },
   },
@@ -287,12 +289,41 @@ const run = async (): Promise<void> => {
           env,
         );
         const modernHeaderWithoutMetadataBody = await modernHeaderWithoutMetadata.json() as {
+          jsonrpc: string;
+          id: string;
           error: { code: number; message: string };
         };
         assert.equal(modernHeaderWithoutMetadata.status, 400);
-        assert.equal(modernHeaderWithoutMetadataBody.error.code, -32020,
-          'a modern HTTP request must carry the protocol version in per-request metadata as well as the header');
-        assert.match(modernHeaderWithoutMetadataBody.error.message, /both .*_meta.*MCP-Protocol-Version/i);
+        assert.equal(modernHeaderWithoutMetadataBody.jsonrpc, '2.0');
+        assert.equal(modernHeaderWithoutMetadataBody.id, 'header-without-metadata');
+        assert.equal(modernHeaderWithoutMetadataBody.error.code, -32602,
+          'a modern HTTP request missing params._meta must be rejected as invalid params');
+        assert.match(modernHeaderWithoutMetadataBody.error.message, /params\._meta.*protocolVersion/i);
+
+        const modernMetadataWithoutProtocolVersion = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: { ...modernMcpHeaders, 'Mcp-Method': 'server/discover' },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'metadata-without-protocol-version',
+              method: 'server/discover',
+              params: { _meta: { 'io.modelcontextprotocol/clientCapabilities': {} } },
+            }),
+          }),
+          env,
+        );
+        const modernMetadataWithoutProtocolVersionBody = await modernMetadataWithoutProtocolVersion.json() as {
+          jsonrpc: string;
+          id: string;
+          error: { code: number; message: string };
+        };
+        assert.equal(modernMetadataWithoutProtocolVersion.status, 400);
+        assert.equal(modernMetadataWithoutProtocolVersionBody.jsonrpc, '2.0');
+        assert.equal(modernMetadataWithoutProtocolVersionBody.id, 'metadata-without-protocol-version');
+        assert.equal(modernMetadataWithoutProtocolVersionBody.error.code, -32602,
+          'modern requests missing the per-request protocol version must be invalid params');
+        assert.match(modernMetadataWithoutProtocolVersionBody.error.message, /protocolVersion/i);
 
         const modernMetadataWithoutHeader = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/mcp', {
@@ -691,8 +722,42 @@ const run = async (): Promise<void> => {
         );
         assert.equal(rateLimitedMcpToolCall.status, 429, 'MCP must stop tool calls when the Cloudflare rate limit is exhausted');
         assert.equal(rateLimitedMcpToolCall.headers.get('retry-after'), '60');
+        const rateLimitedMcpBody = await rateLimitedMcpToolCall.json() as {
+          jsonrpc: string;
+          id: number;
+          error: { code: number; message: string };
+        };
+        assert.equal(rateLimitedMcpBody.jsonrpc, '2.0');
+        assert.equal(rateLimitedMcpBody.id, 7);
+        assert.equal(rateLimitedMcpBody.error.code, -32029);
+        assert.match(rateLimitedMcpBody.error.message, /rate limit/i);
         assert.equal(capturedRequest, null, 'rate-limited MCP calls must not reach GitHub');
         mcpRateLimitAllowed = true;
+
+        capturedRequest = null;
+        mcpRateLimitThrows = true;
+        const unavailableMcpRateLimiter = await worker.fetch(
+          mcpPost({
+            jsonrpc: '2.0',
+            id: 71,
+            method: 'tools/call',
+            params: { name: 'github_get_repository', arguments: {} },
+          }, '203.0.113.42'),
+          env,
+        );
+        assert.equal(unavailableMcpRateLimiter.status, 503,
+          'MCP must fail closed when its rate-limit service is unavailable');
+        const unavailableMcpRateLimiterBody = await unavailableMcpRateLimiter.json() as {
+          jsonrpc: string;
+          id: number;
+          error: { code: number; message: string };
+        };
+        assert.equal(unavailableMcpRateLimiterBody.jsonrpc, '2.0');
+        assert.equal(unavailableMcpRateLimiterBody.id, 71);
+        assert.equal(unavailableMcpRateLimiterBody.error.code, -32003);
+        assert.match(unavailableMcpRateLimiterBody.error.message, /rate-limit service is unavailable/i);
+        assert.equal(capturedRequest, null, 'rate-limit service failures must not reach GitHub');
+        mcpRateLimitThrows = false;
 
         for (const inheritedToolName of ['constructor', 'toString', 'github_delete_repository']) {
           capturedRequest = null;
