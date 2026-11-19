@@ -200,5 +200,5 @@ test('Specialist Council provider and provenance regression tests are required b
     '      - name: Specialist Council provider and provenance regression tests',
     '      - name: OpenAI-compatible provider abort tests',
   );
-  assert.match(councilStep, /run: npm run test:specialist-council/);
+  assert.match(councilStep, /^        run: npm run test:specialist-council\\s*$/m);
 });
