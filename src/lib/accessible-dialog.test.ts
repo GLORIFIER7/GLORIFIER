@@ -47,7 +47,7 @@ function createDialogHarness(focusableCount = 2) {
     ownerDocument: documentLike,
     querySelectorAll: () => items,
     contains: (node: Node | null) => node === dialog || items.includes(node as HTMLElement),
-    tabIndex: -1,
+    tabIndex: -99,
     focus: () => { documentLike.activeElement = dialog as unknown as HTMLElement; },
   } as unknown as HTMLElement;
   const previousFocusState = { focused: false };
@@ -117,6 +117,7 @@ test('focuses the dialog itself when it has no focusable descendants', () => {
   );
 
   assert.equal(harness.documentLike.activeElement, harness.dialog);
+  assert.equal(harness.dialog.tabIndex, -1);
   assert.equal(harness.dispatch('Tab'), true);
   assert.equal(harness.documentLike.activeElement, harness.dialog);
 });
