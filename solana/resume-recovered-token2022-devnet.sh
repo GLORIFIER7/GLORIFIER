@@ -109,10 +109,11 @@ verify_finalized_transaction() {
         and (.parsed as $parsed
           | $parsed != null
           and ($expected_types | index($parsed.type)) != null
+          and ($parsed.info | type == "object")
           and (
-            $parsed.info.mint == $mint
-            or $parsed.info.metadata == $mint
-            or $parsed.info.metadataAddress == $mint
+            if ($parsed.info | has("mint")) then $parsed.info.mint == $mint
+            else ($parsed.info.metadata == $mint or $parsed.info.metadataAddress == $mint)
+            end
           )
           and (
             $expected_authority_type == ""
