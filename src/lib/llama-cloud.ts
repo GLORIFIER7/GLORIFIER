@@ -1,3 +1,4 @@
+import { stripTrailingSlashes } from './linear-string.js';
 const DEFAULT_PROJECT_ID = '220520f6-c208-4b55-87fb-796881b3fc97';
 const DEFAULT_BASE_URL = 'https://api.cloud.llamaindex.ai';
 const ALLOWED_API_HOSTS = new Set(['api.cloud.llamaindex.ai', 'api.cloud.eu.llamaindex.ai']);
@@ -23,7 +24,7 @@ export class LlamaCloudIntegrationError extends Error {
 function config() {
   const apiKey = process.env.LLAMA_CLOUD_API_KEY?.trim() || '';
   const projectId = (process.env.LLAMA_CLOUD_PROJECT_ID?.trim() || DEFAULT_PROJECT_ID).toLowerCase();
-  const baseUrl = (process.env.LLAMA_CLOUD_BASE_URL?.trim() || DEFAULT_BASE_URL).replace(/\/+$/, '');
+  const baseUrl = stripTrailingSlashes(process.env.LLAMA_CLOUD_BASE_URL?.trim() || DEFAULT_BASE_URL);
   let parsed: URL;
   try { parsed = new URL(baseUrl); } catch {
     throw new LlamaCloudIntegrationError('LlamaCloud API base URL is invalid.', 500, 'invalid_base_url');
