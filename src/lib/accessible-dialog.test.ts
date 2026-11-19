@@ -136,6 +136,7 @@ test('only the topmost open dialog handles the shared document key event', () =>
     focus: () => { harness.documentLike.activeElement = secondItem; },
     getAttribute: (name: string) => secondAttributes.get(name) ?? null,
     setAttribute: (name: string, value: string) => { secondAttributes.set(name, value); },
+    getClientRects: () => [{ width: 1, height: 1 }],
     matches: (selector: string) => selector === ':disabled' && secondAttributes.has('disabled'),
     closest: (selector: string) => {
       const hiddenAncestor = selector.includes('[hidden]') && secondItem.hidden;
@@ -216,13 +217,14 @@ test('orders positive tabindex controls before ordinary tab stops', () => {
   assert.equal(harness.documentLike.activeElement, harness.items[0]);
 });
 
-test('skips hidden, hidden-type, disabled, aria-hidden, and negative-tabindex controls', () => {
-  const harness = createDialogHarness(6);
+test('skips hidden, hidden-type, disabled, aria-hidden, negative-tabindex, and unrendered controls', () => {
+  const harness = createDialogHarness(7);
   harness.items[0].hidden = true;
   harness.items[1].setAttribute('type', 'hidden');
   harness.items[2].setAttribute('disabled', '');
   harness.items[3].setAttribute('aria-hidden', 'true');
   harness.items[4].tabIndex = -1;
+  harness.items[5].getClientRects = () => [];
 
   installAccessibleDialogBehavior(
     harness.dialog,
@@ -230,7 +232,7 @@ test('skips hidden, hidden-type, disabled, aria-hidden, and negative-tabindex co
     harness.documentLike as unknown as Document,
   );
 
-  assert.equal(harness.documentLike.activeElement, harness.items[5]);
+  assert.equal(harness.documentLike.activeElement, harness.items[6]);
 });
 
 test('closing a lower dialog does not steal focus from the topmost dialog', () => {
@@ -248,6 +250,7 @@ test('closing a lower dialog does not steal focus from the topmost dialog', () =
     focus: () => { harness.documentLike.activeElement = topItem; },
     getAttribute: (name: string) => topAttributes.get(name) ?? null,
     setAttribute: (name: string, value: string) => { topAttributes.set(name, value); },
+    getClientRects: () => [{ width: 1, height: 1 }],
     matches: (selector: string) => selector === ':disabled' && topAttributes.has('disabled'),
     closest: (selector: string) => {
       const hiddenAncestor = selector.includes('[hidden]') && topItem.hidden;
