@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAccessibleDialog } from '../lib/use-accessible-dialog';
 import { 
   Sparkles, 
   ShieldCheck, 
@@ -117,6 +118,7 @@ export const AiPolicyOptimizerModal: React.FC<AiPolicyOptimizerModalProps> = ({
      currentPolicy.brokerMode === 'autonomous-maximize' ? 'yield-focused' : 'balanced');
 
   const [selectedLevel, setSelectedLevel] = useState<RiskToleranceLevel>(initialLevel);
+  const dialogRef = useAccessibleDialog(isOpen, onClose);
 
   if (!isOpen) return null;
 
@@ -144,8 +146,10 @@ export const AiPolicyOptimizerModal: React.FC<AiPolicyOptimizerModalProps> = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div 
+      <div
+        ref={dialogRef}
         role="dialog"
+        aria-modal="true"
         aria-labelledby="ai-policy-optimizer-title"
         className="relative w-full max-w-3xl rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
