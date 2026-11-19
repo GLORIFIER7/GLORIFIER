@@ -20,6 +20,9 @@ test('fingerprint matcher preserves the existing filename constraints', () => {
   assert.equal(hasFingerprintAssetSegment('index.01234567.css'), true);
   assert.equal(hasFingerprintAssetSegment('index-1234567.js'), false);
   assert.equal(hasFingerprintAssetSegment('index-12345678!.js'), false);
+  assert.equal(hasFingerprintAssetSegment('index--1234567.js'), false);
+  assert.equal(hasFingerprintAssetSegment('index---1234567.js'), false);
+  assert.equal(hasFingerprintAssetSegment('index-abc-defgh.js'), true);
 });
 
 test('outer code-fence stripping handles optional language labels', () => {
