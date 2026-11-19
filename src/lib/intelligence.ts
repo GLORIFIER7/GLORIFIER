@@ -1,4 +1,4 @@
-import { extractFirstFencedContent, stripHtmlTags } from './linear-string.js';
+import { stripHtmlTags } from './linear-string.js';
 import { getOptionalPostgresPool } from './db/postgres';
 
 export type IntelligenceEvidence = {
@@ -210,6 +210,19 @@ async function collectSources(windowHours: number) {
   return { evidence: deduped.slice(0, 50), sourceStatus };
 }
 
+function extractOuterJsonCodeFence(text: string): string | null {
+  // Markdown closing fences are standalone lines. Inner code markers embedded
+  // in JSON string values are data and must not terminate the outer response.
+  const opening = /```(?:json)?[ \t]*\r?\n/i.exec(text);
+  if (!opening) return null;
+
+  const contentStart = opening.index + opening[0].length;
+  const closingPattern = /^ {0,3}```[ \t]*(?:\r?\n|$)/gm;
+  closingPattern.lastIndex = contentStart;
+  const closing = closingPattern.exec(text);
+  return closing ? text.slice(contentStart, closing.index) : null;
+}
+
 export function parseJson<T>(text: string, fallback: T): T {
   const raw = text.trim();
   try {
@@ -219,7 +232,7 @@ export function parseJson<T>(text: string, fallback: T): T {
     // Parse the entire response first; only unwrap a Markdown fence after raw JSON fails.
   }
 
-  const fenced = extractFirstFencedContent(text, 'json');
+  const fenced = extractOuterJsonCodeFence(text);
   if (fenced !== null) {
     try {
       return JSON.parse(fenced.trim()) as T;
