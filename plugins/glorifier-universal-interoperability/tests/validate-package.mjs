@@ -46,8 +46,19 @@ check("every packaged skill has valid frontmatter and required metadata", async 
     assert.ok(body.startsWith("---\n"), file + ": missing YAML frontmatter");
     const header = body.split("---")[1];
     assert.match(header, /^name:\s*[a-z0-9-]+$/m, file + ": invalid/missing name");
-    const descriptionLine = header.split('\n').find((line) => line.startsWith('description:'));
-    assert.ok(descriptionLine && descriptionLine.slice('description:'.length).trim().length > 0, file + ": missing description");
+    const headerLines = header.split('\n');
+    const descriptionIndex = headerLines.findIndex((line) => line.startsWith('description:'));
+    const descriptionLine = descriptionIndex >= 0 ? headerLines[descriptionIndex] : '';
+    const inlineDescription = descriptionLine.slice('description:'.length).trim();
+    const hasIndentedDescription = headerLines.slice(descriptionIndex + 1).some((line) => (
+      line.trim().length > 0
+      && /^\s+/.test(line)
+      && !/^[a-z0-9_-]+:\s*/i.test(line.trim())
+    ));
+    assert.ok(
+      inlineDescription.length > 0 || hasIndentedDescription,
+      file + ": missing description",
+    );
     assert.ok(body.split("---")[2]?.trim().length > 100, file + ": missing skill instructions");
   }
 });
