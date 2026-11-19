@@ -541,7 +541,7 @@ test('Autopilot falls back to read-only planning when inspected source makes the
   assert.equal(context.writePlanningEnabled, false);
   assert.deepEqual(context.inspectedFiles, []);
   assert.ok(context.content.length <= 120_000);
-  const payload = JSON.parse(context.content.slice(context.content.indexOf('\\n') + 1));
+  const payload = JSON.parse(context.content.slice(context.content.indexOf('\n') + 1));
   assert.deepEqual(payload.inspectedFiles, []);
   assert.equal(payload.expectedBranch, undefined);
 });
