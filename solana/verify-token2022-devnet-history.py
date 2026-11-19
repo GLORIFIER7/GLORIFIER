@@ -36,9 +36,9 @@ EXPECTED = {
 NEVER_SET = "NOT_APPLICABLE_NEVER_SET"
 # Instructions allowed to touch the mint; anything else fails closed.
 ALLOWED = {
-    "initializeMetadataPointer", "initializeMint", "initializeMint2", "initializeTokenMetadata",
+    "initializeMetadataPointer", "initializeMint", "initializeMint2", "initializeTokenMetadata", "initializeMetadata",
     "getAccountDataSize", "initializeImmutableOwner", "initializeAccount", "initializeAccount2",
-    "initializeAccount3", "transfer", "transferChecked", "mintTo", "mintToChecked", "setAuthority", "updateTokenMetadataAuthority",
+    "initializeAccount3", "transferChecked", "mintTo", "mintToChecked", "setAuthority", "updateTokenMetadataAuthority", "updateMetadataPointerAuthority",
 }
 
 
@@ -100,8 +100,10 @@ def fetch(url, mint):
         t = rpc(url, "getTransaction", [s["signature"], {
             "encoding": "jsonParsed", "commitment": "finalized", "maxSupportedTransactionVersion": 0}])
         require(t is not None, f"finalized transaction not retrievable: {s['signature']}")
+        transaction_error = t["meta"]["err"]
         txs.append({"signature": s["signature"], "slot": t["slot"], "blockTime": t["blockTime"],
-                    "err": t["meta"]["err"], "instructions": token_instructions(t)})
+                    "err": transaction_error,
+                    "instructions": [] if transaction_error is not None else token_instructions(t)})
     account = rpc(url, "getAccountInfo", [mint, {"encoding": "jsonParsed", "commitment": "finalized"}])["value"]
     return {"transactions": txs, "account": account}
 
@@ -124,6 +126,7 @@ AUTHORITY_RECEIPT = {
     "mintTokens": "mintAuthorityRevocationTransaction",
     "freezeAccount": "freezeAuthorityRevocationTransaction",
     "metadataPointer": "metadataPointerAuthorityRevocationTransaction",
+    "metadata": "metadataUpdateAuthorityRevocationTransaction",
 }
 LIFECYCLE = ["creationTransaction", "metadataTransaction", "tokenAccountCreationTransaction", "mintTransaction",
              "mintAuthorityRevocationTransaction", "freezeAuthorityRevocationTransaction",
@@ -131,7 +134,11 @@ LIFECYCLE = ["creationTransaction", "metadataTransaction", "tokenAccountCreation
 
 
 def touches_mint(info, mint):
-    return info.get("mint") in (None, mint) or info.get("metadata") == mint
+    # Only instructions that explicitly name this mint or its metadata account
+    # may contribute to its lifecycle. Presence elsewhere in accountKeys is not proof.
+    if "mint" in info:
+        return info["mint"] == mint
+    return info.get("metadata") == mint or info.get("metadataAddress") == mint
 
 
 def apply_instruction(typ, info, sig, receipts):
@@ -146,7 +153,7 @@ def apply_instruction(typ, info, sig, receipts):
         require(info.get("decimals") == EXPECTED["decimals"], "decimals mismatch")
         require(info.get("freezeAuthority") in (None, ""), "freeze authority was set at creation")
         receipts["creationTransaction"] = sig
-    elif typ == "initializeTokenMetadata":
+    elif typ in ("initializeTokenMetadata", "initializeMetadata"):
         require("metadataTransaction" not in receipts, "token metadata initialized more than once")
         require((info.get("name"), info.get("symbol"), info.get("uri")) ==
                 (EXPECTED["name"], EXPECTED["symbol"], EXPECTED["uri"]), "token metadata mismatch")
@@ -156,6 +163,18 @@ def apply_instruction(typ, info, sig, receipts):
         # Preserve the first observed account-creation receipt; additional accounts are not
         # extra mint operations and must not make the lifecycle verifier fail.
         receipts.setdefault("tokenAccountCreationTransaction", sig)
+    elif typ == "transferChecked":
+        require(isinstance(info.get("source"), str) and info["source"],
+                f"checked transfer missing source account in {sig}")
+        require(isinstance(info.get("destination"), str) and info["destination"],
+                f"checked transfer missing destination account in {sig}")
+        amount = info.get("tokenAmount", {}).get("amount")
+        require(amount is not None and str(amount).isdigit(),
+                f"checked transfer missing or invalid amount field in {sig}")
+        require(info.get("tokenAmount", {}).get("decimals") == EXPECTED["decimals"],
+                f"checked transfer decimals mismatch in {sig}")
+        # A checked transfer moves existing units and never increases minted supply.
+        return 0
     elif typ in ("mintTo", "mintToChecked"):
         require("mintTransaction" not in receipts,
                 "multiple mintTo/mintToChecked instructions found; expected one mint transaction")
@@ -165,15 +184,23 @@ def apply_instruction(typ, info, sig, receipts):
         receipts["mintTransaction"] = sig
         return int(amount)
     elif typ == "setAuthority":
-        require(info.get("newAuthority") is None, f"authority granted (not revoked) in {sig}")
+        require("newAuthority" in info and info["newAuthority"] is None,
+                f"authority grant or missing newAuthority field in {sig}")
         key = AUTHORITY_RECEIPT.get(info.get("authorityType"))
         require(key is not None, f"unexpected authority type {info.get('authorityType')}")
         require(key not in receipts, f"duplicate {info.get('authorityType')} revocation in {sig}")
         receipts[key] = sig
     elif typ == "updateTokenMetadataAuthority":
-        require(info.get("newAuthority") is None, f"metadata authority granted in {sig}")
+        require("newAuthority" in info and info["newAuthority"] is None,
+                f"metadata authority grant or missing newAuthority field in {sig}")
         key = "metadataUpdateAuthorityRevocationTransaction"
         require(key not in receipts, f"duplicate metadata update authority revocation in {sig}")
+        receipts[key] = sig
+    elif typ == "updateMetadataPointerAuthority":
+        require("newAuthority" in info and info["newAuthority"] is None,
+                f"metadata pointer authority grant or missing newAuthority field in {sig}")
+        key = "metadataPointerAuthorityRevocationTransaction"
+        require(key not in receipts, f"duplicate metadata pointer authority revocation in {sig}")
         receipts[key] = sig
     return 0
 
@@ -198,7 +225,10 @@ def analyze(mint, data):
     require(txs, "no finalized transaction history for mint")
     receipts, minted = {}, 0
     for t in txs:
-        require(t["err"] is None, f"failed transaction in mint history: {t['signature']}")
+        # A finalized failed transaction has no state effect; retain it in the complete
+        # history inventory, but do not let its attempted instructions affect semantics.
+        if t["err"] is not None:
+            continue
         for ins in t["instructions"]:
             if touches_mint(ins["info"], mint):
                 minted += apply_instruction(ins["type"], ins["info"], t["signature"], receipts)

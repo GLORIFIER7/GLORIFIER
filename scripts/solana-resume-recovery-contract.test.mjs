@@ -6,38 +6,165 @@ import { fileURLToPath } from 'node:url';
 
 const scriptPath = fileURLToPath(new URL('../solana/resume-recovered-token2022-devnet.sh', import.meta.url));
 const script = readFileSync(scriptPath, 'utf8');
+const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+const ciWorkflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+const provenanceScriptPath = fileURLToPath(new URL('../solana/recover-deployment-provenance.sh', import.meta.url));
+const provenanceScript = readFileSync(provenanceScriptPath, 'utf8');
+const TOKEN_2022_PROGRAM = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
+const CANONICAL_MINT = '8W7eSf3hPyRMFJGKbCvwb9QMq6uok6rxSnRZqofeqnyd';
+const FINALIZED_SIGNATURE = '1'.repeat(64);
+const verifierStart = script.indexOf('verify_finalized_transaction() {');
+const verifierFilterStart = script.indexOf('      .error == null', verifierStart);
+const verifierFilterEnd = script.indexOf('\n    \' <<< "$response"', verifierFilterStart);
+assert.ok(verifierStart >= 0 && verifierFilterStart > verifierStart && verifierFilterEnd > verifierFilterStart,
+  'could not extract the actual finalized-transaction jq filter');
+const finalizedVerifierFilter = script.slice(verifierFilterStart, verifierFilterEnd);
+
+function finalizedTransactionPayload(type, info, signature = FINALIZED_SIGNATURE) {
+  return {
+    error: null,
+    result: {
+      meta: { err: null },
+      transaction: {
+        signatures: [signature],
+        message: {
+          instructions: [{
+            programId: TOKEN_2022_PROGRAM,
+            parsed: { type, info },
+          }],
+        },
+      },
+    },
+  };
+}
+
+function finalizedTransactionIsAccepted(payload, expectedTypes, authorityType = '') {
+  try {
+    execFileSync('jq', [
+      '-e',
+      '--arg', 'signature', FINALIZED_SIGNATURE,
+      '--arg', 'mint', CANONICAL_MINT,
+      '--arg', 'program', TOKEN_2022_PROGRAM,
+      '--argjson', 'expected_types', JSON.stringify(expectedTypes),
+      '--arg', 'expected_authority_type', authorityType,
+      finalizedVerifierFilter,
+    ], { input: JSON.stringify(payload), stdio: ['pipe', 'pipe', 'pipe'] });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 
 test('recovered Token-2022 script passes Bash syntax parsing without execution', () => {
-  assert.ok(Buffer.isBuffer(execFileSync('bash', ['-n', scriptPath], { stdio: 'pipe' })));
+  assert.doesNotThrow(() => execFileSync('bash', ['-n', scriptPath], { stdio: 'pipe' }));
+  assert.doesNotThrow(() => execFileSync('bash', ['-n', provenanceScriptPath], { stdio: 'pipe' }));
 });
 
-test('recovery requires the authorized workflow and the exact metadata URI', () => {
+test('recovery is limited to the authorized workflow and canonical metadata tuple', () => {
   assert.ok(script.includes('GLORIFIER_AUTHORIZED_WORKFLOW'));
   assert.ok(script.includes('METADATA_URI'));
   assert.ok(script.includes('Existing metadata does not exactly match the canonical GLORIFIER/GLR name, symbol, and URI'));
 });
 
-test('every prior recovery phase requires transaction receipt validation', () => {
-  assert.ok(script.includes('SIGNATURE_PATTERN'));
-  assert.ok(script.includes('require_signature'));
-  assert.ok(script.includes('METADATA_TX'));
-  assert.ok(script.includes('ACCOUNT_TX'));
-  assert.ok(script.includes('MINT_TX'));
-  assert.ok(script.includes('MINT_AUTH_TX'));
-  assert.ok(script.includes('FREEZE_AUTH_TX'));
-  assert.ok(script.includes('METADATA_AUTH_TX'));
-  assert.ok(script.includes('POINTER_AUTH_TX'));
+test('all lifecycle receipts are reconciled against the complete finalized history', () => {
+  const receipts = [
+    ['CREATION_TX', 'creationTransaction'],
+    ['METADATA_TX', 'metadataTransaction'],
+    ['ACCOUNT_TX', 'tokenAccountCreationTransaction'],
+    ['MINT_TX', 'mintTransaction'],
+    ['MINT_AUTH_TX', 'mintAuthorityRevocationTransaction'],
+    ['FREEZE_AUTH_TX', 'freezeAuthorityRevocationTransaction'],
+    ['METADATA_AUTH_TX', 'metadataUpdateAuthorityRevocationTransaction'],
+    ['POINTER_AUTH_TX', 'metadataPointerAuthorityRevocationTransaction'],
+  ];
+  for (const [variable, field] of receipts) {
+    assert.ok(
+      script.includes('reconcile_receipt ' + variable + ' ' + field),
+      variable + ' must be reconciled from finalized history',
+    );
+  }
+  assert.ok(script.includes('python3 solana/verify-token2022-devnet-history.py "\${MINT}"'));
+  assert.ok(script.includes('.transactionSemanticsVerified == true'));
+  assert.ok(script.includes('.historyComplete == true'));
+  assert.ok(script.includes('require_receipt "$verified_receipt" "$label"'));
 });
 
-test('metadata authority revocation is inside a valid fail-closed branch', () => {
-  assert.ok(script.includes('if is_disabled'));
-  assert.ok(script.includes('authorize'));
-  assert.ok(script.includes('FINAL_METADATA_AUTHORITY'));
+test('finalized transaction validation binds the parsed instruction to the exact mint', () => {
+  const start = script.indexOf('verify_finalized_transaction() {');
+  const end = script.indexOf('\n}', start);
+  assert.ok(start >= 0 && end > start);
+  const verifier = script.slice(start, end);
+  assert.ok(verifier.includes('$parsed.info.mint == $mint'));
+  assert.ok(verifier.includes('$parsed.info.metadata == $mint'));
+  assert.ok(verifier.includes('$parsed.info.metadataAddress == $mint'));
+  assert.ok(!verifier.includes('accountKeys'));
+  assert.ok(verifier.includes('.result.transaction.signatures[0] == $signature'));
 });
 
-test('Solana transaction signatures enforce the canonical 64-88 character base58 length', () => {
-  assert.ok(script.includes("readonly SIGNATURE_PATTERN='^[1-9A-HJ-NP-Za-km-z]{64,88}$'"));
-  assert.ok(!script.includes('{64,90}'));
+test('the extracted jq verifier binds successful finalized transactions to the exact mint and operation', () => {
+  const valid = finalizedTransactionPayload('initializeTokenMetadata', { mint: CANONICAL_MINT });
+  assert.equal(finalizedTransactionIsAccepted(valid, ['initializeTokenMetadata']), true);
+
+  const wrongMintWithCanonicalMetadataAlias = finalizedTransactionPayload('initializeMetadataPointer', {
+    mint: 'AnotherMint1111111111111111111111111111111',
+    metadataAddress: CANONICAL_MINT,
+  });
+  assert.equal(finalizedTransactionIsAccepted(wrongMintWithCanonicalMetadataAlias, ['initializeMetadataPointer']), false);
+
+  const metadataOnly = finalizedTransactionPayload('initializeTokenMetadata', { metadata: CANONICAL_MINT });
+  assert.equal(finalizedTransactionIsAccepted(metadataOnly, ['initializeTokenMetadata']), true);
+
+  const wrongSignature = finalizedTransactionPayload('initializeTokenMetadata', { mint: CANONICAL_MINT }, '2'.repeat(64));
+  assert.equal(finalizedTransactionIsAccepted(wrongSignature, ['initializeTokenMetadata']), false);
+
+  const failedTransaction = structuredClone(valid);
+  failedTransaction.result.meta.err = { InstructionError: [0, 'Custom'] };
+  assert.equal(finalizedTransactionIsAccepted(failedTransaction, ['initializeTokenMetadata']), false);
+});
+
+test('the extracted jq verifier requires an explicit null newAuthority for each revocation form', () => {
+  const expected = ['setAuthority'];
+  assert.equal(finalizedTransactionIsAccepted(
+    finalizedTransactionPayload('setAuthority', { mint: CANONICAL_MINT, authorityType: 'mintTokens', newAuthority: null }),
+    expected, 'mintTokens',
+  ), true);
+  assert.equal(finalizedTransactionIsAccepted(
+    finalizedTransactionPayload('setAuthority', { mint: CANONICAL_MINT, authorityType: 'mintTokens' }),
+    expected, 'mintTokens',
+  ), false);
+  assert.equal(finalizedTransactionIsAccepted(
+    finalizedTransactionPayload('setAuthority', { mint: CANONICAL_MINT, authorityType: 'mintTokens', newAuthority: 'GrantedAuthority' }),
+    expected, 'mintTokens',
+  ), false);
+  assert.equal(finalizedTransactionIsAccepted(
+    finalizedTransactionPayload('updateTokenMetadataAuthority', { metadata: CANONICAL_MINT }),
+    ['updateTokenMetadataAuthority'], 'metadata',
+  ), false);
+  assert.equal(finalizedTransactionIsAccepted(
+    finalizedTransactionPayload('updateTokenMetadataAuthority', { metadata: CANONICAL_MINT, newAuthority: null }),
+    ['updateTokenMetadataAuthority'], 'metadata',
+  ), true);
+});
+
+test('metadata update-authority revocation does not require a nonexistent authorityType field', () => {
+  assert.ok(script.includes('$parsed.type == "updateTokenMetadataAuthority"'));
+  assert.ok(script.includes('has("newAuthority") and .newAuthority == null'));
+  assert.ok(script.includes('$parsed.info.authorityType == $expected_authority_type'));
+  assert.ok(script.includes('verify_finalized_transaction "\${METADATA_AUTH_TX}"'));
+});
+
+test('new metadata and pointer authority revocations are verified against finalized transactions', () => {
+  assert.ok(script.includes('verify_finalized_transaction "\${METADATA_AUTH_TX}"'));
+  assert.ok(script.includes('verify_finalized_transaction "\${POINTER_AUTH_TX}"'));
+  assert.ok(script.includes('commitment:"finalized"'));
+  assert.ok(script.includes('.result.meta.err == null'));
+});
+
+test('freeze authority that was never initialized uses an explicit non-transaction receipt', () => {
+  assert.ok(script.includes('NOT_APPLICABLE_NEVER_SET'));
+  assert.ok(script.includes('if is_disabled "\${current_authority}"; then\n    return'));
+  assert.ok(script.includes('freezeAuthorityRevocationTransaction'));
 });
 
 test('missing authority fields are not interpreted as disabled authorities', () => {
@@ -47,34 +174,41 @@ test('missing authority fields are not interpreted as disabled authorities', () 
   const helper = script.slice(start, end);
   assert.ok(!helper.includes('-z "$1"'));
   assert.ok(helper.includes('"None"'));
+  assert.ok(helper.includes('"Disabled"'));
+  assert.ok(helper.includes('"(not set)"'));
 });
 
-test('existing recovery signatures are reconciled to finalized transaction-history receipts', () => {
-  assert.ok(script.includes('python3 solana/verify-token2022-devnet-history.py'));
-  assert.ok(script.includes('reconcile_receipt'));
-  assert.ok(script.includes('creationTransaction'));
-  assert.ok(script.includes('transactionSemanticsVerified'));
+test('Solana signatures enforce the canonical 64-88 character base58 length', () => {
+  assert.ok(script.includes("readonly SIGNATURE_PATTERN='^[1-9A-HJ-NP-Za-km-z]{64,88}$'"));
+  assert.ok(!script.includes('{64,90}'));
 });
 
-test('a never-initialized freeze authority uses an explicit non-transaction receipt', () => {
-  assert.ok(script.includes('NOT_APPLICABLE_NEVER_SET'));
-  assert.ok(script.includes('require_receipt'));
+test('published recovery evidence preserves the downstream handoff and finalized-history proof', () => {
+  assert.ok(script.includes('status:"READY_FOR_RECONCILIATION"'));
+  assert.ok(script.includes('.status == "READY_FOR_RECONCILIATION"'));
+  assert.ok(script.includes('transactionSemanticsVerified:true'));
+  assert.ok(script.includes('transactionHistorySource:"FINALIZED_RPC_TRANSACTION_HISTORY"'));
+  assert.ok(script.includes('historyComplete:true'));
+  assert.ok(provenanceScript.includes('.status=="READY_FOR_RECONCILIATION"'));
+  assert.ok(provenanceScript.includes('freeze-authority" && "${value}" == "NOT_APPLICABLE_NEVER_SET"'));
+  assert.ok(provenanceScript.includes('.historyComplete==true'));
+  assert.ok(provenanceScript.includes('"transactionHistorySource":"FINALIZED_RPC_TRANSACTION_HISTORY"'));
 });
 
-test('reused evidence is verified against finalized transactions and the expected operation', () => {
-  assert.match(script, /verify_finalized_transaction/);
-  assert.match(script, /commitment:"finalized"/);
-  assert.match(script, /\.result\.meta\.err == null/);
-  assert.match(script, /\.result\.transaction\.signatures\[0\] == \$signature/);
-  assert.match(script, /\.result\.transaction\.message\.instructions/);
+test('all history receipts are reconciled before evidence is atomically published', () => {
+  const history = script.indexOf('python3 solana/verify-token2022-devnet-history.py "${MINT}"');
+  const lastReceipt = script.indexOf('reconcile_receipt POINTER_AUTH_TX metadataPointerAuthorityRevocationTransaction');
+  const tempEvidence = script.indexOf('TEMP_EVIDENCE="$(mktemp');
+  const publish = script.indexOf('mv -f "${TEMP_EVIDENCE}" "${EVIDENCE_FILE}"');
+  assert.ok(history >= 0 && lastReceipt > history);
+  assert.ok(tempEvidence > lastReceipt);
+  assert.ok(publish > tempEvidence);
 });
 
-test('missing authority output is not treated as a revoked authority', () => {
-  assert.match(script, /\[\[ "\$1" == "None" \|\| "\$1" == "Disabled" \|\| "\$1" == "\(not set\)" \]\]/);
-  assert.doesNotMatch(script, /\[\[ -z "\$1" \|\|/);
-});
-
-test('Solana signatures use the canonical base58 length range', () => {
-  assert.match(script, /SIGNATURE_PATTERN='\^\[1-9A-HJ-NP-Za-km-z\]\{64,88\}\$'/);
-  assert.doesNotMatch(script, /\{64,90\}/);
+test('the recovery contract test is exposed as an npm script and runs in required CI', () => {
+  assert.equal(
+    packageJson.scripts['test:solana-resume-recovery'],
+    'node --test scripts/solana-resume-recovery-contract.test.mjs',
+  );
+  assert.ok(ciWorkflow.includes('npm run test:solana-resume-recovery'));
 });

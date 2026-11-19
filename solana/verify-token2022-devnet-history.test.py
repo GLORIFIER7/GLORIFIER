@@ -30,8 +30,16 @@ class HistoryTests(unittest.TestCase):
         with self.assertRaises(v.VerificationError):
             v.analyze(MINT, d)
 
-    def test_failed_transaction_fails_closed(self):
-        d = copy.deepcopy(FIXTURE); d["transactions"][0]["err"] = {"InstructionError": [0, "Custom"]}; self.assertFails(d)
+    def test_finalized_failed_transactions_do_not_change_lifecycle_semantics(self):
+        d = copy.deepcopy(FIXTURE)
+        failed = copy.deepcopy(d["transactions"][0])
+        failed["signature"] = "2" * 64
+        failed["slot"] = max(t["slot"] for t in d["transactions"]) + 1
+        failed["err"] = {"InstructionError": [0, "Custom"]}
+        d["transactions"].append(failed)
+        result = v.analyze(MINT, d)
+        self.assertTrue(result["transactionSemanticsVerified"])
+        self.assertEqual(result["creationTransaction"], find(FIXTURE, "initializeMint")[0]["signature"])
 
     def test_extra_mint_fails(self):
         d = copy.deepcopy(FIXTURE); t, _ = find(d, "mintToChecked"); d["transactions"].append(copy.deepcopy(t) | {"signature": "x", "slot": 1 << 40}); self.assertFails(d)
@@ -67,6 +75,87 @@ class HistoryTests(unittest.TestCase):
         result = v.analyze(MINT, d)
         self.assertTrue(result["transactionSemanticsVerified"])
         self.assertEqual(result["tokenAccountCreationTransaction"], tx["signature"])
+
+    def test_validated_checked_transfers_do_not_increase_minted_supply(self):
+        d = copy.deepcopy(FIXTURE)
+        d["transactions"].append({
+            "signature": "1" * 64,
+            "slot": max(t["slot"] for t in d["transactions"]) + 1,
+            "blockTime": 1791431981,
+            "err": None,
+            "instructions": [{
+                "type": "transferChecked",
+                "info": {
+                    "mint": MINT,
+                    "source": "KnownSourceAccount",
+                    "destination": "KnownDestinationAccount",
+                    "tokenAmount": {"amount": "1000000000", "decimals": 9},
+                },
+            }],
+        })
+        result = v.analyze(MINT, d)
+        self.assertEqual(result["totalMintedBaseUnits"], v.EXPECTED["baseUnits"])
+        self.assertEqual(result["mintTransaction"], "2DszHKku9D3nCC7D1FAZnZfDzH6wjEaqQPzDv8kpPFYRRtUxxS91SvXQZJVyaeAReDUL63Tfy2sRz4tEEpa9U2B4")
+
+    def test_checked_transfer_requires_source_destination_and_amount(self):
+        d = copy.deepcopy(FIXTURE)
+        d["transactions"].append({
+            "signature": "1" * 64,
+            "slot": max(t["slot"] for t in d["transactions"]) + 1,
+            "blockTime": 1791431981,
+            "err": None,
+            "instructions": [{
+                "type": "transferChecked",
+                "info": {
+                    "mint": MINT,
+                    "source": "KnownSourceAccount",
+                    "tokenAmount": {"amount": "1", "decimals": 9},
+                },
+            }],
+        })
+        self.assertFails(d)
+
+    def test_legacy_metadata_instruction_variants_reconcile_to_canonical_receipts(self):
+        d = copy.deepcopy(FIXTURE)
+        for transaction in d["transactions"]:
+            for instruction in transaction["instructions"]:
+                if instruction["type"] == "initializeTokenMetadata":
+                    instruction["type"] = "initializeMetadata"
+                elif instruction["type"] == "updateTokenMetadataAuthority":
+                    instruction["type"] = "setAuthority"
+                    instruction["info"]["authorityType"] = "metadata"
+                elif instruction["type"] == "setAuthority" and instruction["info"].get("authorityType") == "metadataPointer":
+                    instruction["type"] = "updateMetadataPointerAuthority"
+                    instruction["info"].pop("authorityType", None)
+        result = v.analyze(MINT, d)
+        self.assertTrue(result["transactionSemanticsVerified"])
+        self.assertEqual(result["metadataTransaction"], "5vi2wS9SkmFMrdzCPCc3apr9ttcrxvhjBoiWtDn1H5acsAKA92Mtc63W4qatJP46A6uB7MuNDR7d4G9chSpSyW9p")
+        self.assertEqual(result["metadataUpdateAuthorityRevocationTransaction"], "5MAwjhNvP4Ex5xKzQGeJbHZ54QeaDPteAfzPVu6Kp3F4JTYytcoqBNhUFVsiNLjuU1B4Pe5uP2bmCEHi9MB6pVPn")
+        self.assertEqual(result["metadataPointerAuthorityRevocationTransaction"], "2UTZTcuxQBfGbGTV2sfofGdyxDgXtXJEY3AsfzXpFnFm7EsafRaxVH6Lssjqy85j7aEiL6NmSV6stDZaFfg5HxCh")
+
+    def test_authority_revocation_requires_an_explicit_null_new_authority(self):
+        for target_type in ("updateTokenMetadataAuthority", "setAuthority", "updateMetadataPointerAuthority"):
+            d = copy.deepcopy(FIXTURE)
+            if target_type == "updateTokenMetadataAuthority":
+                _, instruction = find(d, target_type)
+            elif target_type == "setAuthority":
+                _, instruction = find(d, "setAuthority")
+                instruction["info"]["authorityType"] = "mintTokens"
+            else:
+                _, instruction = find(d, "setAuthority")
+                instruction["type"] = target_type
+                instruction["info"].pop("authorityType", None)
+            del instruction["info"]["newAuthority"]
+            self.assertFails(d)
+
+    def test_explicit_mint_field_takes_precedence_over_metadata_aliases(self):
+        self.assertTrue(v.touches_mint({"mint": MINT, "metadataAddress": "OtherMint"}, MINT))
+        self.assertFalse(v.touches_mint({"mint": "OtherMint", "metadataAddress": MINT}, MINT))
+        self.assertFalse(v.touches_mint({"mint": "OtherMint", "metadata": MINT}, MINT))
+        self.assertTrue(v.touches_mint({"metadata": MINT}, MINT))
+        self.assertTrue(v.touches_mint({"metadataAddress": MINT}, MINT))
+        self.assertFalse(v.touches_mint({"account": "UnrelatedAccount"}, MINT))
+        self.assertFalse(v.touches_mint({"mint": "OtherMint"}, MINT))
 
     def test_rpc_retries_body_read_oserror(self):
         successful_response = io.BytesIO(b'{"jsonrpc":"2.0","id":1,"result":{"ok":true}}')
