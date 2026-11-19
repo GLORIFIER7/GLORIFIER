@@ -210,13 +210,25 @@ async function collectSources(windowHours: number) {
   return { evidence: deduped.slice(0, 50), sourceStatus };
 }
 
-function parseJson<T>(text: string, fallback: T): T {
+export function parseJson<T>(text: string, fallback: T): T {
+  const raw = text.trim();
   try {
-    const fenced = extractFirstFencedContent(text, 'json') || text;
-    return JSON.parse(fenced.trim()) as T;
+    return JSON.parse(raw) as T;
   } catch {
-    return fallback;
+    // A valid JSON string may itself contain fenced code in a field value.
+    // Parse the entire response first; only unwrap a Markdown fence after raw JSON fails.
   }
+
+  const fenced = extractFirstFencedContent(text, 'json');
+  if (fenced !== null) {
+    try {
+      return JSON.parse(fenced.trim()) as T;
+    } catch {
+      return fallback;
+    }
+  }
+
+  return fallback;
 }
 
 export async function generateIntelligenceReport(deps: {
