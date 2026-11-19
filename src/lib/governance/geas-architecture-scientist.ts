@@ -579,8 +579,8 @@ function removeActiveHtmlElements(input: string, tagName: 'script' | 'style'): s
   const source = input.replace(/[A-Z]/g, (character) => character.toLowerCase());
   const openingTag = `<${tagName}`;
   const closingTag = `</${tagName}`;
-  const isWordCharacter = (character: string | undefined): boolean =>
-    character !== undefined && /[a-z0-9_]/i.test(character);
+  const isTagNameBoundary = (character: string | undefined): boolean =>
+    character === undefined || character === '>' || character === '/' || (character !== undefined && /\s/.test(character));
   let result = '';
   let cursor = 0;
 
@@ -591,7 +591,7 @@ function removeActiveHtmlElements(input: string, tagName: 'script' | 'style'): s
       break;
     }
     const afterOpeningName = opening + openingTag.length;
-    if (isWordCharacter(source[afterOpeningName])) {
+    if (!isTagNameBoundary(source[afterOpeningName])) {
       cursor = afterOpeningName;
       continue;
     }
@@ -601,7 +601,7 @@ function removeActiveHtmlElements(input: string, tagName: 'script' | 'style'): s
     let closingEnd = -1;
     while ((closing = source.indexOf(closingTag, closeSearchFrom)) >= 0) {
       const afterClosingName = closing + closingTag.length;
-      if (isWordCharacter(source[afterClosingName])) {
+      if (!isTagNameBoundary(source[afterClosingName])) {
         closeSearchFrom = afterClosingName;
         continue;
       }
