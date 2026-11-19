@@ -186,16 +186,35 @@ const run = async (): Promise<void> => {
         assert.equal(previewDatabaseBody.code, 'NEON_HYPERDRIVE_NOT_CONFIGURED',
           'Preview must not silently fall back to the production database');
 
-        const previewMcpWithoutRateLimit = await worker.fetch(
-          mcpPost({ jsonrpc: '2.0', id: 'preview', method: 'initialize', params: {
+        const previewMcpInitialize = await worker.fetch(
+          mcpPost({ jsonrpc: '2.0', id: 'preview-init', method: 'initialize', params: {
             protocolVersion: '2025-03-26',
             capabilities: {},
             clientInfo: { name: 'preview-test', version: '1' },
           } }),
           previewWithoutRateLimiter,
         );
+        assert.equal(previewMcpInitialize.status, 200,
+          'MCP protocol initialization must remain available when the optional preview rate-limit binding is absent');
+
+        const previewMcpToolsList = await worker.fetch(
+          mcpPost({ jsonrpc: '2.0', id: 'preview-list', method: 'tools/list', params: {} }),
+          previewWithoutRateLimiter,
+        );
+        assert.equal(previewMcpToolsList.status, 200,
+          'read-only tool discovery must remain available without an upstream rate-limit binding');
+
+        const previewMcpWithoutRateLimit = await worker.fetch(
+          mcpPost({
+            jsonrpc: '2.0',
+            id: 'preview-tool',
+            method: 'tools/call',
+            params: { name: 'github_get_repository', arguments: {} },
+          }, '203.0.113.43'),
+          previewWithoutRateLimiter,
+        );
         assert.equal(previewMcpWithoutRateLimit.status, 503,
-          'MCP must fail closed when an isolated Preview has no rate-limit binding');
+          'allowlisted upstream tools must fail closed when an isolated Preview has no rate-limit binding');
         assert.equal(previewMcpWithoutRateLimit.headers.get('cache-control'), 'no-store');
         const previewMcpWithoutRateLimitBody = await previewMcpWithoutRateLimit.json() as {
           jsonrpc: string;
@@ -203,10 +222,10 @@ const run = async (): Promise<void> => {
           error: { code: number; message: string };
         };
         assert.equal(previewMcpWithoutRateLimitBody.jsonrpc, '2.0');
-        assert.equal(previewMcpWithoutRateLimitBody.id, 'preview');
+        assert.equal(previewMcpWithoutRateLimitBody.id, 'preview-tool');
         assert.equal(previewMcpWithoutRateLimitBody.error.code, -32003);
         assert.match(previewMcpWithoutRateLimitBody.error.message, /rate-limit service is not configured/i);
-        assert.equal(capturedRequest, null, 'missing preview rate limiting must not reach upstream services');
+        assert.equal(capturedRequest, null, 'a missing preview rate limiter must never reach upstream GitHub');
 
     };
 
@@ -718,8 +737,30 @@ const run = async (): Promise<void> => {
         assert.deepEqual(mcpRateLimitKeys, ['203.0.113.42'], 'MCP upstream tool calls must be rate-limited per connecting client');
         upstreamResponse = previousMcpUpstreamResponse;
 
+        // A rejected tool name is handled locally and must not consume the
+        // Cloudflare quota reserved for real upstream GitHub API requests.
         capturedRequest = null;
         mcpRateLimitAllowed = false;
+        const unknownToolAtLimit = await worker.fetch(
+          mcpPost({
+            jsonrpc: '2.0',
+            id: 70,
+            method: 'tools/call',
+            params: { name: 'unsupported_test_fixture', arguments: {} },
+          }, '203.0.113.42'),
+          env,
+        );
+        assert.equal(unknownToolAtLimit.status, 200,
+          'unknown tool names must be rejected as tool errors without consuming upstream rate limit');
+        const unknownToolAtLimitBody = await unknownToolAtLimit.json() as {
+          result: { isError?: boolean; content: Array<{ text: string }> };
+        };
+        assert.equal(unknownToolAtLimitBody.result.isError, true);
+        assert.match(unknownToolAtLimitBody.result.content[0]?.text || '', /Unknown or unsupported GitHub tool/);
+        assert.deepEqual(mcpRateLimitKeys, ['203.0.113.42'],
+          'unsupported tools must not call the Cloudflare rate limiter');
+        assert.equal(capturedRequest, null);
+
         const rateLimitedMcpToolCall = await worker.fetch(
           mcpPost({
             jsonrpc: '2.0',
@@ -786,6 +827,8 @@ const run = async (): Promise<void> => {
           assert.equal(inheritedToolBody.result.isError, true, 'prototype properties must not be callable as MCP tools');
           assert.match(inheritedToolBody.result.content[0]?.text || '', /Unknown or unsupported GitHub tool/);
           assert.equal(capturedRequest, null, 'prototype-property tool names must not reach GitHub');
+          assert.deepEqual(mcpRateLimitKeys, ['203.0.113.42'],
+            'unknown/prototype tool names must not consume the upstream rate limit');
         }
 
     };
