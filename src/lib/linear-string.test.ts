@@ -64,3 +64,21 @@ test('extracts the first fenced block with an optional language marker', () => {
   assert.equal(extractFirstFencedContent('answer ```json\n{"ok":true}\n``` tail', 'json'), '{"ok":true}\n');
   assert.equal(extractFirstFencedContent('no fence here', 'json'), null);
 });
+
+test('shared fenced-content extraction ignores inline backticks and requires exact labels', () => {
+  const response = [
+    'Model response: ```json',
+    '{"summary":"preserve the inline marker ``` in this value"}',
+    '```',
+    'Trailing explanation',
+  ].join('\\n');
+
+  assert.equal(
+    extractFirstFencedContent(response, 'json', { requireStandaloneClosing: true }),
+    '{"summary":"preserve the inline marker ``` in this value"}\\n',
+  );
+  assert.equal(
+    extractFirstFencedContent('before ```jsonc\\n{"ok":true}\\n```', 'json', { requireStandaloneClosing: true }),
+    null,
+  );
+});
