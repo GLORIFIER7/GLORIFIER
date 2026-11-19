@@ -219,7 +219,7 @@ export function parseJson<T>(text: string, fallback: T): T {
     // Parse the entire response first; only unwrap a Markdown fence after raw JSON fails.
   }
 
-  const fenced = extractFirstFencedContent(text, 'json');
+  const fenced = extractFirstFencedContent(text, 'json', { requireStandaloneClosing: true });
   if (fenced !== null) {
     try {
       return JSON.parse(fenced.trim()) as T;
