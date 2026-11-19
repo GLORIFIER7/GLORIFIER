@@ -28,3 +28,8 @@ test('outer code-fence stripping handles optional language labels', () => {
   assert.equal(stripOuterCodeFence('plain content```'), 'plain content```');
   assert.equal(stripOuterCodeFence('bare JSON `{}```'), 'bare JSON `{}```');
 });
+
+test('outer code-fence stripping requires an exact language label', () => {
+  assert.equal(stripOuterCodeFence('```jsonc\n{"ok":true}\n```', 'json'), 'jsonc\n{"ok":true}');
+  assert.equal(stripOuterCodeFence('```json\n{"ok":true}\n```', 'json'), '{"ok":true}');
+});
