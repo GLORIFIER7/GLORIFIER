@@ -41,16 +41,13 @@ export function hasFingerprintAssetSegment(filename) {
     let end = hashStart;
     while (end < filename.length && isHashCharacter(filename[end])) end += 1;
     if (end - hashStart >= 8 && filename[end] === '.') return true;
-    let end = index + 1;
-    while (end < filename.length && isHashCharacter(filename[end])) end += 1;
-    if (end - index - 1 >= 8 && filename[end] === '.') return true;
     index = end;
   }
   return false;
 }
 
 export function extractFirstFencedContent(value, language, options = {}) {
-  const openingPattern = /```([^\r\n]*)\r?\n/.exec(value);
+  const openingPattern = /```([^\\r\\n]*)\\r?\\n/.exec(value);
   if (!openingPattern) return null;
 
   const label = openingPattern[1].trim();
@@ -59,7 +56,7 @@ export function extractFirstFencedContent(value, language, options = {}) {
   const contentStart = openingPattern.index + openingPattern[0].length;
   let closingIndex;
   if (options.requireStandaloneClosing) {
-    const closingPattern = /^ {0,3}```[ \t]*(?:\r?\n|$)/gm;
+    const closingPattern = /^ {0,3}```[ \\t]*(?:\\r?\\n|$)/gm;
     closingPattern.lastIndex = contentStart;
     closingIndex = closingPattern.exec(value)?.index ?? -1;
   } else {
