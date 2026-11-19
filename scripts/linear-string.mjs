@@ -49,7 +49,10 @@ export function extractFirstFencedContent(value, language) {
   const closingPattern = /^ {0,3}```[ \t]*(?:\r?\n|$)/gm;
   closingPattern.lastIndex = contentStart;
   const closing = closingPattern.exec(value);
-  return closing ? value.slice(contentStart, closing.index) : null;
+  if (!closing) return null;
+
+  const content = value.slice(contentStart, closing.index);
+  return content.replace(/\\r?\\n$/, '');
 }
 
 export function stripOuterCodeFence(value, language) {
