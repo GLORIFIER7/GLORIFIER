@@ -40,15 +40,14 @@ export function hasFingerprintAssetSegment(filename) {
 
 export function stripOuterCodeFence(value, language) {
   let result = value.trim();
+  if (!result.startsWith('```')) return result;
 
-  if (result.startsWith('```')) {
-    let start = 3;
-    if (language && result.slice(start, start + language.length).toLowerCase() === language.toLowerCase()) {
-      start += language.length;
-    }
-    while (result[start] !== undefined && result[start].trim() === '') start += 1;
-    result = result.slice(start);
+  let start = 3;
+  if (language && result.slice(start, start + language.length).toLowerCase() === language.toLowerCase()) {
+    start += language.length;
   }
+  while (result[start] !== undefined && result[start].trim() === '') start += 1;
+  result = result.slice(start);
 
   let end = result.length;
   while (end > 0 && result[end - 1].trim() === '') end -= 1;
