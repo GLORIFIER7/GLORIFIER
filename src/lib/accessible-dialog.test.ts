@@ -225,7 +225,7 @@ test('skips hidden, hidden-type, disabled, aria-hidden, negative-tabindex, and u
   harness.items[2].setAttribute('disabled', '');
   harness.items[3].setAttribute('aria-hidden', 'true');
   harness.items[4].tabIndex = -1;
-  harness.items[5].getClientRects = () => [];
+  harness.items[5].getClientRects = () => [] as unknown as DOMRectList;
 
   installAccessibleDialogBehavior(
     harness.dialog,
