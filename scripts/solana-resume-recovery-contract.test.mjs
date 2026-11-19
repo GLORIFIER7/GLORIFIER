@@ -8,9 +8,12 @@ const scriptPath = fileURLToPath(new URL('../solana/resume-recovered-token2022-d
 const script = readFileSync(scriptPath, 'utf8');
 const packageJson = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const ciWorkflow = readFileSync(new URL('../.github/workflows/ci.yml', import.meta.url), 'utf8');
+const provenanceScriptPath = fileURLToPath(new URL('../solana/recover-deployment-provenance.sh', import.meta.url));
+const provenanceScript = readFileSync(provenanceScriptPath, 'utf8');
 
 test('recovered Token-2022 script passes Bash syntax parsing without execution', () => {
   assert.doesNotThrow(() => execFileSync('bash', ['-n', scriptPath], { stdio: 'pipe' }));
+  assert.doesNotThrow(() => execFileSync('bash', ['-n', provenanceScriptPath], { stdio: 'pipe' }));
 });
 
 test('recovery is limited to the authorized workflow and canonical metadata tuple', () => {
@@ -51,15 +54,17 @@ test('finalized transaction validation binds the parsed instruction to the exact
   assert.ok(verifier.includes('$parsed.info.metadata == $mint'));
   assert.ok(verifier.includes('$parsed.info.metadataAddress == $mint'));
   assert.ok(!verifier.includes('accountKeys'));
+  assert.ok(verifier.includes('.result.transaction.signatures[0] == $signature'));
 });
 
 test('metadata update-authority revocation does not require a nonexistent authorityType field', () => {
-  assert.ok(script.includes('$parsed.type == "updateTokenMetadataAuthority" and $parsed.info.newAuthority == null'));
+  assert.ok(script.includes('$parsed.type == "updateTokenMetadataAuthority"'));
+  assert.ok(script.includes('has("newAuthority") and .newAuthority == null'));
   assert.ok(script.includes('$parsed.info.authorityType == $expected_authority_type'));
   assert.ok(script.includes('verify_finalized_transaction "\${METADATA_AUTH_TX}"'));
 });
 
-test('new metadata and pointer authority revocations are finalized before evidence publication', () => {
+test('new metadata and pointer authority revocations are verified against finalized transactions', () => {
   assert.ok(script.includes('verify_finalized_transaction "\${METADATA_AUTH_TX}"'));
   assert.ok(script.includes('verify_finalized_transaction "\${POINTER_AUTH_TX}"'));
   assert.ok(script.includes('commitment:"finalized"'));
@@ -79,6 +84,8 @@ test('missing authority fields are not interpreted as disabled authorities', () 
   const helper = script.slice(start, end);
   assert.ok(!helper.includes('-z "$1"'));
   assert.ok(helper.includes('"None"'));
+  assert.ok(helper.includes('"Disabled"'));
+  assert.ok(helper.includes('"(not set)"'));
 });
 
 test('Solana signatures enforce the canonical 64-88 character base58 length', () => {
@@ -86,10 +93,26 @@ test('Solana signatures enforce the canonical 64-88 character base58 length', ()
   assert.ok(!script.includes('{64,90}'));
 });
 
-test('published recovery evidence requires full finalized transaction-semantic verification', () => {
-  assert.ok(script.includes('status:"VERIFIED_ON_CHAIN"'));
-  assert.ok(script.includes('.status == "VERIFIED_ON_CHAIN"'));
+test('published recovery evidence preserves the downstream handoff and finalized-history proof', () => {
+  assert.ok(script.includes('status:"READY_FOR_RECONCILIATION"'));
+  assert.ok(script.includes('.status == "READY_FOR_RECONCILIATION"'));
   assert.ok(script.includes('transactionSemanticsVerified:true'));
+  assert.ok(script.includes('transactionHistorySource:"FINALIZED_RPC_TRANSACTION_HISTORY"'));
+  assert.ok(script.includes('historyComplete:true'));
+  assert.ok(provenanceScript.includes('.status=="READY_FOR_RECONCILIATION"'));
+  assert.ok(provenanceScript.includes('freeze-authority" && "${value}" == "NOT_APPLICABLE_NEVER_SET"'));
+  assert.ok(provenanceScript.includes('.historyComplete==true'));
+  assert.ok(provenanceScript.includes('"transactionHistorySource":"FINALIZED_RPC_TRANSACTION_HISTORY"'));
+});
+
+test('all history receipts are reconciled before evidence is atomically published', () => {
+  const history = script.indexOf('python3 solana/verify-token2022-devnet-history.py "${MINT}"');
+  const lastReceipt = script.indexOf('reconcile_receipt POINTER_AUTH_TX metadataPointerAuthorityRevocationTransaction');
+  const tempEvidence = script.indexOf('TEMP_EVIDENCE="$(mktemp');
+  const publish = script.indexOf('mv -f "${TEMP_EVIDENCE}" "${EVIDENCE_FILE}"');
+  assert.ok(history >= 0 && lastReceipt > history);
+  assert.ok(tempEvidence > lastReceipt);
+  assert.ok(publish > tempEvidence);
 });
 
 test('the recovery contract test is exposed as an npm script and runs in required CI', () => {
