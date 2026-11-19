@@ -74,7 +74,7 @@ test('shared fenced-content extraction ignores inline backticks and requires exa
   ].join('\n');
 
   assert.equal(
-    extractFirstFencedContent(response, 'json'),
+    extractFirstFencedContent(response, 'json', { requireStandaloneClosing: true }),
     '{"summary":"preserve the inline marker ``` in this value"}' + '\n',
   );
   assert.equal(
