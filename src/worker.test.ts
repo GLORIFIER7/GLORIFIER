@@ -63,8 +63,8 @@ const env: TestEnv = {
   },
   MCP_RATE_LIMITER: {
     limit({ key }: { key: string }) {
-      mcpRateLimitKeys.push(key);
       if (mcpRateLimitThrows) return Promise.reject(new Error('simulated rate-limit backend outage'));
+      mcpRateLimitKeys.push(key);
       return Promise.resolve({ success: mcpRateLimitAllowed });
     },
   },
