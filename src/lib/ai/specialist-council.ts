@@ -275,31 +275,37 @@ export async function runSpecialistCouncil(request: CouncilRequest) {
     },
   );
 
-  if (request.providerSelections !== undefined) {
-    const failedAssignments = responses
-      .map((response, index) => ({ response, assignment: explicitAssignments![index] }))
-      .filter((entry) => entry.response.status === 'rejected');
-    if (failedAssignments.length > 0) {
-      const failedProviders = failedAssignments
-        .map(({ assignment }) => assignment.providerId + ':' + assignment.modelId)
-        .join(', ');
-      const safeFailureKinds = new Set<string>();
-      for (const { response } of failedAssignments) {
-        if (response.status !== 'rejected') continue;
-        const message = response.reason instanceof Error ? response.reason.message : '';
-        if (message.includes('returned empty specialist output')) safeFailureKinds.add('empty specialist output');
-        if (message.includes('returned unexpected provider/model')) safeFailureKinds.add('unexpected provider/model attribution');
-        if (message.includes('returned incomplete provider/model metadata')) safeFailureKinds.add('incomplete provider/model metadata');
-      }
-      const failureDetail = safeFailureKinds.size > 0
-        ? '; rejected response: ' + [...safeFailureKinds].join(', ')
-        : '';
-      throw new Error(
-        'Repository free-tier council blocked: ' + failedAssignments.length +
-        ' of ' + executionUnits.length + ' guarded provider/model calls failed (' + failedProviders + ')' +
-        failureDetail + '.',
-      );
+  const failedCalls = responses
+    .map((response, index) => ({ response, unit: executionUnits[index] }))
+    .filter((entry) => entry.response.status === 'rejected');
+  if (failedCalls.length > 0) {
+    const failedUnits = failedCalls
+      .map(({ unit }) => explicitAssignments
+        ? unit.providerId + ':' + unit.modelId
+        : unit.role.id)
+      .join(', ');
+    const safeFailureKinds = new Set<string>();
+    for (const { response } of failedCalls) {
+      if (response.status !== 'rejected') continue;
+      const message = response.reason instanceof Error ? response.reason.message : '';
+      if (message.includes('returned empty specialist output')) safeFailureKinds.add('empty specialist output');
+      if (message.includes('returned unexpected provider/model')) safeFailureKinds.add('unexpected provider/model attribution');
+      if (message.includes('returned incomplete provider/model metadata')) safeFailureKinds.add('incomplete provider/model metadata');
     }
+    const failureDetail = safeFailureKinds.size > 0
+      ? '; rejected response: ' + [...safeFailureKinds].join(', ')
+      : '';
+    const failurePrefix = explicitAssignments
+      ? 'Repository free-tier council blocked'
+      : 'Specialist Council incomplete';
+    const callDescription = explicitAssignments
+      ? 'guarded provider/model calls'
+      : 'specialist provider calls';
+    throw new Error(
+      failurePrefix + ': ' + failedCalls.length +
+      ' of ' + executionUnits.length + ' ' + callDescription + ' failed (' + failedUnits + ')' +
+      failureDetail + '.',
+    );
   }
 
   const findings: SpecialistFinding[] = responses
