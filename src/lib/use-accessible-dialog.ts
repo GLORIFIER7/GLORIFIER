@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { useLayoutEffect, useRef } from 'react';
 
 const activeDialogStacks = new WeakMap<Document, HTMLElement[]>();
 
@@ -111,7 +111,7 @@ export function useAccessibleDialog(isOpen: boolean, onClose: () => void) {
     onCloseRef.current = onClose;
   }, [onClose]);
 
-  useEffect(() => {
+  useLayoutEffect(() => {
     const dialog = dialogRef.current;
     if (!isOpen || !dialog) return undefined;
     return installAccessibleDialogBehavior(dialog, () => onCloseRef.current());
