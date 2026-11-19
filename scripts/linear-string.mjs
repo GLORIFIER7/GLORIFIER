@@ -46,13 +46,12 @@ export function extractFirstFencedContent(value, language) {
   if (language && label.toLowerCase() !== language.toLowerCase()) return null;
 
   const contentStart = openingPattern.index + openingPattern[0].length;
-  const closingPattern = /^ {0,3}```[ \t]*(?:\r?\n|$)/gm;
+  const closingPattern = /^ {0,3}```(?:[ \t]+[^\r\n]*)?[ \t]*(?:\r?\n|$)/gm;
   closingPattern.lastIndex = contentStart;
   const closing = closingPattern.exec(value);
   if (!closing) return null;
 
-  const content = value.slice(contentStart, closing.index);
-  return content.replace(/\r?\n$/, '');
+  return value.slice(contentStart, closing.index);
 }
 
 export function stripOuterCodeFence(value, language) {
