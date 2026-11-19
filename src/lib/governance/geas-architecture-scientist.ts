@@ -1,3 +1,4 @@
+import { stripHtmlTags } from '../linear-string.js';
 import { createHash, randomUUID } from 'node:crypto';
 import { getPostgresPool } from '../db/postgres';
 import { GLORIFIER_ARCHITECTURE_MODEL } from './glorifier-architecture';
@@ -574,16 +575,65 @@ const SOVEREIGNTY_DEFAULTS: SovereigntyBoundary = {
   exitStrategy: 'document-before-material-provider-commitment',
 };
 
-export const stripHtml = (input: string): string => input
-  .replace(/<script\b[\s\S]*?<\/script\b[^>]*>/gi, ' ')
-  .replace(/<style\b[\s\S]*?<\/style\b[^>]*>/gi, ' ')
-  .replace(/<[^>]+>/g, ' ')
-  .replace(/&nbsp;/gi, ' ')
-  .replace(/&amp;/gi, ' and ')
-  .replace(/&quot;/gi, '"')
-  .replace(/&#39;|&apos;/gi, "'")
-  .replace(/\s+/g, ' ')
-  .trim();
+function removeActiveHtmlElements(input: string, tagName: 'script' | 'style'): string {
+  const source = input.replace(/[A-Z]/g, (character) => character.toLowerCase());
+  const openingTag = `<${tagName}`;
+  const closingTag = `</${tagName}`;
+  const isWordCharacter = (character: string | undefined): boolean =>
+    character !== undefined && /[a-z0-9_]/i.test(character);
+  let result = '';
+  let cursor = 0;
+
+  while (cursor < input.length) {
+    const opening = source.indexOf(openingTag, cursor);
+    if (opening < 0) {
+      result += input.slice(cursor);
+      break;
+    }
+    const afterOpeningName = opening + openingTag.length;
+    if (isWordCharacter(source[afterOpeningName])) {
+      cursor = afterOpeningName;
+      continue;
+    }
+
+    let closeSearchFrom = afterOpeningName;
+    let closing = -1;
+    let closingEnd = -1;
+    while ((closing = source.indexOf(closingTag, closeSearchFrom)) >= 0) {
+      const afterClosingName = closing + closingTag.length;
+      if (isWordCharacter(source[afterClosingName])) {
+        closeSearchFrom = afterClosingName;
+        continue;
+      }
+      closingEnd = source.indexOf('>', afterClosingName);
+      break;
+    }
+
+    if (closing < 0 || closingEnd < 0) {
+      result += input.slice(cursor);
+      break;
+    }
+
+    result += input.slice(cursor, opening) + ' ';
+    cursor = closingEnd + 1;
+  }
+
+  return result;
+}
+
+export const stripHtml = (input: string): string => {
+  const withoutActiveContent = removeActiveHtmlElements(
+    removeActiveHtmlElements(input, 'script'),
+    'style',
+  );
+  return stripHtmlTags(withoutActiveContent)
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, ' and ')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+};
 
 /**
  * Extract evidence from the document's semantic content region, not site chrome.
