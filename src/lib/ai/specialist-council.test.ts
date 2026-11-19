@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { runSpecialistCouncil, isStandingMissionRequestAuthorized } from './specialist-council.ts';
+import { runSpecialistCouncil, isStandingMissionRequestAuthorized, SpecialistCouncilInputError } from './specialist-council.ts';
 import { aiOrchestrator } from './orchestrator';
 
 const roles = ['engineering-scientist', 'software-architect'];
@@ -109,7 +109,7 @@ test('specialist fan-out is capped at eight explicitly selected roles', async ()
   await assert.rejects(
     () => runSpecialistCouncil({
       objective: 'Inspect a repository change.',
-      roles: broadRoleSet,
+      roles: broadRoleSet.slice(0, 9),
       providerSelections: makeProviderSelections(9),
       generateProvider: async (selection) => {
         calls += 1;
@@ -181,7 +181,7 @@ test('specialist council limits concurrent provider calls to four', async () => 
   let maximumActive = 0;
   const result = await runSpecialistCouncil({
     objective: 'Inspect a repository change.',
-    roles: broadRoleSet.slice(0, 4),
+    roles: broadRoleSet.slice(0, 8),
     providerSelections: selections,
     generateProvider: async (selection) => {
       active += 1;
@@ -278,4 +278,20 @@ test('automatic specialist provider failures fail closed without exposing provid
   } finally {
     aiOrchestrator.generate = originalGenerate;
   }
+});
+
+
+test('invalid council objectives, roles, and temperatures use a typed client-input error', async () => {
+  await assert.rejects(
+    () => runSpecialistCouncil({ objective: '', roles: [roles[0]] }),
+    SpecialistCouncilInputError,
+  );
+  await assert.rejects(
+    () => runSpecialistCouncil({ objective: 'Inspect a repository change.', roles: ['unknown-role'] }),
+    SpecialistCouncilInputError,
+  );
+  await assert.rejects(
+    () => runSpecialistCouncil({ objective: 'Inspect a repository change.', roles: [roles[0]], temperature: 1.1 }),
+    SpecialistCouncilInputError,
+  );
 });
