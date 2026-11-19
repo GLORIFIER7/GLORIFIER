@@ -1488,3 +1488,12 @@ test('evidence excerpt boundaries clamp offsets to source length', () => {
 test('existing assertions completed in setup hook', () => {
   assert.ok(assertionsCompleted, 'existing assertions completed before the test case');
 });
+
+test('HTML sanitization preserves visible text inside hyphenated custom elements', () => {
+  assert.equal(
+    stripHtml('<script-widget>Visible evidence</script-widget> and <style-guide>Readable data</style-guide>'),
+    'Visible evidence and Readable data',
+  );
+  assert.equal(stripHtml('<script>alert(1)</script>Safe evidence'), 'Safe evidence');
+  assert.equal(stripHtml('<style>.hidden{display:none}</style>Safe evidence'), 'Safe evidence');
+});
