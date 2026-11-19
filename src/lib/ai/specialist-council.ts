@@ -275,9 +275,21 @@ export async function runSpecialistCouncil(request: CouncilRequest) {
       const failedProviders = failedAssignments
         .map(({ assignment }) => assignment.providerId + ':' + assignment.modelId)
         .join(', ');
+      const safeFailureKinds = new Set<string>();
+      for (const { response } of failedAssignments) {
+        if (response.status !== 'rejected') continue;
+        const message = response.reason instanceof Error ? response.reason.message : '';
+        if (message.includes('returned empty specialist output')) safeFailureKinds.add('empty specialist output');
+        if (message.includes('returned unexpected provider/model')) safeFailureKinds.add('unexpected provider/model attribution');
+        if (message.includes('returned incomplete provider/model metadata')) safeFailureKinds.add('incomplete provider/model metadata');
+      }
+      const failureDetail = safeFailureKinds.size > 0
+        ? '; rejected response: ' + [...safeFailureKinds].join(', ')
+        : '';
       throw new Error(
         'Repository free-tier council blocked: ' + failedAssignments.length +
-        ' of ' + executionUnits.length + ' guarded provider/model calls failed (' + failedProviders + ').',
+        ' of ' + executionUnits.length + ' guarded provider/model calls failed (' + failedProviders + ')' +
+        failureDetail + '.',
       );
     }
   }
