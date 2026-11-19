@@ -118,7 +118,7 @@ export const AiPolicyOptimizerModal: React.FC<AiPolicyOptimizerModalProps> = ({
      currentPolicy.brokerMode === 'autonomous-maximize' ? 'yield-focused' : 'balanced');
 
   const [selectedLevel, setSelectedLevel] = useState<RiskToleranceLevel>(initialLevel);
-  const dialogRef = useAccessibleDialog(isOpen, onClose);
+  const dialogRef = useAccessibleDialog<HTMLDivElement>(isOpen, onClose);
 
   if (!isOpen) return null;
 
