@@ -128,8 +128,21 @@ test('only the topmost open dialog handles the shared document key event', () =>
     harness.documentLike as unknown as Document,
   );
   let secondItem: HTMLElement;
+  const secondAttributes = new Map<string, string>();
   secondItem = {
+    tabIndex: 0,
+    hidden: false,
     focus: () => { harness.documentLike.activeElement = secondItem; },
+    getAttribute: (name: string) => secondAttributes.get(name) ?? null,
+    setAttribute: (name: string, value: string) => { secondAttributes.set(name, value); },
+    matches: (selector: string) => selector === ':disabled' && secondAttributes.has('disabled'),
+    closest: (selector: string) => {
+      const hiddenAncestor = selector.includes('[hidden]') && secondItem.hidden;
+      const inertAncestor = selector.includes('[inert]') && secondAttributes.has('inert');
+      const ariaHiddenAncestor = selector.includes('[aria-hidden="true"]')
+        && secondAttributes.get('aria-hidden') === 'true';
+      return hiddenAncestor || inertAncestor || ariaHiddenAncestor ? secondItem : null;
+    },
   } as unknown as HTMLElement;
   let secondDialog: HTMLElement;
   secondDialog = {
@@ -226,8 +239,21 @@ test('closing a lower dialog does not steal focus from the topmost dialog', () =
     harness.documentLike as unknown as Document,
   );
   let topItem: HTMLElement;
+  const topAttributes = new Map<string, string>();
   topItem = {
+    tabIndex: 0,
+    hidden: false,
     focus: () => { harness.documentLike.activeElement = topItem; },
+    getAttribute: (name: string) => topAttributes.get(name) ?? null,
+    setAttribute: (name: string, value: string) => { topAttributes.set(name, value); },
+    matches: (selector: string) => selector === ':disabled' && topAttributes.has('disabled'),
+    closest: (selector: string) => {
+      const hiddenAncestor = selector.includes('[hidden]') && topItem.hidden;
+      const inertAncestor = selector.includes('[inert]') && topAttributes.has('inert');
+      const ariaHiddenAncestor = selector.includes('[aria-hidden="true"]')
+        && topAttributes.get('aria-hidden') === 'true';
+      return hiddenAncestor || inertAncestor || ariaHiddenAncestor ? topItem : null;
+    },
   } as unknown as HTMLElement;
   let topDialog: HTMLElement;
   topDialog = {
