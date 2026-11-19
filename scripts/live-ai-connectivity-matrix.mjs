@@ -95,8 +95,8 @@ function baseFor(provider, env) {
   if (url.protocol !== "https:" || url.username || url.password || url.search || url.hash) {
     throw new Error("Unsafe provider origin.");
   }
-  url.pathname = url.pathname.replace(/\/+$/, "");
-  return url.toString().replace(/\/$/, "");
+  url.pathname = stripTrailingSlashes(url.pathname);
+  return stripTrailingSlashes(url.toString());
 }
 
 function headersFor(provider, key) {
