@@ -809,7 +809,7 @@ const enforceMcpToolRateLimit = async (
   message: McpMessage,
   rateLimiter: GithubMcpRateLimiter | undefined,
 ): Promise<Response | null> => {
-  if (message.method !== 'tools/call') return null;
+  if (message.method !== 'tools/call' || !Object.hasOwn(message, 'id')) return null;
   const params = isRecord(message.params) ? message.params : {};
   // Only the four allowlisted read tools make upstream GitHub API requests.
   // Unknown tools are rejected locally and must not consume the upstream quota.
