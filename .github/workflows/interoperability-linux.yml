@@ -220,16 +220,28 @@ jobs:
             --timeout 30000 \
             --output-dir "$GITHUB_WORKSPACE/mcp-local-conformance-results" \
             --verbose
-      - name: Run official frozen MCP 2026-07-28 server requirements
+      - name: Run official MCP 2026-07-28 advertised read-only scenarios
         if: ${{ always() && steps.start_server.outcome == 'success' && steps.build_official_runner.outcome == 'success' }}
         working-directory: .mcp-conformance
+        shell: bash
         run: |
-          node dist/index.js server \
-            --url "$MCP_CONFORMANCE_URL" \
-            --requirements 2026-07-28 \
-            --timeout 30000 \
-            --output-dir "$GITHUB_WORKSPACE/mcp-local-conformance-results" \
-            --verbose
+          set -euo pipefail
+          # Exercise only the capabilities GLORIFIER advertises: tools discovery,
+          # read-only text results, tool errors, DNS-rebinding protection, and
+          # HTTP header validation. The full requirements pack also runs
+          # prompts/resources/completion/tasks/multimedia/elicitation fixtures
+          # that this server deliberately does not advertise.
+          for scenario in tools-list tools-call-simple-text tools-call-error dns-rebinding-protection http-header-validation; do
+            echo "::group::Official MCP scenario: $scenario"
+            node dist/index.js server \
+              --url "$MCP_CONFORMANCE_URL" \
+              --scenario "$scenario" \
+              --spec-version 2026-07-28 \
+              --timeout 30000 \
+              --output-dir "$GITHUB_WORKSPACE/mcp-local-conformance-results" \
+              --verbose
+            echo "::endgroup::"
+          done
       - name: Capture local MCP harness diagnostics
         if: always()
         shell: bash
