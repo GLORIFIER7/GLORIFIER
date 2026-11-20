@@ -35,19 +35,19 @@ const BLOCKED_COMMANDS = [
 // inline interpreters or arbitrary scripts to bypass protected file-edit tools.
 const SAFE_BASH_COMMANDS = [
   /^pwd$/,
-  /^git (?:status|diff|log|show|rev-parse|ls-files|grep)(?: [A-Za-z0-9_./:@+=,~*\\-]+)*$/,
-  /^npm run (?:lint|build|typecheck|test(?::[A-Za-z0-9_-]+)?|check(?::[A-Za-z0-9_-]+)?|validate(?::[A-Za-z0-9_-]+)?|verify(?::[A-Za-z0-9_-]+)?)(?: --(?: [A-Za-z0-9_./:@+=,~*\\-]+)+)?$/,
-  /^node (?:--test|--check)(?: [A-Za-z0-9_./:@+=,~*\\-]+)+$/,
-  /^node --import [A-Za-z0-9_./:@+=,~*\\-]+ --test(?: [A-Za-z0-9_./:@+=,~*\\-]+)+$/,
-  /^tsx [A-Za-z0-9_./:@+=,~*\\-]+\\.test\\.ts$/,
-  /^uv run --locked pytest(?: [A-Za-z0-9_./:@+=,~*\\-]+)*$/,
-  /^pytest(?: [A-Za-z0-9_./:@+=,~*\\-]+)*$/,
-  /^go test(?: [A-Za-z0-9_./:@+=,~*\\-]+)*$/,
-  /^cargo test(?: [A-Za-z0-9_./:@+=,~*\\-]+)*$/,
-  /^npx --no-install tsc --noEmit(?: [A-Za-z0-9_./:@+=,~*\\-]+)*$/,
-  /^rg(?: [A-Za-z0-9_./:@+=,~*\\-]+)+$/,
-  /^ls(?: [A-Za-z0-9_./:@+=,~*\\-]+)*$/,
-  /^cat [A-Za-z0-9_./:@+=,~*\\-]+$/,
+  /^git (?:status|diff|log|show|rev-parse|ls-files|grep)(?: [A-Za-z0-9_./:@+=,~*-]+)*$/,
+  /^npm run (?:lint|build|typecheck|test(?::[A-Za-z0-9_-]+)?|check(?::[A-Za-z0-9_-]+)?|validate(?::[A-Za-z0-9_-]+)?|verify(?::[A-Za-z0-9_-]+)?)(?: --(?: [A-Za-z0-9_./:@+=,~*-]+)+)?$/,
+  /^node (?:--test|--check)(?: [A-Za-z0-9_./:@+=,~*-]+)+$/,
+  /^node --import [A-Za-z0-9_./:@+=,~*-]+ --test(?: [A-Za-z0-9_./:@+=,~*-]+)+$/,
+  /^tsx [A-Za-z0-9_./:@+=,~*-]+\.test\.ts$/,
+  /^uv run --locked pytest(?: [A-Za-z0-9_./:@+=,~*-]+)*$/,
+  /^pytest(?: [A-Za-z0-9_./:@+=,~*-]+)*$/,
+  /^go test(?: [A-Za-z0-9_./:@+=,~*-]+)*$/,
+  /^cargo test(?: [A-Za-z0-9_./:@+=,~*-]+)*$/,
+  /^npx --no-install tsc --noEmit(?: [A-Za-z0-9_./:@+=,~*-]+)*$/,
+  /^rg(?: [A-Za-z0-9_./:@+=,~*-]+)+$/,
+  /^ls(?: [A-Za-z0-9_./:@+=,~*-]+)*$/,
+  /^cat [A-Za-z0-9_./:@+=,~*-]+$/,
 ];
 
 function isForceFlagPresent(command) {
