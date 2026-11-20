@@ -1,5 +1,10 @@
 import { getPostgresPool } from './db/postgres';
 import crypto from 'node:crypto';
+import {
+  getBusinessIntelligencePipelineProgress,
+  normalizeIntelligenceReportToBiRecords,
+  type IntelligenceReportInput,
+} from './business-intelligence-pipeline.js';
 
 export const GLORIFIER_BI_SCIENTIST_VERSION = 'GBIS-2.0';
 
@@ -60,6 +65,14 @@ export async function initializeBusinessIntelligenceScientist() {
       access_policy JSONB NOT NULL DEFAULT '{}', monetization_ref TEXT,
       evidence_status TEXT NOT NULL DEFAULT 'not_verified', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS glorifier_bi_ingestion_runs (
+      report_id TEXT PRIMARY KEY, generated_at TIMESTAMPTZ NOT NULL,
+      source_count INTEGER NOT NULL DEFAULT 0, evidence_count INTEGER NOT NULL DEFAULT 0,
+      observations_upserted INTEGER NOT NULL DEFAULT 0, signals_upserted INTEGER NOT NULL DEFAULT 0,
+      rejected_evidence_count INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_gbis_ingestion_time ON glorifier_bi_ingestion_runs(generated_at DESC);
   `);
 }
 
@@ -136,21 +149,114 @@ export async function registerBusinessIntelligenceWatch(input:{
   return r.rows[0];
 }
 
+export async function ingestIntelligenceReportIntoBusinessIntelligence(report: IntelligenceReportInput) {
+  await initializeBusinessIntelligenceScientist();
+  const db = getPostgresPool();
+  const normalized = normalizeIntelligenceReportToBiRecords(report);
+  let observationsUpserted = 0;
+  let signalsUpserted = 0;
+
+  for (const item of normalized.observations) {
+    const result = await db.query(`
+      INSERT INTO glorifier_bi_observations(
+        id,domain,source,source_ref,subject,metric,value,unit,observed_at,evidence_status,confidence,metadata
+      ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      ON CONFLICT(id) DO UPDATE SET
+        domain=EXCLUDED.domain, source=EXCLUDED.source, source_ref=EXCLUDED.source_ref,
+        subject=EXCLUDED.subject, metric=EXCLUDED.metric, observed_at=EXCLUDED.observed_at,
+        evidence_status=EXCLUDED.evidence_status, metadata=EXCLUDED.metadata
+      RETURNING id
+    `, [
+      item.id,item.domain,item.source,item.sourceRef,item.subject,item.metric,item.value,item.unit,
+      item.observedAt,item.evidenceStatus,item.confidence,JSON.stringify(item.metadata)
+    ]);
+    if (result.rowCount > 0) observationsUpserted += 1;
+  }
+
+  for (const item of normalized.signals) {
+    const result = await db.query(`
+      INSERT INTO glorifier_bi_signals(
+        id,domain,signal_type,title,description,evidence_refs,confidence,impact_estimate,status,metadata
+      ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      ON CONFLICT(id) DO UPDATE SET
+        domain=EXCLUDED.domain, signal_type=EXCLUDED.signal_type, title=EXCLUDED.title,
+        description=EXCLUDED.description, evidence_refs=EXCLUDED.evidence_refs,
+        status=EXCLUDED.status, metadata=EXCLUDED.metadata
+      RETURNING id
+    `, [
+      item.id,item.domain,item.signalType,item.title,item.description,JSON.stringify(item.evidenceRefs),
+      item.confidence,item.impactEstimate,item.status,JSON.stringify(item.metadata)
+    ]);
+    if (result.rowCount > 0) signalsUpserted += 1;
+  }
+
+  const reportId = typeof report.id === 'string' && report.id.trim() ? report.id.trim() : 'unidentified-report';
+  const generatedAt = report.generatedAt || new Date(0).toISOString();
+  const status = normalized.rejectedEvidenceCount > 0 ? 'partial'
+    : observationsUpserted > 0 ? 'ingested' : 'empty';
+  await db.query(`
+    INSERT INTO glorifier_bi_ingestion_runs(
+      report_id,generated_at,source_count,evidence_count,observations_upserted,
+      signals_upserted,rejected_evidence_count,status
+    ) VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+    ON CONFLICT(report_id) DO UPDATE SET
+      generated_at=EXCLUDED.generated_at, source_count=EXCLUDED.source_count,
+      evidence_count=EXCLUDED.evidence_count, observations_upserted=EXCLUDED.observations_upserted,
+      signals_upserted=EXCLUDED.signals_upserted, rejected_evidence_count=EXCLUDED.rejected_evidence_count,
+      status=EXCLUDED.status
+  `, [
+    reportId,generatedAt,normalized.sourceCount,normalized.observations.length,
+    observationsUpserted,signalsUpserted,normalized.rejectedEvidenceCount,status
+  ]);
+
+  return {
+    reportId,
+    status,
+    sourceCount:normalized.sourceCount,
+    evidenceCount:normalized.observations.length,
+    observationsUpserted,
+    signalsUpserted,
+    rejectedEvidenceCount:normalized.rejectedEvidenceCount,
+  };
+}
+
 export async function getBusinessIntelligenceSnapshot() {
   await initializeBusinessIntelligenceScientist();
   const db=getPostgresPool();
-  const [obs,signals,watches,entities,products,decisions]=await Promise.all([
+  const [obs,signals,watches,entities,products,decisions,freshness,latestIngestion]=await Promise.all([
     db.query('SELECT COUNT(*)::int count FROM glorifier_bi_observations'),
     db.query("SELECT signal_type,COUNT(*)::int count FROM glorifier_bi_signals WHERE status='observed' GROUP BY signal_type ORDER BY count DESC"),
     db.query('SELECT COUNT(*)::int count FROM glorifier_bi_watchlist WHERE enabled=true'),
     db.query('SELECT COUNT(*)::int count FROM glorifier_bi_entities'),
     db.query('SELECT COUNT(*)::int count FROM glorifier_bi_data_products'),
-    db.query("SELECT COUNT(*)::int count FROM glorifier_bi_decision_records WHERE status='prepared'")
+    db.query("SELECT COUNT(*)::int count FROM glorifier_bi_decision_records WHERE status='prepared'"),
+    db.query('SELECT COUNT(DISTINCT source)::int source_count, MAX(observed_at) latest_observed_at FROM glorifier_bi_observations'),
+    db.query('SELECT report_id,generated_at,source_count,evidence_count,observations_upserted,signals_upserted,rejected_evidence_count,status FROM glorifier_bi_ingestion_runs ORDER BY generated_at DESC LIMIT 1')
   ]);
+  const latest = latestIngestion.rows[0] || null;
   return {
     version:GLORIFIER_BI_SCIENTIST_VERSION,
     policy:getBusinessIntelligenceScientistPolicy(),
-    counts:{observations:Number(obs.rows[0].count),signals:Number(signals.rows.reduce((n:any,x:any)=>n+Number(x.count),0)),activeWatchlists:Number(watches.rows[0].count),entities:Number(entities.rows[0].count),dataProducts:Number(products.rows[0].count),preparedDecisions:Number(decisions.rows[0].count)},
+    counts:{
+      observations:Number(obs.rows[0].count),
+      signals:Number(signals.rows.reduce((n:any,x:any)=>n+Number(x.count),0)),
+      activeWatchlists:Number(watches.rows[0].count),
+      entities:Number(entities.rows[0].count),
+      dataProducts:Number(products.rows[0].count),
+      preparedDecisions:Number(decisions.rows[0].count),
+      sourceCount:Number(freshness.rows[0].source_count),
+    },
+    latestObservedAt:freshness.rows[0].latest_observed_at || null,
+    latestIngestion:latest ? {
+      reportId:latest.report_id,
+      generatedAt:latest.generated_at,
+      sourceCount:Number(latest.source_count),
+      evidenceCount:Number(latest.evidence_count),
+      observationsUpserted:Number(latest.observations_upserted),
+      signalsUpserted:Number(latest.signals_upserted),
+      rejectedEvidenceCount:Number(latest.rejected_evidence_count),
+      status:latest.status,
+    } : null,
     signalTypes:signals.rows
   };
 }
@@ -262,14 +368,24 @@ export async function getGlobalBusinessIntelligenceArchitecture() {
 
 export async function runBusinessIntelligenceHealthCheck() {
   const snapshot=await getBusinessIntelligenceSnapshot();
+  const latest=snapshot.latestIngestion;
+  const pipeline=getBusinessIntelligencePipelineProgress({
+    report:latest ? {sourceCount:latest.sourceCount,evidenceCount:latest.evidenceCount} : null,
+    ingestion:latest ? {
+      status:latest.status,
+      observationsUpserted:latest.observationsUpserted,
+      signalsUpserted:latest.signalsUpserted,
+      rejectedEvidenceCount:latest.rejectedEvidenceCount,
+    } : null,
+  });
   return {
-    status:'operational',
+    status:latest ? 'partial' : 'awaiting-evidence',
+    storageStatus:'available',
     version:GLORIFIER_BI_SCIENTIST_VERSION,
-    continuous:true,
+    continuousOperation:{configured:true,runtimeVerified:false},
     sourceFamilies:GLOBAL_BI_SOURCE_FAMILIES.length,
     domains:BI_DOMAINS.length,
-    pipelineStages:BI_INTELLIGENCE_PIPELINE.length,
+    pipeline,
     snapshot,
-    nextCycle:'continuous/event-driven plus scheduled watchlists'
   };
 }
