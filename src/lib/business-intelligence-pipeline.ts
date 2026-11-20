@@ -126,7 +126,7 @@ function domainForSource(source: string): string {
     || normalized.includes('hugging')
     || normalized.includes('github')
     || normalized.includes('hacker')
-    || normalized.includes('ai')
+    || /\\bai\\b/.test(normalized)
     || normalized.includes('model')
   ) {
     return 'technology-intelligence';
@@ -292,7 +292,7 @@ type GeasScanInput = {
   evidence?: GeasEvidenceInput[];
   drift?: GeasDriftInput[];
   recommendations?: string[];
-  irreversibleChangesExecuted?: false;
+  irreversibleChangesExecuted?: boolean;
 };
 
 export function buildGeasBusinessIntelligenceAdvisory(input: {
@@ -348,6 +348,9 @@ export function buildGeasBusinessIntelligenceAdvisory(input: {
   if (hasScan && (geasClasses['claim-supported'] || 0) === 0) {
     limitations.push('No claim-supported GEAS evidence is present; architecture implementation claims remain unverified.');
   }
+  if (scan?.irreversibleChangesExecuted === true) {
+    limitations.push('The GEAS scan reports that irreversible changes were executed; immediate human review is required.');
+  }
 
   return {
     status: hasReport && hasScan ? 'advisory-ready' as const
@@ -387,7 +390,7 @@ export function buildGeasBusinessIntelligenceAdvisory(input: {
     governance: {
       advisoryOnly: true,
       humanApprovalRequired: true,
-      irreversibleActionsExecuted: false,
+      irreversibleActionsExecuted: scan?.irreversibleChangesExecuted === true,
       autonomousFinancialActions: false,
       autonomousContracting: false,
     },
