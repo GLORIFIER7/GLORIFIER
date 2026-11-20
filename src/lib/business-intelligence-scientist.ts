@@ -170,7 +170,7 @@ export async function ingestIntelligenceReportIntoBusinessIntelligence(report: I
       item.id,item.domain,item.source,item.sourceRef,item.subject,item.metric,item.value,item.unit,
       item.observedAt,item.evidenceStatus,item.confidence,JSON.stringify(item.metadata)
     ]);
-    if (result.rowCount > 0) observationsUpserted += 1;
+    if ((result.rowCount ?? result.rows.length) > 0) observationsUpserted += 1;
   }
 
   for (const item of normalized.signals) {
@@ -187,7 +187,7 @@ export async function ingestIntelligenceReportIntoBusinessIntelligence(report: I
       item.id,item.domain,item.signalType,item.title,item.description,JSON.stringify(item.evidenceRefs),
       item.confidence,item.impactEstimate,item.status,JSON.stringify(item.metadata)
     ]);
-    if (result.rowCount > 0) signalsUpserted += 1;
+    if ((result.rowCount ?? result.rows.length) > 0) signalsUpserted += 1;
   }
 
   const reportId = typeof report.id === 'string' && report.id.trim() ? report.id.trim() : 'unidentified-report';
