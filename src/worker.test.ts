@@ -872,6 +872,41 @@ const run = async (): Promise<void> => {
         );
         assert.equal(mcpWrongContentType.status, 415, 'MCP must reject non-JSON content types');
 
+        for (const headers of [
+          {
+            'Content-Type': 'application/json',
+            Host: 'evil.example.com',
+            Origin: 'http://evil.example.com',
+          },
+          {
+            'Content-Type': 'application/json',
+            Host: 'glorifier.glorifier.workers.dev',
+            Origin: 'https://evil.example.com',
+          },
+          {
+            'Content-Type': 'application/json',
+            Host: 'evil.example.com',
+          },
+          {
+            'Content-Type': 'application/json',
+            Host: 'evil.example.com/path',
+            Origin: 'https://glorifier.glorifier.workers.dev',
+          },
+        ]) {
+          const rejectedRebinding = await worker.fetch(
+            new Request('https://glorifier.glorifier.workers.dev/mcp', {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ jsonrpc: '2.0', id: 'host-rebinding', method: 'tools/list' }),
+            }),
+            env,
+          );
+          assert.equal(rejectedRebinding.status, 403,
+            'MCP must reject hostile Host authority and mismatched Origin combinations');
+          assert.equal(capturedRequest, null,
+            'Host/Origin rebinding requests must be rejected before any upstream call');
+        }
+
         capturedRequest = null;
         const malformedMcpJson = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/mcp', {
