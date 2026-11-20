@@ -258,16 +258,15 @@ test('assigns every eligible provider an explicit model and a review role withou
   const assignments = buildRepositoryCouncilAssignments(providers, roles);
   assert.equal(assignments.length, 16);
   assert.deepEqual(assignments.map((entry) => entry.providerId), providers.slice(0, 16).map((entry) => entry.providerId));
-  assert.deepEqual(assignments.map((entry) => entry.role.id), [
-    'engineering-scientist', 'software-architect',
-    'engineering-scientist', 'software-architect',
-    'engineering-scientist', 'software-architect',
-    'engineering-scientist', 'software-architect',
-    'engineering-scientist', 'software-architect',
-    'engineering-scientist', 'software-architect',
-    'engineering-scientist', 'software-architect',
-    'engineering-scientist', 'software-architect'
-  ]);
+  assert.equal(
+    assignments.find((entry) => entry.providerId === 'anthropic')?.role.id,
+    'software-architect',
+  );
+  assert.equal(
+    assignments.filter((entry) => entry.providerId !== 'anthropic')
+      .every((entry) => entry.role.id === 'engineering-scientist'),
+    true,
+  );
   assert.equal(new Set(assignments.map((entry) => entry.providerId)).size, assignments.length);
 });
 
