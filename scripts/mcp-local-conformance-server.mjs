@@ -1,9 +1,33 @@
 import { createServer } from 'node:http';
+import { pathToFileURL } from 'node:url';
 import { githubMcpRoute } from '../src/lib/github-mcp.ts';
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.MCP_LOCAL_CONFORMANCE_PORT || 8787);
 const MAX_HARNESS_BODY_BYTES = 1_048_576;
+
+export const toLoopbackRequestUrl = (requestTarget, host = HOST, port = PORT) => {
+  const loopbackOrigin = 'http://' + host + ':' + port;
+  const parsedTarget = new URL(requestTarget || '/', loopbackOrigin);
+  return new URL(parsedTarget.pathname + parsedTarget.search, loopbackOrigin);
+};
+
+export const isFetchUnsupportedMethod = (method) =>
+  ['TRACE', 'CONNECT', 'TRACK'].includes(String(method).toUpperCase());
+
+export const createHarnessErrorEnvelope = (statusCode) => ({
+  jsonrpc: '2.0',
+  id: null,
+  error: statusCode === 413
+    ? {
+        code: -32600,
+        message: 'Local MCP conformance request exceeds the 1,048,576-byte harness safety limit.',
+      }
+    : {
+        code: -32603,
+        message: 'Local MCP conformance adapter failed.',
+      },
+});
 
 // The conformance harness runs against the actual MCP route implementation.
 // It allows quota-safe local TCK execution without deploying a Worker or
@@ -32,7 +56,17 @@ const readRequestBody = async (request) => {
 
 const server = createServer(async (incoming, outgoing) => {
   try {
-    const method = incoming.method || 'GET';
+    const method = String(incoming.method || 'GET').toUpperCase();
+    if (isFetchUnsupportedMethod(method)) {
+      outgoing.writeHead(405, {
+        Allow: 'POST',
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+      });
+      outgoing.end();
+      return;
+    }
+
     const rawBody = method === 'GET' || method === 'HEAD'
       ? undefined
       : await readRequestBody(incoming);
@@ -44,45 +78,44 @@ const server = createServer(async (incoming, outgoing) => {
       else if (Array.isArray(value)) headers.set(name, value.join(', '));
     }
 
-    // Build the Fetch Request URL from the fixed loopback listener, never
-    // from the untrusted Host header supplied by the conformance client.
-    // Preserve that Host header separately so the production route can reject
-    // an authority mismatch exactly as it would behind Cloudflare.
-    const url = new URL(incoming.url || '/', `http://${HOST}:${PORT}`);
+    // Keep the authority pinned to loopback even for absolute-form HTTP
+    // request targets. Preserve Host separately for the route's authority check.
+    const url = toLoopbackRequestUrl(incoming.url || '/');
     const request = new Request(url, {
       method,
       headers,
       ...(rawBody === undefined ? {} : { body: rawBody }),
     });
-    const response = await githubMcpRoute(
-      request,
-      localRateLimiter,
-      process.env.GITHUB_MCP_READ_TOKEN,
-    );
+    // The repository is public. Do not forward any credential from the CI job
+    // into code controlled by the pull request.
+    const response = await githubMcpRoute(request, localRateLimiter);
 
     response.headers.forEach((value, name) => outgoing.setHeader(name, value));
     outgoing.writeHead(response.status);
     outgoing.end(Buffer.from(await response.arrayBuffer()));
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Local MCP conformance adapter failed.';
-    process.stderr.write(`Local MCP harness error: ${message}\n`);
+    process.stderr.write(`Local MCP harness error: ${message}\\n`);
     const statusCode = error && typeof error === 'object' && error.statusCode === 413 ? 413 : 500;
     outgoing.writeHead(statusCode, {
       'Cache-Control': 'no-store',
       'Content-Type': 'application/json',
+      'X-Content-Type-Options': 'nosniff',
     });
-    outgoing.end(JSON.stringify({ error: statusCode === 413
-      ? 'Local MCP conformance request exceeds the harness safety limit.'
-      : 'Local MCP conformance adapter failed.' }));
+    outgoing.end(JSON.stringify(createHarnessErrorEnvelope(statusCode)));
   }
 });
 
-server.listen(PORT, HOST, () => {
-  process.stdout.write(`Local GLORIFIER MCP conformance server listening on http://${HOST}:${PORT}/mcp\n`);
-});
+const isDirectExecution = process.argv[1] &&
+  import.meta.url === pathToFileURL(process.argv[1]).href;
 
-const shutdown = () => {
-  server.close(() => process.exit(0));
-};
-process.on('SIGINT', shutdown);
-process.on('SIGTERM', shutdown);
+if (isDirectExecution) {
+  server.listen(PORT, HOST, () => {
+    process.stdout.write(`Local GLORIFIER MCP conformance server listening on http://${HOST}:${PORT}/mcp\\n`);
+  });
+  const shutdown = () => {
+    server.close(() => process.exit(0));
+  };
+  process.on('SIGINT', shutdown);
+  process.on('SIGTERM', shutdown);
+}
