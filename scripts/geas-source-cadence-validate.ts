@@ -91,7 +91,7 @@ const parseScanWorkflowContract = (text: string): ScanWorkflowContract => {
     const envEntries = scanStepBlock.filter(({ line }) => line === '        env:');
     if (envEntries.length === 1) {
       persistenceEntries = getIndentedBlock(lines, envEntries[0]!.index, 8)
-        .filter(({ line }) => /^ {10}GEAS_SCAN_PERSIST:\\s*/.test(line));
+        .filter(({ line }) => /^ {10}GEAS_SCAN_PERSIST:\s*/.test(line));
     }
   }
   return {
@@ -133,21 +133,21 @@ const validArtifactOnlyWorkflowFixture = [
 ].join('\n');
 const scanWorkflowContractFixtures = [
   { name: 'valid artifact-only schedule', text: validArtifactOnlyWorkflowFixture, expected: true },
-  { name: 'missing concurrency guard', text: validArtifactOnlyWorkflowFixture.replace('concurrency:\\n  group: geas-architecture-scan\\n  cancel-in-progress: false\\n', ''), expected: false },
+  { name: 'missing concurrency guard', text: validArtifactOnlyWorkflowFixture.replace('concurrency:\n  group: geas-architecture-scan\n  cancel-in-progress: false\n', ''), expected: false },
   { name: 'cancel in-progress scan', text: validArtifactOnlyWorkflowFixture.replace('cancel-in-progress: false', 'cancel-in-progress: true'), expected: false },
   { name: 'persistence enabled', text: validArtifactOnlyWorkflowFixture.replace("GEAS_SCAN_PERSIST: 'false'", "GEAS_SCAN_PERSIST: 'true'"), expected: false },
   { name: 'unexpected scan cadence', text: validArtifactOnlyWorkflowFixture.replace('17 */6 * * *', '17 */3 * * *'), expected: false },
-  { name: 'additional cron schedule', text: validArtifactOnlyWorkflowFixture.replace('    - cron: "17 */6 * * *"', '    - cron: "17 */6 * * *"\\n    - cron: "0 */1 * * *"'), expected: false },
-  { name: 'duplicate schedule section', text: validArtifactOnlyWorkflowFixture.replace('concurrency:', '  schedule:\\n    - cron: "0 */1 * * *"\\nconcurrency:'), expected: false },
-  { name: 'persistence flag in unrelated step only', text: validArtifactOnlyWorkflowFixture.replace(
-    "      - name: Execute authoritative architecture scan\\n        env:\\n          GEAS_SCAN_PERSIST: 'false'",
-    "      - name: Unrelated step\\n        env:\\n          GEAS_SCAN_PERSIST: 'false'\\n      - name: Execute authoritative architecture scan\\n        run: npm run scan:geas-architecture",
+  { name: 'additional cron schedule', text: validArtifactOnlyWorkflowFixture.replace('    - cron: "17 */6 * * *"', '    - cron: "17 */6 * * *"\n    - cron: "0 */1 * * *"'), expected: false },
+  { name: 'duplicate schedule section', text: validArtifactOnlyWorkflowFixture.replace('concurrency:', '  schedule:\n    - cron: "0 */1 * * *"\nconcurrency:'), expected: false },
+  { name: 'persistence in unrelated step only', text: validArtifactOnlyWorkflowFixture.replace(
+    "      - name: Execute authoritative architecture scan\n        env:\n          GEAS_SCAN_PERSIST: 'false'",
+    "      - name: Unrelated step\n        env:\n          GEAS_SCAN_PERSIST: 'false'\n      - name: Execute authoritative architecture scan\n        run: npm run scan:geas-architecture",
   ), expected: false },
   { name: 'missing authoritative scan step', text: validArtifactOnlyWorkflowFixture.replace(
     '      - name: Execute authoritative architecture scan',
     '      - name: Run a different step',
   ), expected: false },
-];
+];;
 for (const fixture of scanWorkflowContractFixtures) {
   const actual = isExpectedArtifactOnlyScanContract(parseScanWorkflowContract(fixture.text));
   if (actual !== fixture.expected) {
