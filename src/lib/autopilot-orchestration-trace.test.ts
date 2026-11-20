@@ -34,7 +34,12 @@ class MemoryMissionStore implements AutopilotMissionStore {
     return structuredClone(saved);
   }
   async claimNext(workerId: string, leaseMs: number, now: string) {
-    const candidate = [...this.records.values()].find((mission) => mission.status === 'queued');
+    const nowMs = Date.parse(now);
+    const candidate = [...this.records.values()].find((mission) =>
+      mission.status === 'queued' &&
+      (!mission.nextRunAt || Date.parse(mission.nextRunAt) <= nowMs) &&
+      (!mission.leaseExpiresAt || Date.parse(mission.leaseExpiresAt) <= nowMs)
+    );
     if (!candidate) return null;
     const claimed = {
       ...candidate,
@@ -59,10 +64,33 @@ class MemoryMissionStore implements AutopilotMissionStore {
     this.records.set(id, renewed);
     return structuredClone(renewed);
   }
-  async recoverExpired() { return 0; }
+  async recoverExpired(now: string) {
+    const nowMs = Date.parse(now);
+    let recovered = 0;
+    for (const mission of this.records.values()) {
+      if (!['planning', 'executing'].includes(mission.status) ||
+          !mission.leaseExpiresAt ||
+          Date.parse(mission.leaseExpiresAt) > nowMs) continue;
+      const next: AutopilotMission = {
+        ...mission,
+        status: 'reconciliation-required',
+        version: mission.version + 1,
+        leaseOwner: undefined,
+        leaseExpiresAt: undefined,
+        updatedAt: now,
+        lastError: 'Expired execution lease; external side effects must be reconciled before any retry.',
+        steps: mission.steps.map(step => step.status === 'running'
+          ? { ...step, status: 'reconciliation-required' as const }
+          : step),
+      };
+      this.records.set(next.id, structuredClone(next));
+      recovered += 1;
+    }
+    return recovered;
+  }
 }
 
-const buildTrace = () => ({
+const buildTrace = <T extends 'allow' | 'deny' | 'escalate' = 'allow'>(geasDecision: T = 'allow' as T) => ({
   schemaVersion: 1 as const,
   plannedAt: '2026-11-20T05:00:00.000Z',
   aiCeo: { provider: 'gemini', model: 'gemini-2.5-flash' },
@@ -79,19 +107,13 @@ const buildTrace = () => ({
     risk: 'low' as const,
     capabilityDecision: 'allow' as const,
     geasPolicyVersion: 'GEAS-3.0',
-    geasDecision: 'allow' as const,
+    geasDecision,
     evaluatedAt: '2026-11-20T05:00:00.000Z',
     geasReasons: ['policy requirements satisfied'],
   }],
 });
 
-const buildDeniedTrace = () => ({
-  ...buildTrace(),
-  stepAuthorizations: [{
-    ...buildTrace().stepAuthorizations[0],
-    geasDecision: 'deny',
-  }],
-}) as unknown as ReturnType<typeof buildTrace>;
+const buildDeniedTrace = () => buildTrace('deny') as unknown as ReturnType<typeof buildTrace>;
 
 test('Autopilot persists AI CEO, specialist provenance and GEAS authorization with the mission plan', async () => {
   const store = new MemoryMissionStore();
@@ -141,7 +163,7 @@ test('Autopilot refuses to persist a mission plan with a non-allow GEAS decision
     ),
     /only allowed capability and GEAS decisions can be persisted/,
   );
-  assert.equal((await store.get(created.id))?.steps.length, 0);
+  assert.equal((await store.get(created.id))?.steps?.length, 0);
 });
 
 test('Autopilot expired execution leases require reconciliation before any retry', async () => {
