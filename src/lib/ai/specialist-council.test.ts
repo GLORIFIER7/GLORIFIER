@@ -271,9 +271,9 @@ test('standing revenue mission requests require verified owner authority', () =>
 
 
 test('automatic specialist provider failures fail closed without exposing provider errors', async () => {
-  const originalGenerate = aiOrchestrator.generate;
+  const originalGenerateWithAttribution = aiOrchestrator.generateWithAttribution;
   let calls = 0;
-  aiOrchestrator.generate = async () => {
+  aiOrchestrator.generateWithAttribution = async () => {
     calls += 1;
     throw new Error('provider credential must-not-leak');
   };
@@ -292,7 +292,7 @@ test('automatic specialist provider failures fail closed without exposing provid
     );
     assert.equal(calls, 1);
   } finally {
-    aiOrchestrator.generate = originalGenerate;
+    aiOrchestrator.generateWithAttribution = originalGenerateWithAttribution;
   }
 });
 
