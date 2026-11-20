@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { seedCanonicalNFTRegistry } from './asset-registry';
+import { seedCanonicalGLRRegistry, seedCanonicalNFTRegistry } from './asset-registry';
 import { test } from 'node:test';
 
 test('asset-registry-seed regression suite', async () => {
@@ -64,41 +64,27 @@ async function run() {
   assert.match(registryDoc, /ownerOf/);
   assert.match(registryDoc, /totalSupply/);
 
-  // Runtime GLR deployment seeds must agree with the canonical evidence registry.
-  // Ethereum stays partial while the second same-deployer contract is unresolved;
-  // BNB retains its separately evidenced technical verification; Solana stays partial
-  // pending independent review of the historical mint-transaction provenance.
-  const assetRegistrySource = readFileSync(new URL('./asset-registry.ts', import.meta.url), 'utf8');
-  const seedStart = assetRegistrySource.indexOf('async function seedCanonicalGLRRegistry() {');
-  const seedEnd = assetRegistrySource.indexOf('\n/**', seedStart);
-  assert.notEqual(seedStart, -1, 'GLR seed function must remain inspectable by the regression guard');
-  assert.notEqual(seedEnd, -1, 'GLR seed function must have a stable ending marker');
-  const glrSeed = assetRegistrySource.slice(seedStart, seedEnd);
-  const deploymentSeedStatus = (deploymentId: string) => {
-    const marker = `deploymentId: '${deploymentId}'`;
-    const start = glrSeed.indexOf(marker);
-    assert.notEqual(start, -1, `missing GLR deployment seed: ${deploymentId}`);
-    const nextSeed = glrSeed.indexOf('await upsertCanonicalGLRDeployment({', start + marker.length);
-    const block = glrSeed.slice(start, nextSeed === -1 ? undefined : nextSeed);
-    const status = block.match(/status: '([^']+)'/)?.[1];
-    assert.ok(status, `missing verification status for ${deploymentId}`);
-    return status;
-  };
-  assert.equal(
-    deploymentSeedStatus('glr-ethereum-mainnet'),
-    'partially_verified',
-    'Ethereum must not be promoted while canonical contract identity is unresolved'
-  );
-  assert.equal(
-    deploymentSeedStatus('glr-bnb-mainnet'),
-    'fully_verified',
-    'BNB keeps its separate, evidence-supported technical status'
-  );
-  assert.equal(
-    deploymentSeedStatus('glr-solana-mainnet-beta'),
-    'partially_verified',
-    'Solana must remain partial while mint provenance review is unresolved'
-  );
+  // Verify what the runtime actually writes, including the conflict-update path.
+  // A fake query client ensures this regression cannot change a live database.
+  const glrQueries: QueryCall[] = [];
+  await seedCanonicalGLRRegistry({
+    async query(sql: string, values?: any[]) {
+      glrQueries.push({ sql, values });
+      return { rows: [] };
+    }
+  });
+  const glrDeploymentCalls = glrQueries.filter(({ sql }) => sql.includes('INSERT INTO canonical_asset_deployments'));
+  assert.equal(glrDeploymentCalls.length, 3, 'all three supported GLR chains must be seeded');
+  const verificationStatuses = new Map(glrDeploymentCalls.map(({ values }) => [values?.[0], values?.[11]]));
+  assert.deepEqual(verificationStatuses, new Map([
+    ['glr-ethereum-mainnet', 'partially_verified'],
+    ['glr-bnb-mainnet', 'fully_verified'],
+    ['glr-solana-mainnet-beta', 'partially_verified'],
+  ]), 'deployment verification status must follow the chain-specific evidence');
+  for (const { sql } of glrDeploymentCalls) {
+    assert.match(sql, /ON CONFLICT\(deployment_id\) DO UPDATE SET[\s\S]*?\bstatus\s*=\s*EXCLUDED\.status\b/i,
+      'runtime initialization must not retain stale verification status after conflict');
+  }
 
   console.log('Canonical NFT registry seed and evidence-guard tests passed.');
 }
