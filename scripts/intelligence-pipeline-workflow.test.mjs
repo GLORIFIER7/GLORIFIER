@@ -50,7 +50,7 @@ assert.match(
   'the refresh request must remain gated on a configured endpoint',
 );
 
-const refreshStep = workflow.match(/- name: Refresh configured intelligence report([\\s\\S]*?)(?=\\n      - name:|\\s*$)/)?.[1] ?? '';
+const refreshStep = workflow.match(/- name: Refresh configured intelligence report([\s\S]*?)(?=\n      - name:|\s*$)/)?.[1] ?? '';
 assert.equal(
   (refreshStep.match(/-X POST/g) || []).length,
   2,
