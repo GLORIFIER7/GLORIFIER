@@ -1132,6 +1132,7 @@ const run = async (): Promise<void> => {
         assert.equal(paginatedWorkflowRunsBody.result.isError, undefined);
         assert.equal(new URL(getCapturedRequest().url).searchParams.get('per_page'), '6');
 
+        const rateLimitKeysBeforeInvalidPagination = [...mcpRateLimitKeys];
         for (const invalidPerPage of [{}, '6', 0, 21, 1.5]) {
           capturedRequest = null;
           const invalidPagination = await worker.fetch(
@@ -1149,6 +1150,8 @@ const run = async (): Promise<void> => {
           assert.equal(invalidPaginationBody.result.isError, true);
           assert.match(invalidPaginationBody.result.content[0]?.text || '', /per_page must be an integer/);
           assert.equal(capturedRequest, null, 'invalid per_page values must not reach GitHub');
+          assert.deepEqual(mcpRateLimitKeys, rateLimitKeysBeforeInvalidPagination,
+            'locally invalid arguments must not consume the upstream tool-call quota');
         }
         upstreamResponse = previousWorkflowRunsResponse;
 
