@@ -416,7 +416,7 @@ async function seedCanonicalGLRRegistry() {
     deploymentId: 'glr-ethereum-mainnet', network: 'Ethereum Mainnet', networkFamily: 'evm', networkId: 'evm:1', chainId: 1, identifierType: 'contract',
     contractAddress: '0x9db6f9afe2f4ada50060d32d7c7c0bebbccf89eb',
     deploymentTransaction: '0x8b92e5b669ea3188fe55052ed68d3eae0cc7715a0cf8c96e71ee7e95d846f81a',
-    status: 'fully_verified', explorer: 'Etherscan', sourceVerificationStatus: 'verified',
+    status: 'partially_verified', explorer: 'Etherscan', sourceVerificationStatus: 'verified',
     verificationMode: 'workflow-reconciliation',
     evidence: { etherscanVerified: true, source: 'github-actions-evidence' }
   });
