@@ -3236,17 +3236,23 @@ app.get('/api/business-intelligence/advisory', async (_req: Request, res: Respon
 app.get('/api/business-intelligence/report', async (_req: Request, res: Response) => {
   try {
     const report = await getLatestIntelligenceReport() || await refreshIntelligenceReport();
+    const evidence = report?.evidence || [];
+    const sourceCount = report?.sourceCount || 0;
+    const evidenceCount = evidence.length;
+    const githubEvidenceCount = evidence.filter((item) => /github/i.test(item.source)).length;
+    const marketEvidenceCount = evidence.filter((item) => /competitor|company|market|product|pricing|funding|acquisition/i.test(String(item.title)+' '+String(item.summary))).length;
+    const hasEvidence = evidenceCount > 0;
     const insights = [
-      { id:'web_mentions', title:'Public web intelligence', status: report ? 'live' : 'connector', summary: report ? 'Evidence collected from configured public intelligence sources.' : 'Public-source intelligence connector is ready.', metrics:[{label:'Sources',value:String(report?.sourceCount ?? 0)},{label:'Evidence',value:String(report?.evidenceCount ?? 0)}], actions:['Review source-backed signals before acting.'] },
-      { id:'github', title:'Engineering activity', status:'connector', summary:'GitHub activity is available through authenticated repository and public-source connectors.', metrics:[{label:'State',value:'Connector-backed'},{label:'Truth',value:'Evidence required'}], actions:['Review repository evidence and CI outcomes.'] },
-      { id:'competitors', title:'Competitive intelligence', status:'connector', summary:'Competitive signals require source-backed collection and are kept separate from verified revenue.', metrics:[{label:'State',value:'Connector-backed'},{label:'Truth',value:'Not verified'}], actions:['Collect and review documented competitor evidence.'] },
-      { id:'trends', title:'AI/software trends', status:'live', summary:'Current public intelligence can be refreshed from configured sources.', metrics:[{label:'Window',value:'24h'},{label:'Evidence',value:String(report?.evidenceCount ?? 0)}], actions:['Inspect evidence IDs and source URLs.'] },
-      { id:'search', title:'Search signals', status:'connector', summary:'Search-derived signals remain observations until independently verified.', metrics:[{label:'Status',value:'Available'},{label:'Revenue',value:'Not inferred'}], actions:['Validate source and commercial relevance.'] },
-      { id:'telemetry', title:'First-party telemetry', status:'protected', summary:'Private telemetry remains inside authorized systems and is not exposed as public evidence.', metrics:[{label:'Access',value:'Governed'},{label:'Truth',value:'Evidence required'}], actions:['Use authorized telemetry only.'] },
-      { id:'revenue', title:'Verified revenue', status:'live', summary:'Revenue is sourced from the authoritative ledger and qualifying external evidence.', metrics:[{label:'Source',value:'Neon'},{label:'Rule',value:'Verified evidence'}], actions:['Do not treat estimates or pipeline as revenue.'] },
-      { id:'opportunities', title:'Opportunity intelligence', status:'live', summary:'Opportunity discovery is evidence-first and remains separate from verified earnings.', metrics:[{label:'Rule',value:'Evidence-first'},{label:'Execution',value:'Human authorization'}], actions:['Qualify opportunities before consequential action.'] }
+      { id:'web_mentions', title:'Public web intelligence', status:hasEvidence ? 'observed' : 'not-available', summary:hasEvidence ? 'Public-source evidence was collected; inspect each source and collection status.' : 'No public-source evidence is available in the latest report.', metrics:[{label:'Sources',value:String(sourceCount)},{label:'Evidence',value:String(evidenceCount)}], actions:['Review source-backed signals before acting.'] },
+      { id:'github', title:'Engineering activity', status:githubEvidenceCount > 0 ? 'observed' : 'not-available', summary:githubEvidenceCount > 0 ? 'Public GitHub feed evidence is present; this is not a full authenticated repository audit.' : 'No GitHub source evidence was collected in the latest report.', metrics:[{label:'Evidence',value:String(githubEvidenceCount)},{label:'Truth','value':'Public-source only'}], actions:['Review repository evidence and CI outcomes.'] },
+      { id:'competitors', title:'Competitive intelligence', status:marketEvidenceCount > 0 ? 'observed' : 'not-available', summary:marketEvidenceCount > 0 ? 'Potential competitive evidence is present and requires source-level review.' : 'No competitive evidence is present in the latest report.', metrics:[{label:'Evidence',value:String(marketEvidenceCount)},{label:'Truth',value:'Not verified'}], actions:['Collect and review documented competitor evidence.'] },
+      { id:'trends', title:'AI/software trends', status:hasEvidence ? 'observed' : 'not-available', summary:'Public evidence is available only for the sources shown below; collection failures are reported separately.', metrics:[{label:'Window',value:'24h'},{label:'Evidence',value:String(evidenceCount)}], actions:['Inspect evidence IDs and source URLs.'] },
+      { id:'search', title:'Search signals', status:hasEvidence ? 'observed' : 'not-available', summary:'Search-derived signals remain observations until independently verified.', metrics:[{label:'Status',value:hasEvidence ? 'Evidence present' : 'No evidence'},{label:'Revenue',value:'Not inferred'}], actions:['Validate source and commercial relevance.'] },
+      { id:'telemetry', title:'First-party telemetry', status:'protected', summary:'Private telemetry is not included in this public-source report and remains unverified here.', metrics:[{label:'Access',value:'Not exposed'},{label:'Truth',value:'Not verified'}], actions:['Use authorized telemetry only.'] },
+      { id:'revenue', title:'Verified revenue', status:'not-verified', summary:'This intelligence endpoint does not reconcile the authoritative revenue ledger; no revenue result is asserted.', metrics:[{label:'Source',value:'Ledger check required'},{label:'Rule',value:'Verified evidence'}], actions:['Use the revenue ledger and qualifying settlement evidence.'] },
+      { id:'opportunities', title:'Opportunity intelligence', status:(report?.themes || []).length > 0 ? 'advisory-only' : 'not-available', summary:'Synthesized themes are advisory signals only; no opportunity value, customer acceptance, or earned revenue is verified here.', metrics:[{label:'Themes',value:String(report?.themes?.length || 0)},{label:'Execution',value:'Human authorization'}], actions:['Qualify opportunities before consequential action.'] }
     ];
-    return res.json({ ok:true, generatedAt:report?.generatedAt || new Date().toISOString(), executiveSummary:report?.executiveSummary || 'No intelligence report is currently available.', insights, evidence:report?.evidence || [], analyses:report?.analyses || [] });
+    return res.json({ ok:true, generatedAt:report?.generatedAt || null, sourceStatuses:report?.sourceStatuses || [], executiveSummary:report?.executiveSummary || 'No intelligence report is currently available.', insights, evidence, analyses:report?.analyses || [], economicTruth:'Estimated opportunity value is NOT VERIFIED REVENUE.' });
   } catch (error) { return apiError(res,503,'Business intelligence report unavailable',error); }
 });
 
@@ -3254,7 +3260,7 @@ app.get('/api/business-intelligence/competitive', async (_req: Request, res: Res
   try {
     const report = await getLatestIntelligenceReport();
     const evidence = (report?.evidence || []).filter((x:any) => /competitor|company|market|product|pricing|funding|acquisition/i.test(String(x.title)+' '+String(x.summary))).slice(0,25);
-    return res.json({ ok:true, generatedAt:new Date().toISOString(), status:'evidence-backed', evidence, economicTruth:'Observed intelligence is not verified revenue.' });
+    return res.json({ ok:true, generatedAt:report?.generatedAt || null, status:evidence.length > 0 ? 'observed' : 'not-available', evidenceCount:evidence.length, evidence, economicTruth:'Observed intelligence is not verified revenue.' });
   } catch (error) { return apiError(res,503,'Competitive intelligence unavailable',error); }
 });
 
