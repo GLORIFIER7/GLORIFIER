@@ -213,6 +213,50 @@ async function collectSources(windowHours: number) {
   return { evidence: deduped.slice(0, 50), sourceStatus };
 }
 
+export type NormalizedIntelligenceSynthesis = {
+  executiveSummary: string;
+  themes: IntelligenceReport['themes'];
+  disagreements: string[];
+};
+
+/** Treat model output as untrusted data and admit only themes linked to report evidence. */
+export function normalizeIntelligenceSynthesis(
+  value: unknown,
+  validEvidenceIds: ReadonlySet<string>,
+): NormalizedIntelligenceSynthesis {
+  const record = value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  const themes = (Array.isArray(record.themes) ? record.themes : [])
+    .slice(0, 24)
+    .flatMap((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
+      const candidate = item as Record<string, unknown>;
+      const theme = typeof candidate.theme === 'string' ? candidate.theme.trim().slice(0, 300) : '';
+      const evidenceIds = [...new Set(
+        (Array.isArray(candidate.evidenceIds) ? candidate.evidenceIds : [])
+          .filter((id): id is string => typeof id === 'string' && validEvidenceIds.has(id)),
+      )];
+      if (!theme || evidenceIds.length === 0) return [];
+      return [{
+        theme,
+        evidenceIds,
+        summary: typeof candidate.summary === 'string' ? candidate.summary.trim().slice(0, 1500) : '',
+      }];
+    });
+  const disagreements = (Array.isArray(record.disagreements) ? record.disagreements : [])
+    .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    .map((item) => item.trim().slice(0, 1000))
+    .slice(0, 10);
+  return {
+    executiveSummary: typeof record.executiveSummary === 'string'
+      ? record.executiveSummary.trim().slice(0, 3000)
+      : '',
+    themes,
+    disagreements,
+  };
+}
+
 export function parseJson<T>(text: string, fallback: T): T {
   const raw = text.trim();
   try {
@@ -272,13 +316,15 @@ ${JSON.stringify(evidencePacket)}`;
     gemini ? { provider: 'Google Gemini', model: gemini.model, output: gemini.text, status: 'completed' } : { provider: 'Google Gemini', model: 'unavailable', output: 'Gemini key/model unavailable.', status: 'unavailable' }
   ];
 
-  const parsed = analyses.filter(a => a.status === 'completed').map(a => parseJson<{ executiveSummary?: string; themes?: IntelligenceReport['themes']; disagreements?: string[] }>(a.output, {}));
-  const first = parsed[0] || {};
-  const second = parsed[1] || {};
-  const mergedThemes = [...(first.themes || []), ...(second.themes || [])];
+  const validEvidenceIds = new Set(evidence.map(item => item.id));
+  const parsed = analyses
+    .filter(a => a.status === 'completed')
+    .map(a => normalizeIntelligenceSynthesis(parseJson<unknown>(a.output, {}), validEvidenceIds));
+  const mergedThemes = parsed.flatMap(item => item.themes);
   const themes = [...new Map(mergedThemes.map(theme => [theme.theme.toLowerCase(), theme])).values()].slice(0, 12);
-  const disagreements = [...new Set([...(first.disagreements || []), ...(second.disagreements || [])])].slice(0, 10);
-  const executiveSummary = first.executiveSummary || second.executiveSummary || `Collected ${evidence.length} evidence items from ${new Set(evidence.map(e => e.source)).size} public sources. Cross-model synthesis was unavailable or returned no structured summary.`;
+  const disagreements = [...new Set(parsed.flatMap(item => item.disagreements))].slice(0, 10);
+  const executiveSummary = parsed.find(item => item.executiveSummary)?.executiveSummary
+    || `Collected ${evidence.length} evidence items from ${new Set(evidence.map(e => e.source)).size} public sources. Cross-model synthesis was unavailable or returned no structured summary.`;
 
   const report: IntelligenceReport = {
     id: `intel-${Date.now()}`,
