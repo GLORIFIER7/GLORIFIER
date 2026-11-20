@@ -147,7 +147,7 @@ const scanWorkflowContractFixtures = [
     '      - name: Execute authoritative architecture scan',
     '      - name: Run a different step',
   ), expected: false },
- ];
+];
 for (const fixture of scanWorkflowContractFixtures) {
   const actual = isExpectedArtifactOnlyScanContract(parseScanWorkflowContract(fixture.text));
   if (actual !== fixture.expected) {
