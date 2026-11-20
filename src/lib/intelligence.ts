@@ -24,6 +24,7 @@ export type IntelligenceReport = {
   windowHours: number;
   sourceCount: number;
   evidenceCount: number;
+  sourceStatuses: string[];
   analyses: IntelligenceAnalysis[];
   executiveSummary: string;
   themes: Array<{ theme: string; evidenceIds: string[]; summary: string }>;
@@ -68,6 +69,8 @@ const ensureSchema = async () => {
       status TEXT NOT NULL,
       output TEXT NOT NULL
     );
+    ALTER TABLE intelligence_reports
+      ADD COLUMN IF NOT EXISTS source_statuses JSONB NOT NULL DEFAULT '[]'::jsonb;
     CREATE INDEX IF NOT EXISTS intelligence_evidence_report_idx ON intelligence_evidence(report_id);
     CREATE INDEX IF NOT EXISTS intelligence_evidence_published_idx ON intelligence_evidence(published_at DESC);
   `);
@@ -260,8 +263,8 @@ Evidence:
 ${JSON.stringify(evidencePacket)}`;
 
   const [gpt, gemini] = await Promise.all([
-    deps.runModel('openai', prompt, { jsonMode: true }),
-    deps.runModel('gemini', prompt, { jsonMode: true })
+    deps.runModel('openai', prompt, { jsonMode: true }).catch(() => null),
+    deps.runModel('gemini', prompt, { jsonMode: true }).catch(() => null)
   ]);
 
   const analyses: IntelligenceAnalysis[] = [
@@ -283,6 +286,7 @@ ${JSON.stringify(evidencePacket)}`;
     windowHours,
     sourceCount: new Set(evidence.map(e => e.source)).size,
     evidenceCount: evidence.length,
+    sourceStatuses: [...sourceStatus],
     analyses,
     executiveSummary,
     themes,
@@ -295,8 +299,8 @@ ${JSON.stringify(evidencePacket)}`;
   const db = getPool();
   if (db) {
     await db.query(
-      'INSERT INTO intelligence_reports (id, generated_at, window_hours, source_count, evidence_count, executive_summary, themes, disagreements) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (id) DO NOTHING',
-      [report.id, report.generatedAt, report.windowHours, report.sourceCount, report.evidenceCount, report.executiveSummary, JSON.stringify(report.themes), JSON.stringify(report.disagreements)]
+      'INSERT INTO intelligence_reports (id, generated_at, window_hours, source_count, evidence_count, executive_summary, themes, disagreements, source_statuses) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (id) DO NOTHING',
+      [report.id, report.generatedAt, report.windowHours, report.sourceCount, report.evidenceCount, report.executiveSummary, JSON.stringify(report.themes), JSON.stringify(report.disagreements), JSON.stringify(report.sourceStatuses)]
     );
     for (const item of report.evidence) {
       await db.query(
@@ -331,6 +335,7 @@ export async function getLatestIntelligenceReport() {
     windowHours: row.window_hours,
     sourceCount: row.source_count,
     evidenceCount: row.evidence_count,
+    sourceStatuses: row.source_statuses || [],
     executiveSummary: row.executive_summary,
     themes: row.themes || [],
     disagreements: row.disagreements || [],
