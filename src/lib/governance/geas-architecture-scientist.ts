@@ -1092,6 +1092,20 @@ export const createSourceFetchContext = (
   };
 };
 
+/**
+ * A source-specific extractor change cannot repair an old source-available cache
+ * row through a 304 response because the cached row has no excerpt to re-extract.
+ * Force one body fetch for this known NIST migration case; keep every other
+ * source and already substantive NIST cache entry on the normal validator path.
+ */
+export const shouldForceUnconditionalSourceRefresh = (
+  sourceId: string,
+  cached?: CachedSourceObservation | null,
+): boolean => sourceId === 'nist-agent-identity-design-tenets'
+  && cached?.ok === true
+  && cached.evidence_status === 'source-available'
+  && !cached.evidence_excerpt?.trim();
+
 const isCachedObservationForSource = (
   source: Pick<ArchitectureSource, 'url'>,
   cached: CachedSourceObservation,
@@ -1673,11 +1687,13 @@ const createSourceFetchObservation = async (
 };
 
 const fetchSource = async (source: ArchitectureSource, cached?: CachedSourceObservation | null): Promise<SourceObservation> => {
-  const context = createSourceFetchContext(source.url, cached);
+  const forceUnconditionalRefresh = shouldForceUnconditionalSourceRefresh(source.id, cached);
+  const reusableCachedObservation = forceUnconditionalRefresh ? null : cached;
+  const context = createSourceFetchContext(source.url, reusableCachedObservation);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
   try {
-    return await createSourceFetchObservation(source, cached, context, controller.signal);
+    return await createSourceFetchObservation(source, reusableCachedObservation, context, controller.signal);
   } catch (error) {
     return createSourceFetchFailure(source, context.observedAt, error);
   } finally {
