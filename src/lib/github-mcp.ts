@@ -545,7 +545,7 @@ const handleServerDiscover = (id: JsonRpcId): Response => jsonResponse({
   id,
   result: {
     resultType: 'complete',
-    supportedVersions: [...MODERN_PROTOCOL_VERSIONS],
+    supportedVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
     capabilities: { tools: {} },
     _meta: modernServerMetadata(),
     instructions: SERVER_DISCOVERY_INSTRUCTIONS,
@@ -639,9 +639,9 @@ const unsupportedProtocolVersion = (
     code: -32022,
     message: 'Unsupported protocol version',
     data: {
-      supported: /^2026(?:-|$)/.test(requested)
-        ? [...MODERN_PROTOCOL_VERSIONS]
-        : [...LEGACY_PROTOCOL_VERSIONS],
+      // Keep negotiation errors aligned with server/discover: report every
+      // protocol revision this endpoint actually accepts.
+      supported: [...SUPPORTED_PROTOCOL_VERSIONS],
       requested,
     },
   },
