@@ -479,7 +479,7 @@ const run = async (): Promise<void> => {
           error: { code: number };
         };
         assert.equal(missingModernClientCapabilities.status, 400);
-        assert.equal(missingModernClientCapabilitiesBody.error.code, -32602,
+        assert.equal(missingModernClientCapabilitiesForRateLimitBody.error.code, -32602,
           'modern requests require clientCapabilities even when the object is empty');
 
         const mismatchedMcpMethod = await worker.fetch(
@@ -782,10 +782,10 @@ const run = async (): Promise<void> => {
           }),
           env,
         );
-        const missingModernClientCapabilitiesBody = await missingModernClientCapabilitiesToolCall.json() as {
+        const missingModernClientCapabilitiesForRateLimitBody = await missingModernClientCapabilitiesToolCall.json() as {
           error: { code: number };
         };
-        assert.equal(missingModernClientCapabilitiesBody.error.code, -32602);
+        assert.equal(missingModernClientCapabilitiesForRateLimitBody.error.code, -32602);
         assert.deepEqual(mcpRateLimitKeys, rateLimitKeysBeforeInvalidRequests,
           'invalid modern request metadata must not consume the upstream tool-call quota');
         assert.equal(capturedRequest, null);
