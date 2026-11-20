@@ -257,15 +257,22 @@ export async function runSpecialistCouncil(request: CouncilRequest) {
           content: 'Untrusted user objective (JSON task input): ' + JSON.stringify({ objective }),
         }
       ];
-      const response = request.providerSelections !== undefined
-        ? await request.generateProvider!({ providerId, modelId: modelId! }, messages, temperature)
-        : await aiOrchestrator.generate({
-            provider: providerId,
-            ...(modelId ? { model: modelId } : {}),
-            messages,
-            temperature,
-            evaluate: true
-          });
+      let response: AIResponse;
+      if (request.providerSelections !== undefined) {
+        response = await request.generateProvider!({ providerId, modelId: modelId! }, messages, temperature);
+      } else {
+        const routed = await aiOrchestrator.generateWithAttribution({
+          provider: providerId,
+          ...(modelId ? { model: modelId } : {}),
+          messages,
+          temperature,
+          evaluate: true
+        });
+        if (routed.response.provider !== routed.providerId || routed.response.model !== routed.modelId) {
+          throw new Error(`Specialist '${role.id}' returned unexpected provider/model attribution for the orchestrated provider.`);
+        }
+        response = routed.response;
+      }
 
       if (!response || typeof response.text !== 'string' || !response.text.trim()) {
         throw new Error(`Specialist '${role.id}' returned empty specialist output.`);
