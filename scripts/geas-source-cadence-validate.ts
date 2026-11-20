@@ -14,6 +14,7 @@ type Registry = { sources: RegistrySource[] };
 const registryPath = 'docs/architecture/geas-authoritative-source-registry.json';
 const scannerPath = 'src/lib/governance/geas-architecture-scientist.ts';
 const workflowPath = '.github/workflows/geas-architecture-scan.yml';
+const scanOperationsDocPath = 'docs/architecture/geas-scan-operations.md';
 const workflowText = readFileSync(workflowPath, 'utf8');
 const parserPathEntry = "      - 'scripts/geas-source-catalog-parser.ts'";
 const extractPullRequestSection = (text: string): string => {
@@ -31,6 +32,75 @@ const workflowFixtures = [
 for (const fixture of workflowFixtures) {
   if (!extractPullRequestSection(fixture).includes(parserPathEntry)) {
     throw new Error('GEAS parser trigger extraction must handle absent or preceding schedule sections');
+  }
+}
+
+type ScanWorkflowContract = {
+  cron: string | null;
+  concurrencyGroup: string | null;
+  cancelInProgress: string | null;
+  persistence: string | null;
+};
+const parseScanWorkflowContract = (text: string): ScanWorkflowContract => {
+  const lines = text.split('\\n').map(line => line.endsWith('\\r') ? line.slice(0, -1) : line);
+  const cronLine = lines.find(line => line.startsWith('    - cron: '));
+  const concurrencyIndex = lines.indexOf('concurrency:');
+  const groupLine = concurrencyIndex >= 0 ? lines[concurrencyIndex + 1] ?? '' : '';
+  const cancelLine = concurrencyIndex >= 0 ? lines[concurrencyIndex + 2] ?? '' : '';
+  const persistLine = lines.find(line => line.startsWith('          GEAS_SCAN_PERSIST:'));
+  return {
+    cron: cronLine ? cronLine.slice('    - cron: '.length).trim().replaceAll('"', '').replaceAll("'", '') : null,
+    concurrencyGroup: groupLine.startsWith('  group: ') ? groupLine.slice('  group: '.length).trim() : null,
+    cancelInProgress: cancelLine.startsWith('  cancel-in-progress: ') ? cancelLine.slice('  cancel-in-progress: '.length).trim() : null,
+    persistence: persistLine ? persistLine.slice('          GEAS_SCAN_PERSIST: '.length).trim().replaceAll("'", '').replaceAll('"', '') : null,
+  };
+};
+const isExpectedArtifactOnlyScanContract = (contract: ScanWorkflowContract): boolean =>
+  contract.cron === '17 */6 * * *'
+  && contract.concurrencyGroup === 'geas-architecture-scan'
+  && contract.cancelInProgress === 'false'
+  && contract.persistence === 'false';
+const validArtifactOnlyWorkflowFixture = [
+  'on:',
+  '  schedule:',
+  '    - cron: "17 */6 * * *"',
+  'concurrency:',
+  '  group: geas-architecture-scan',
+  '  cancel-in-progress: false',
+  'jobs:',
+  '  scan:',
+  '    steps:',
+  '      - name: Execute authoritative architecture scan',
+  '        env:',
+  "          GEAS_SCAN_PERSIST: 'false'",
+].join('\\n');
+const scanWorkflowContractFixtures = [
+  { name: 'valid artifact-only schedule', text: validArtifactOnlyWorkflowFixture, expected: true },
+  { name: 'missing concurrency guard', text: validArtifactOnlyWorkflowFixture.replace('concurrency:\\n  group: geas-architecture-scan\\n  cancel-in-progress: false\\n', ''), expected: false },
+  { name: 'cancel in-progress scan', text: validArtifactOnlyWorkflowFixture.replace('cancel-in-progress: false', 'cancel-in-progress: true'), expected: false },
+  { name: 'persistence enabled', text: validArtifactOnlyWorkflowFixture.replace("GEAS_SCAN_PERSIST: 'false'", "GEAS_SCAN_PERSIST: 'true'"), expected: false },
+  { name: 'unexpected scan cadence', text: validArtifactOnlyWorkflowFixture.replace('17 */6 * * *', '17 */3 * * *'), expected: false },
+];
+for (const fixture of scanWorkflowContractFixtures) {
+  const actual = isExpectedArtifactOnlyScanContract(parseScanWorkflowContract(fixture.text));
+  if (actual !== fixture.expected) {
+    throw new Error(`GEAS scan workflow contract fixture failed: ${fixture.name}`);
+  }
+}
+if (!isExpectedArtifactOnlyScanContract(parseScanWorkflowContract(workflowText))) {
+  throw new Error('GEAS GitHub scan must remain six-hourly, serialized, and non-persistent');
+}
+const scanOperationsDoc = readFileSync(scanOperationsDocPath, 'utf8');
+for (const requiredStatement of [
+  '## Scan execution modes',
+  'GitHub Actions artifact-only scan',
+  '`GEAS_SCAN_PERSIST=false`',
+  'does not load previous PostgreSQL source observations',
+  'does not acquire the PostgreSQL lease',
+  'does not coordinate with the application daemon',
+]) {
+  if (!scanOperationsDoc.includes(requiredStatement)) {
+    throw new Error(`GEAS scan operations documentation is missing: ${requiredStatement}`);
   }
 }
 const pullRequestSection = extractPullRequestSection(workflowText);
@@ -300,6 +370,7 @@ process.stdout.write(`${JSON.stringify({
   scannerSources: entries.length,
   cadenceUnit: 'hours',
   parser: 'literal scanner tokenizer',
+  workflowExecutionContract: 'six-hourly artifact-only scan; serialized GitHub runs; database persistence disabled',
   sourceRegistry: registryPath,
   scannerCatalog: scannerPath,
   braceStringRegression: 'passed',

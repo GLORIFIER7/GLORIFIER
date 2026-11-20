@@ -4,18 +4,22 @@
 
 Keep the Enterprise Architecture Scientist read-only, reproducible, and economical to operate. This document describes scanner behavior and the controls required before any historical-data maintenance.
 
-## Scan scheduling
+## Scan execution modes
 
-- The dedicated GEAS scanner daemon is the sole scheduled owner of architecture scans.
+- The dedicated application GEAS scanner daemon is the intended persistent scanner owner when enabled. `GEAS_ARCHITECTURE_SCAN_ENABLED=false` disables that daemon.
+- The GitHub Actions artifact-only scan is a separate execution path. It runs on the six-hour schedule `17 */6 * * *` and also on the workflow's configured pull-request/manual triggers. It sets `GEAS_SCAN_PERSIST=false`, uploads the JSON scan artifact, does not load previous PostgreSQL source observations, does not write scan/evidence/source-observation rows, and does not acquire the PostgreSQL lease.
+- The workflow concurrency group `geas-architecture-scan` with `cancel-in-progress: false` serializes GitHub Actions invocations only. It does not coordinate with the application daemon. If both execution paths are enabled at the same time, their public-source fetches can overlap; the GitHub concurrency group is not a global cross-process lease.
+- Because the artifact-only path has no prior source observations, it cannot reuse ETag or Last-Modified validators across CI runs and performs full source fetches for active sources. Conditional requests are available only when a persistent scanner has an admissible prior observation with the exact configured URL and a current timestamp.
+- Do not enable `GEAS_SCAN_PERSIST=true` in GitHub Actions merely to reuse the database cache; that would write to the configured database. A non-production file/artifact cache is a separate future design and is not implemented.
 - The general GLORIFIER daemon must not run the architecture scanner on its five-minute orchestration cadence.
-- `GEAS_ARCHITECTURE_SCAN_ENABLED=false` disables the dedicated scanner.
-- `GEAS_ARCHITECTURE_SCAN_INTERVAL_HOURS` controls the dedicated schedule; default is one hour, values are bounded to at least one hour, and non-finite values fall back to one hour.
-- With persistence enabled, a PostgreSQL lease is the cross-instance overlap guard; a lease conflict fails visibly rather than starting a second scan. `GEAS_SCAN_PERSIST=false` bypasses that database lease, so operators must ensure only one scanner process is active in that mode.
+- `GEAS_ARCHITECTURE_SCAN_INTERVAL_HOURS` controls the dedicated daemon schedule; default is one hour, values are bounded to at least one hour, and non-finite values fall back to one hour.
+- With persistence enabled, a PostgreSQL lease is the cross-instance overlap guard; a lease conflict fails visibly rather than starting a second scan. When persistence is disabled, that database lease is bypassed and no cross-process coordination is provided.
 
 ## Source cache correctness
 
 - A cached observation is reusable only when the configured source URL exactly matches the URL recorded with the observation.
 - A URL change invalidates the cached observation immediately.
+- Conditional requests send ETag/Last-Modified validators only from an admissible cached observation with the exact configured URL; a 304 response may reuse evidence only when the final URL and observation timeline remain valid.
 - Failed source observations become eligible for refresh after one hour. The dedicated scanner runs hourly by default, while successful observations remain cached until their source cadence expires. Scheduling and source availability still mean this is not a guaranteed one-hour retry SLA.
 - Source fetches remain HTTPS-only and same-host across redirects. Do not weaken redirect protections to accommodate a stale registry URL.
 - Source reachability and keyword matches are not claim verification. Missing or inaccessible evidence remains UNKNOWN / NOT OBSERVABLE.
