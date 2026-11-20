@@ -2,7 +2,11 @@ import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 const PROTECTED_PATHS = [
-  /(^|\/)\.github\/workflows(?:\/|$)/i,
+  // Repository policy and agent instructions must not be editable by the agents they constrain.
+  /(^|\/)\.github(?:\/|$)/i,
+  /(^|\/)\.claude(?:\/|$)/i,
+  /(^|\/)\.opencode(?:\/|$)/i,
+  /(^|\/)(?:AGENTS\.md|CLAUDE\.md|GEMINI\.md|AGENT_RUNTIME\.md|opencode\.json)$/i,
   /(^|\/)\.env(?:\.[^/]*)?$/i,
   /(^|\/)\.dev\.vars$/i,
   /(^|\/)wrangler\.(?:jsonc?|toml)$/i,
