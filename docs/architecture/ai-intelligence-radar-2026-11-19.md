@@ -126,6 +126,8 @@ A targeted source search of the GLORIFIER repository and the current AI-blueprin
 
 **Disposition:** a code migration away from hosted OpenAI Evals is not currently required by the inspected repository. The owner should still check the relevant OpenAI organization account and export any hosted datasets, grader definitions, prompts, or run records that remain operationally important before shutdown. Existing Evals became read-only on 2026-10-31; the remaining window is for preserving and inspecting existing assets, not creating or editing new evaluations.
 
+**Deadline-bound owner action — complete before 2026-11-30:** inspect the relevant OpenAI organization account for hosted Evals datasets, graders, prompts, or run records that GLORIFIER still needs; export and retain any required assets before shutdown. Record the account-level audit result. If no required assets or active dependency exist, record that finding and do not introduce Promptfoo or another hosted evaluation dependency merely to replace an unused product. This is a data-preservation deadline, not evidence that the inspected repository's CI currently depends on OpenAI Evals.
+
 ### Portable evaluation patterns GLORIFIER should retain
 
 - **Datasets and cases:** keep task inputs, expected constraints, provenance, risk tier, and corpus version in source control. Keep private/customer data out of public fixtures.
