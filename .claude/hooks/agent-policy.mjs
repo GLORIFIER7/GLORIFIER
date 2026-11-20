@@ -14,16 +14,21 @@ const PROTECTED_PATHS = [
 ];
 
 const BLOCKED_COMMANDS = [
-  { pattern: /\bgit\s+(?:-[^\s]+\s+)*push\b[^\n;&|]*--force(?:-with-lease)?\b/i, reason: 'Force-push is prohibited because it can overwrite remote branch history.' },
-  { pattern: /\bgit\s+(?:-[^\s]+\s+)*reset\b[^\n;&|]*--hard\b/i, reason: 'Hard reset is prohibited because it can discard work.' },
-  { pattern: /\bgit\s+(?:-[^\s]+\s+)*clean\b[^\n;&|]*(?:--force|(?:^|\s)-[a-z]*f[a-z]*)/i, reason: 'Forced git clean is prohibited because it can delete untracked work.' },
-  { pattern: /\bgh\s+pr\s+merge\b/i, reason: 'Pull-request merging remains a human-controlled action.' },
-  { pattern: /\bgh\s+(?:secret|variable)\s+(?:set|delete|remove)\b/i, reason: 'Repository secret and variable changes require owner administration.' },
-  { pattern: /\b(?:wrangler|npx\s+wrangler)\s+deploy\b/i, reason: 'Production or preview deployment must use the reviewed release workflow.' },
-  { pattern: /\b(?:npm\s+publish|pnpm\s+publish|yarn\s+publish)\b/i, reason: 'Package publication is outside autonomous coding authority.' },
-  { pattern: /\bterraform\s+(?:apply|destroy)\b/i, reason: 'Infrastructure mutation is outside autonomous coding authority.' },
-  { pattern: /\b(?:railway\s+up|fly\s+deploy|docker\s+push)\b/i, reason: 'Infrastructure deployment and image publication require a separate release approval.' },
+  { matches: /\bgit\b[\s\S]*\bpush\b/i, requiresForceFlag: true, reason: 'Force-push is prohibited because it can overwrite remote branch history.' },
+  { matches: /\bgit\b[\s\S]*\breset\b/i, reason: 'Git reset is prohibited because it can discard or rewrite work.' },
+  { matches: /\bgit\b[\s\S]*\bclean\b/i, reason: 'Git clean is prohibited because it can delete untracked work.' },
+  { matches: /\bgh\s+pr\s+merge\b/i, reason: 'Pull-request merging remains a human-controlled action.' },
+  { matches: /\bgh\s+(?:secret|variable)\s+(?:set|delete|remove)\b/i, reason: 'Repository secret and variable changes require owner administration.' },
+  { matches: /\b(?:wrangler|npx\s+wrangler)\s+deploy\b/i, reason: 'Production or preview deployment must use the reviewed release workflow.' },
+  { matches: /\b(?:npm\s+publish|pnpm\s+publish|yarn\s+publish)\b/i, reason: 'Package publication is outside autonomous coding authority.' },
+  { matches: /\bterraform\s+(?:apply|destroy)\b/i, reason: 'Infrastructure mutation is outside autonomous coding authority.' },
+  { matches: /\b(?:railway\s+up|fly\s+deploy|docker\s+push)\b/i, reason: 'Infrastructure deployment and image publication require a separate release approval.' },
 ];
+
+function isForceFlagPresent(command) {
+  return /--force(?:-with-lease|-if-includes)?(?:=|\b)/i.test(command)
+    || /(?:^|\s)-[a-z]*f[a-z]*(?:\s|$)/i.test(command);
+}
 
 function deny(reason) {
   return {
@@ -58,11 +63,11 @@ export function decidePreToolUse(event) {
   const toolInput = event.tool_input && typeof event.tool_input === 'object' ? event.tool_input : {};
   const cwd = typeof event.cwd === 'string' && event.cwd.trim() ? event.cwd : process.cwd();
 
-  if (toolName === 'Write' || toolName === 'Edit' || toolName === 'NotebookEdit') {
+  if (toolName === 'Write' || toolName === 'Edit' || toolName === 'MultilineEdit' || toolName === 'MultiEdit' || toolName === 'NotebookEdit') {
     const target = normalizeTarget(toolInput.file_path ?? toolInput.path, cwd);
     if (target.error) return deny(target.error);
     if (PROTECTED_PATHS.some((pattern) => pattern.test(target.relative))) {
-      return deny(`This path is protected and requires a separately reviewed owner change: ${target.relative}`);
+      return deny('This path is protected and requires a separately reviewed owner change: ' + target.relative);
     }
     return null;
   }
@@ -72,7 +77,9 @@ export function decidePreToolUse(event) {
     if (typeof command !== 'string' || !command.trim()) {
       return deny('A shell command is required; refusing an uninspectable tool call.');
     }
-    const blocked = BLOCKED_COMMANDS.find(({ pattern }) => pattern.test(command));
+    const blocked = BLOCKED_COMMANDS.find((entry) =>
+      entry.matches.test(command) && (!entry.requiresForceFlag || isForceFlagPresent(command)),
+    );
     return blocked ? deny(blocked.reason) : null;
   }
 
