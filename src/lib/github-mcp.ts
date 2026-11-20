@@ -406,7 +406,49 @@ const readFileTool = (args: unknown, readToken?: string): Promise<unknown> => {
   return readGithubFile(input.path, ref, readToken);
 };
 
+const getToolArgumentError = (name: string, args: unknown): string | null => {
+  const input = toolArguments(args);
+  switch (name) {
+    case 'github_get_repository':
+      return null;
+    case 'github_list_open_pull_requests': {
+      const state = input.state === undefined ? 'open' : input.state;
+      if (state !== 'open' && state !== 'closed' && state !== 'all') {
+        return 'state must be open, closed, or all.';
+      }
+      const perPage = input.per_page === undefined ? 10 : input.per_page;
+      if (!isValidPerPage(perPage)) {
+        return 'per_page must be an integer between 1 and 20.';
+      }
+      return null;
+    }
+    case 'github_list_workflow_runs': {
+      const perPage = input.per_page === undefined ? 10 : input.per_page;
+      if (!isValidPerPage(perPage)) {
+        return 'per_page must be an integer between 1 and 20.';
+      }
+      return null;
+    }
+    case 'github_read_file': {
+      if (typeof input.path !== 'string') return 'path is required and must be a string.';
+      const ref = input.ref === undefined ? 'main' : input.ref;
+      if (typeof ref !== 'string') return 'ref must be a string.';
+      try {
+        repositoryPathSegments(input.path);
+        assertValidGitReference(ref);
+      } catch (error) {
+        return error instanceof Error ? error.message : 'Invalid repository path or Git reference.';
+      }
+      return null;
+    }
+    default:
+      return 'Unknown or unsupported GitHub tool. This MCP server exposes read-only tools only.';
+  }
+};
+
 const callTool = (name: string, args: unknown, readToken?: string): Promise<unknown> => {
+  const validationError = getToolArgumentError(name, args);
+  if (validationError) throw new Error(validationError);
   switch (name) {
     case 'github_get_repository':
       return getRepositoryTool(readToken);
@@ -815,6 +857,7 @@ const enforceMcpToolRateLimit = async (
   // Unknown tools are rejected locally and must not consume the upstream quota.
   if (typeof params.name !== 'string' ||
       !AUTOPILOT_READ_TOOL_NAMES.has(params.name as GithubReadToolName)) return null;
+  if (getToolArgumentError(params.name, params.arguments) !== null) return null;
 
   const id = typeof message.id === 'string' || typeof message.id === 'number' || message.id === null
     ? message.id
