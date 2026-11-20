@@ -126,7 +126,7 @@ function domainForSource(source: string): string {
     || normalized.includes('hugging')
     || normalized.includes('github')
     || normalized.includes('hacker')
-    || /\\bai\\b/.test(normalized)
+    || /\bai\b/.test(normalized)
     || normalized.includes('model')
   ) {
     return 'technology-intelligence';
