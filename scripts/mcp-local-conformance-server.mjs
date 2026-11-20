@@ -54,6 +54,18 @@ const readRequestBody = async (request) => {
   return Buffer.concat(chunks, totalBytes);
 };
 
+server.on('connect', (_incoming, socket) => {
+  socket.end([
+    'HTTP/1.1 405 Method Not Allowed',
+    'Allow: POST',
+    'Cache-Control: no-store',
+    'Connection: close',
+    'Content-Length: 0',
+    '',
+    '',
+  ].join('\\r\\n'));
+});
+
 const server = createServer(async (incoming, outgoing) => {
   try {
     const method = String(incoming.method || 'GET').toUpperCase();
