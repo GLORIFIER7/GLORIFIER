@@ -1,0 +1,132 @@
+name: MCP local protocol conformance
+
+on:
+  pull_request:
+    paths:
+      - "src/lib/github-mcp.ts"
+      - "src/worker.test.ts"
+      - "scripts/mcp-local-conformance-server.mjs"
+      - ".github/workflows/mcp-local-conformance.yml"
+      - "package-lock.json"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  actions: read
+
+concurrency:
+  group: mcp-local-conformance-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  local-mcp-tck:
+    name: Official MCP TCK against exact PR source
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      MCP_CONFORMANCE_URL: http://127.0.0.1:8787/mcp
+      GITHUB_MCP_READ_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout GLORIFIER source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up pinned Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+          cache: npm
+
+      - name: Install locked GLORIFIER dependencies
+        run: npm ci --no-audit --no-fund --ignore-scripts
+
+      - name: Checkout pinned official MCP conformance runner
+        uses: actions/checkout@v4
+        with:
+          repository: modelcontextprotocol/conformance
+          ref: 96a6f9478b7f2e125cf0360a213383cf57533893
+          path: .mcp-conformance
+          persist-credentials: false
+
+      - name: Build official MCP conformance runner
+        working-directory: .mcp-conformance
+        run: |
+          npm ci --no-audit --no-fund --ignore-scripts
+          npm run build
+
+      - name: Start isolated GLORIFIER MCP route
+        id: start_server
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p mcp-local-conformance-results
+          node --import tsx/esm scripts/mcp-local-conformance-server.mjs \
+            > "$RUNNER_TEMP/glorifier-mcp-local-server.log" 2>&1 &
+          echo "$!" > "$RUNNER_TEMP/glorifier-mcp-local-server.pid"
+
+          ready=false
+          for attempt in $(seq 1 30); do
+            status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$MCP_CONFORMANCE_URL" || true)"
+            if [ "$status" = "405" ]; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+
+          if [ "$ready" != true ]; then
+            cat "$RUNNER_TEMP/glorifier-mcp-local-server.log"
+            echo "Local MCP route did not become ready."
+            exit 1
+          fi
+
+          echo "Local route ready at $MCP_CONFORMANCE_URL"
+
+      - name: Run official legacy MCP 2025-11-25 tools-list scenario
+        if: ${{ always() && steps.start_server.outcome == 'success' }}
+        id: official_mcp_legacy
+        shell: bash
+        run: |
+          set -euo pipefail
+          node .mcp-conformance/dist/index.js server \
+            --url "$MCP_CONFORMANCE_URL" \
+            --scenario tools-list \
+            --spec-version 2025-11-25 \
+            --timeout 30000 \
+            --output-dir "$GITHUB_WORKSPACE/mcp-local-conformance-results" \
+            --verbose
+
+      - name: Run official frozen MCP 2026-07-28 server requirements
+        if: ${{ always() && steps.start_server.outcome == 'success' }}
+        id: official_mcp_2026
+        shell: bash
+        run: |
+          set -euo pipefail
+          node .mcp-conformance/dist/index.js server \
+            --url "$MCP_CONFORMANCE_URL" \
+            --requirements 2026-07-28 \
+            --timeout 30000 \
+            --output-dir "$GITHUB_WORKSPACE/mcp-local-conformance-results" \
+            --verbose
+
+      - name: Capture local MCP harness diagnostics
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          cat "$RUNNER_TEMP/glorifier-mcp-local-server.log" \
+            > "$GITHUB_WORKSPACE/mcp-local-conformance-results/local-server.log"
+          if [ -f "$RUNNER_TEMP/glorifier-mcp-local-server.pid" ]; then
+            kill "$(cat "$RUNNER_TEMP/glorifier-mcp-local-server.pid")" 2>/dev/null
+          fi
+
+      - name: Upload local MCP conformance evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-local-conformance-${{ github.run_id }}
+          path: mcp-local-conformance-results/
+          if-no-files-found: warn
+          retention-days: 14
