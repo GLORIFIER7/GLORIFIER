@@ -30,6 +30,7 @@ type AdvisoryResponse = {
   evidenceRefs?: string[];
   intelligence?: {
     sourceCount?: number;
+    sourceStatuses?: string[];
     evidenceCount?: number;
     evidence?: Array<{ id: string; source: string; title: string; url: string; publishedAt?: string | null }>;
     signals?: Array<{ id: string; title: string; description: string; evidenceRefs: string[] }>;
@@ -152,6 +153,7 @@ export const BusinessIntelligenceArchitecturePanel: React.FC = () => {
         <div className="text-[10px] text-slate-400">
           GEAS scan: {geas?.scanId || 'not available'} · drift findings: {drift.length} · Human approval required: {advisory.governance?.humanApprovalRequired ? 'yes' : 'not established'}
         </div>
+        {advisory.intelligence?.sourceStatuses?.map((item,index)=><div key={index} className="text-[10px] text-slate-400">Source collection: {item}</div>)}
         {advisory.limitations?.map((item,index)=><div key={index} className="text-[10px] text-amber-300">{item}</div>)}
         {drift.slice(0,4).map(item=><div key={item.id} className="border-t border-slate-800 pt-2">
           <div className="text-xs text-white">{item.severity.toUpperCase()} · {item.controlId} · {item.status}</div>
