@@ -861,7 +861,7 @@ const enforceMcpToolRateLimit = async (
   // Unknown tools are rejected locally and must not consume the upstream quota.
   if (typeof params.name !== 'string' ||
       !AUTOPILOT_READ_TOOL_NAMES.has(params.name as GithubReadToolName)) return null;
-  if (getToolArgumentError(params.name, params.arguments) !== null) return null;
+  if (getToolArgumentError(params.name, toolArguments(params.arguments)) !== null) return null;
 
   const id = typeof message.id === 'string' || typeof message.id === 'number' || message.id === null
     ? message.id
