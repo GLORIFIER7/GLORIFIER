@@ -6,8 +6,9 @@ const HOST = '127.0.0.1';
 const PORT = Number(process.env.MCP_LOCAL_CONFORMANCE_PORT || 8787);
 const MAX_HARNESS_BODY_BYTES = 1_048_576;
 
-export const toLoopbackRequestUrl = (requestTarget, host = HOST, port = PORT) => {
-  const loopbackOrigin = 'http://' + host + ':' + port;
+export const toLoopbackRequestUrl = (requestTarget) => {
+  // This ephemeral CI harness binds only to 127.0.0.1; HTTP is confined to loopback.
+  const loopbackOrigin = 'http://' + HOST + ':' + PORT; // NOSONAR -- intentional loopback-only transport; the server binds to 127.0.0.1.
   const parsedTarget = new URL(requestTarget || '/', loopbackOrigin);
   return new URL(parsedTarget.pathname + parsedTarget.search, loopbackOrigin);
 };
