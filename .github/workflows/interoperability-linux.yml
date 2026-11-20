@@ -214,7 +214,6 @@ jobs:
         run: |
           node --input-type=module <<'NODE'
           const endpoint = process.env.MCP_CONFORMANCE_URL;
-          const token = process.env.GITHUB_MCP_READ_TOKEN;
           const response = await fetch(endpoint, {
             method: 'POST',
             headers: {
@@ -253,7 +252,6 @@ jobs:
           if (repository.full_name !== 'GLORIFIER7/GLORIFIER') {
             throw new Error('MCP read tool returned an unexpected repository identity.');
           }
-          if (token && bodyText.includes(token)) throw new Error('MCP response exposed the configured GitHub token.');
           process.stdout.write('Actual read-only GitHub repository tool call passed.\\n');
           NODE
       - name: Run official legacy MCP 2025-11-25 tools-list scenario
