@@ -32,6 +32,22 @@ test('denies edits to protected paths for every supported file-edit tool name', 
   }
 });
 
+test('denies agent self-modification of security hooks, instructions, and permissions', () => {
+  const policyFiles = [
+    '.claude/settings.json', '.claude/settings.local.json',
+    '.claude/hooks/agent-policy.mjs', '.claude/agents/implementation-engineer.md',
+    '.claude/skills/ci-repair/SKILL.md', '.opencode/agents/qa-verifier.md',
+    'opencode.json', 'AGENTS.md', 'CLAUDE.md', 'GEMINI.md', 'AGENT_RUNTIME.md',
+    '.github/copilot-instructions.md', '.github/CODEOWNERS',
+  ];
+  for (const file of policyFiles) {
+    for (const tool_name of ['Write', 'Edit', 'MultilineEdit', 'MultiEdit', 'NotebookEdit']) {
+      const result = decidePreToolUse({ tool_name, tool_input: { file_path: file }, cwd });
+      assert.equal(result?.hookSpecificOutput?.permissionDecision, 'deny', tool_name + ': ' + file);
+    }
+  }
+});
+
 test('denies paths that escape the repository even when the target name looks safe', () => {
   const decision = decidePreToolUse({
     tool_name: 'Write', tool_input: { file_path: '../outside/README.md' }, cwd,
