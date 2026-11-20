@@ -4,11 +4,16 @@
     "deny": [
       "Bash(git push --force*)",
       "Bash(git push --force-with-lease*)",
-      "Bash(git reset --hard*)",
-      "Bash(git clean -f*)",
+      "Bash(git push*--force*)",
+      "Bash(git reset*)",
+      "Bash(git clean*)",
       "Bash(gh pr merge*)",
       "Bash(gh secret set*)",
+      "Bash(gh secret delete*)",
+      "Bash(gh secret remove*)",
       "Bash(gh variable set*)",
+      "Bash(gh variable delete*)",
+      "Bash(gh variable remove*)",
       "Bash(wrangler deploy*)",
       "Bash(npx wrangler deploy*)",
       "Bash(npm publish*)",
@@ -22,7 +27,7 @@
   "hooks": {
     "PreToolUse": [
       {
-        "matcher": "Write|Edit|NotebookEdit",
+        "matcher": "Write|Edit|MultilineEdit|MultiEdit|NotebookEdit",
         "hooks": [
           {
             "type": "command",
