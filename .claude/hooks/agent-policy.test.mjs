@@ -84,6 +84,10 @@ test('denies unsafe git operations when shell substitutions or pipelines obscure
 test('rejects shell writes and dynamic execution that bypass protected-file guards', () => {
   const commands = [
     'printf x > .claude/settings.json',
+    'git show --output=.claude/settings.json HEAD',
+    'git diff --output=.github/workflows/ci.yml',
+    'rg --pre=node policy src',
+    'git log --format=%x00',
     'echo x >> .github/workflows/ci.yml',
     'cat payload | tee .claude/hooks/agent-policy.mjs',
     'sed -i s/deny/allow/g .claude/settings.json',
@@ -114,6 +118,8 @@ test('permits individual local validation commands without shell operators', () 
     'npm run build',
     'rg policy src',
     'git log --oneline -5',
+    'git diff --stat',
+    'git rev-parse --show-toplevel',
     'go test ./...',
   ]) {
     assert.equal(decidePreToolUse({ tool_name: 'Bash', tool_input: { command }, cwd }), null, command);
