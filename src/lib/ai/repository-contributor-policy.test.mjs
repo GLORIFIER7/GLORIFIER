@@ -282,11 +282,35 @@ test('assigns Anthropic Claude to the software architecture specialist when that
     { id: 'cybersecurity-scientist' }
   ];
   const assignments = buildRepositoryCouncilAssignments(providers, roles);
-  assert.deepEqual(assignments.map(({ providerId, role }) => [providerId, role.id]), [
-    ['anthropic', 'software-architect'],
-    ['gemini', 'engineering-scientist'],
-    ['nvidia', 'cybersecurity-scientist']
+  assert.deepEqual(assignments.map(({ providerId, modelId, role }) => [providerId, modelId, role.id]), [
+    ['anthropic', 'claude-free-model', 'software-architect'],
+    ['gemini', 'gemini-flash', 'engineering-scientist'],
+    ['nvidia', 'nemotron', 'cybersecurity-scientist']
   ]);
+});
+
+test('keeps specialist fallback roles stable when eligible provider order changes', () => {
+  const providers = [
+    { providerId: 'nvidia', modelId: 'nemotron' },
+    { providerId: 'openai', modelId: 'gpt-free' },
+    { providerId: 'gemini', modelId: 'gemini-flash' },
+    { providerId: 'anthropic', modelId: 'claude-free-model' }
+  ];
+  const roles = [
+    { id: 'engineering-scientist' },
+    { id: 'software-architect' },
+    { id: 'cybersecurity-scientist' },
+    { id: 'data-scientist' }
+  ];
+  const project = (assignments) => Object.fromEntries(assignments.map(({ providerId, modelId, role }) => [
+    providerId,
+    { modelId, roleId: role.id }
+  ]));
+
+  assert.deepEqual(
+    project(buildRepositoryCouncilAssignments(providers, roles)),
+    project(buildRepositoryCouncilAssignments([...providers].reverse(), roles))
+  );
 });
 
 test('does not reserve the architecture role when Claude is not an eligible contributor', () => {
