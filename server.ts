@@ -25,6 +25,7 @@ import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalP
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
 import { generateIntelligenceReport, getLatestIntelligenceReport } from './src/lib/intelligence';
 import {
+  getGlobalBusinessIntelligenceArchitecture,
   ingestIntelligenceReportIntoBusinessIntelligence,
   runBusinessIntelligenceHealthCheck,
 } from './src/lib/business-intelligence-scientist';
@@ -3328,40 +3329,13 @@ app.get('/api/mediator/snapshot', async (_req: Request, res: Response) => {
   catch (error) { return apiError(res,503,'Mediator snapshot unavailable',error); }
 });
 
-app.get('/api/business-intelligence/architecture', (_req: Request, res: Response) => {
-  return res.json({
-    ok: true,
-    architecture: {
-      version: 'GBIS-2.0',
-      identity: 'Continuous business intelligence operating system for evidence-backed decision support.',
-      layers: [
-        'source systems',
-        'ingestion and connectors',
-        'data foundation and lineage',
-        'semantic business layer',
-        'intelligence and analytics',
-        'AI orchestration and specialist scientists',
-        'opportunity and monetization evidence',
-        'governance, security and compliance',
-        'human decision and authorized execution',
-        'outcome verification and economic truth'
-      ],
-      principles: [
-        'provider-neutral orchestration',
-        'evidence provenance',
-        'semantic consistency',
-        'security and privacy by design',
-        'estimated value is not verified revenue',
-        'human authority for consequential actions',
-        'measurable verified outcomes'
-      ],
-      sourceOfTruth: {
-        revenue: 'Neon/PostgreSQL canonical target; production route cutover pending verification',
-        verification: 'Evidence-backed outcome records',
-        orchestration: 'GLORIFIER provider-neutral AI layer'
-      }
-    }
-  });
+app.get('/api/business-intelligence/architecture', async (_req: Request, res: Response) => {
+  try {
+    const architecture = await getGlobalBusinessIntelligenceArchitecture();
+    return res.json({ ok: true, architecture });
+  } catch (error) {
+    return apiError(res,503,'Business intelligence architecture unavailable',error);
+  }
 });
 
 app.get('/api/valuation', async (_req: Request, res: Response) => {
