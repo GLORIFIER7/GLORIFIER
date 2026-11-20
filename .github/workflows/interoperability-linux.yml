@@ -209,6 +209,54 @@ jobs:
             echo "Local MCP route did not become ready."
             exit 1
           fi
+      - name: Verify an actual read-only GitHub tool call
+        if: ${{ always() && steps.start_server.outcome == 'success' }}
+        working-directory: .mcp-conformance
+        run: |
+          node --input-type=module <<'NODE'
+          const endpoint = process.env.MCP_CONFORMANCE_URL;
+          const token = process.env.GITHUB_MCP_READ_TOKEN;
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              accept: 'application/json',
+              origin: 'http://127.0.0.1:8787',
+              'MCP-Protocol-Version': '2026-07-28',
+              'Mcp-Method': 'tools/call',
+              'Mcp-Name': 'github_get_repository',
+            },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'ci-read-only-repository',
+              method: 'tools/call',
+              params: {
+                name: 'github_get_repository',
+                arguments: {},
+                _meta: {
+                  'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+                  'io.modelcontextprotocol/clientCapabilities': {},
+                },
+              },
+            }),
+          });
+          const bodyText = await response.text();
+          if (!response.ok) {
+            throw new Error(`MCP read tool returned HTTP ${response.status}: ${bodyText.slice(0, 500)}`);
+          }
+          const body = JSON.parse(bodyText);
+          if (body.id !== 'ci-read-only-repository' || body.error || body.result?.isError === true) {
+            throw new Error(`MCP read tool did not succeed: ${JSON.stringify(body).slice(0, 1000)}`);
+          }
+          const content = body.result?.content?.find((item) => item.type === 'text')?.text;
+          if (typeof content !== 'string') throw new Error('MCP read tool returned no text content.');
+          const repository = JSON.parse(content);
+          if (repository.full_name !== 'GLORIFIER7/GLORIFIER') {
+            throw new Error('MCP read tool returned an unexpected repository identity.');
+          }
+          if (token && bodyText.includes(token)) throw new Error('MCP response exposed the configured GitHub token.');
+          process.stdout.write('Actual read-only GitHub repository tool call passed.\\n');
+          NODE
       - name: Run official legacy MCP 2025-11-25 tools-list scenario
         if: ${{ always() && steps.start_server.outcome == 'success' && steps.build_official_runner.outcome == 'success' }}
         working-directory: .mcp-conformance
@@ -231,7 +279,7 @@ jobs:
           # HTTP header validation. The full requirements pack also runs
           # prompts/resources/completion/tasks/multimedia/elicitation fixtures
           # that this server deliberately does not advertise.
-          for scenario in tools-list tools-call-simple-text tools-call-error dns-rebinding-protection http-header-validation; do
+          for scenario in tools-list tools-call-error dns-rebinding-protection http-header-validation; do
             echo "::group::Official MCP scenario: $scenario"
             node dist/index.js server \
               --url "$MCP_CONFORMANCE_URL" \
