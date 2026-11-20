@@ -872,7 +872,7 @@ const run = async (): Promise<void> => {
         );
         assert.equal(mcpWrongContentType.status, 415, 'MCP must reject non-JSON content types');
 
-        for (const headers of [
+        const hostileOriginHeaderCases: Array<Record<string, string>> = [
           {
             'Content-Type': 'application/json',
             Host: 'evil.example.com',
@@ -892,7 +892,8 @@ const run = async (): Promise<void> => {
             Host: 'evil.example.com/path',
             Origin: 'https://glorifier.glorifier.workers.dev',
           },
-        ]) {
+        ];
+        for (const headers of hostileOriginHeaderCases) {
           const rejectedRebinding = await worker.fetch(
             new Request('https://glorifier.glorifier.workers.dev/mcp', {
               method: 'POST',
