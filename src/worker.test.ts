@@ -479,7 +479,7 @@ const run = async (): Promise<void> => {
           error: { code: number };
         };
         assert.equal(missingModernClientCapabilities.status, 400);
-        assert.equal(missingModernClientCapabilitiesForRateLimitBody.error.code, -32602,
+        assert.equal(missingModernClientCapabilitiesBody.error.code, -32602,
           'modern requests require clientCapabilities even when the object is empty');
 
         const mismatchedMcpMethod = await worker.fetch(
