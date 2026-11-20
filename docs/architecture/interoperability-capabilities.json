@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0.0",
-  "updatedAt": "2026-11-20T09:00:01Z",
+  "updatedAt": "2026-11-20T09:11:17Z",
   "statusVocabulary": [
     "VERIFIED",
     "PARTIALLY VERIFIED",
@@ -18,7 +18,8 @@
       "targetEnvironments": [
         "Mocked Worker test harness",
         "CircleCI Linux Docker executor",
-        "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI"
+        "GitHub-hosted Ubuntu 22.04 and Ubuntu 24.04 x86_64 CI",
+        "Production Cloudflare account GLORIFIER; exact active deployment/version metadata from read-only Cloudflare API"
       ],
       "evidence": [
         {
@@ -160,10 +161,17 @@
           "targetEnvironment": "Production Cloudflare; GLORIFIER deployment 20ca85d6-a1b5-487e-a43e-d7b459611a66 (Worker v1002, version 3c93b20d-e602-4e9e-b3bb-3c139a311024, 100%); NEURAL deployment ab78475f-dcf6-46a1-b7a4-e823bd1559ca (Worker v36, version f1a26f39-e46f-4d9d-b982-f66f21f2e115, 100%)",
           "observedAt": "2026-11-13T02:58:54Z",
           "notes": "Read-only Cloudflare API inventory at this observation confirmed GLORIFIER v1002 and NEURAL v36 each at 100% traffic. GLORIFIER exact-version metadata binds GLORIFIER_NEURAL to glorifier-neural.glorifier.workers.dev and reports GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, GLORIFIER_ENABLE_INFERENCE=false, and GLORIFIER_PAID_INFERENCE_AUTHORIZED=false. NEURAL v36 reports the same three controls as false. Secret values were not read. This verifies active deployment/configuration metadata only, not authenticated A2A task execution or provider inference."
+        },
+        {
+          "kind": "live-probe",
+          "reference": "Cloudflare Workers API read-only deployment/version GET; GitHub commit comparison against main",
+          "targetEnvironment": "Production Cloudflare account GLORIFIER; GLORIFIER deployment e20f35d4-fae1-4050-90a1-d2d90a088d05 routes 100% to version c17f6566-2a05-4d60-b136-839141c2893e (Worker v1006); NEURAL deployment ab78475f-dcf6-46a1-b7a4-e823bd1559ca routes 100% to version f1a26f39-e46f-4d9d-b982-f66f21f2e115 (Worker v36)",
+          "observedAt": "2026-11-20T09:11:17Z",
+          "notes": "Read-only Cloudflare API deployment inventory and exact-version GET show GLORIFIER v1006 at 100% traffic (created 2026-11-16) with GLORIFIER_RELEASE_COMMIT=394b99f66cf5f6380fee801fc203559252c9a8d1 and GLORIFIER_RELEASE_RUN_ID=43821688548; GitHub commit comparison shows current main is 42 commits ahead of that deployed release commit and 0 commits behind it. The exact GLORIFIER version contains the GLORIFIER_NEURAL service binding to service glorifier-neural in production. NEURAL v36 is at 100% traffic (created 2026-11-11). Both exact versions report GLORIFIER_ALLOW_EXTERNAL_DATA_EGRESS=false, GLORIFIER_ENABLE_INFERENCE=false, and GLORIFIER_PAID_INFERENCE_AUTHORIZED=false. Secret binding names were inventoried but no secret values were read. This proves deployment/version/binding metadata only, not current HTTP health, authenticated task exchange, provider inference, or production parity with main. No settings, secret, deployment, or traffic were changed."
         }
       ],
       "limitations": [
-        "The 2026-11-11 production workflow #42969134766 deployed exact main SHA 038fe738e9fdc5fbbb0472343198c19d75cd7643 as GLORIFIER Worker v1002 and verified Worker-to-NEURAL liveness in the GET-only smoke; it did not submit an authenticated task or perform inference.",
+        "The 2026-11-20 Cloudflare readback confirms GLORIFIER v1006 and NEURAL v36 at 100% traffic and the GLORIFIER_NEURAL service binding, but the deployed GLORIFIER release commit is 42 commits behind current main. This is configuration/version evidence only; fresh HTTP health and authenticated task exchange are not proven, so keep DEGRADED.",
         "The post-deployment smoke verified the expected default-deny NEURAL readiness result. Readiness being unavailable while external egress is false is intentional and must not be changed merely to obtain HTTP 200.",
         "The exact active GLORIFIER v1002 and NEURAL v36 version records show external egress, inference, and paid-inference authorization are all false; GLORIFIER has the service binding to glorifier-neural. Secret values were not read.",
         "External A2A/MCP client conformance, live Linux host task execution, and fresh independent chain RPC evidence remain separate acceptance gates and are not established by this production smoke."
