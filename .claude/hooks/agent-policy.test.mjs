@@ -110,6 +110,7 @@ test('permits individual local validation commands without shell operators', () 
     'node --test .claude/hooks/agent-policy.test.mjs',
     'node --import tsx/esm --test src/lib/governance.test.ts',
     'npx --no-install tsc --noEmit',
+    'tsx src/lib/asset-registry-seed.test.ts',
     'npm run build',
     'rg policy src',
     'git log --oneline -5',
