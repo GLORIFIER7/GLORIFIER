@@ -193,8 +193,9 @@ export async function ingestIntelligenceReportIntoBusinessIntelligence(report: I
 
   const reportId = typeof report.id === 'string' && report.id.trim() ? report.id.trim() : 'unidentified-report';
   const generatedAt = report.generatedAt || new Date(0).toISOString();
-  const status = normalized.rejectedEvidenceCount > 0 ? 'partial'
-    : observationsUpserted > 0 ? 'ingested' : 'empty';
+  const status = observationsUpserted > 0
+    ? (normalized.rejectedEvidenceCount > 0 ? 'partial' : 'ingested')
+    : 'empty';
   await db.query(`
     INSERT INTO glorifier_bi_ingestion_runs(
       report_id,generated_at,source_count,evidence_count,observations_upserted,
