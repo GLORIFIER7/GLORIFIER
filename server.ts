@@ -2142,6 +2142,7 @@ app.get('/api/intelligence/status', async (_req: Request, res: Response) => {
     generatedAt: report?.generatedAt || null,
     evidenceCount: report?.evidenceCount || 0,
     sourceCount: report?.sourceCount || 0,
+    sourceStatuses: report?.sourceStatuses || [],
     modelStatus: {
       openai: !!process.env.OPENAI_API_KEY,
       gemini: !!process.env.GEMINI_API_KEY
@@ -3200,20 +3201,30 @@ app.get('/api/business-intelligence/status', async (_req: Request, res: Response
 
 app.get('/api/business-intelligence/advisory', async (_req: Request, res: Response) => {
   try {
-    const [report, scan, businessIntelligence] = await Promise.all([
+    const [report, scan] = await Promise.all([
       getLatestIntelligenceReport(),
       getLatestGeasArchitectureScan(),
-      runBusinessIntelligenceHealthCheck(),
     ]);
     const advisory = buildGeasBusinessIntelligenceAdvisory({ report, scan });
+    let businessIntelligence: Awaited<ReturnType<typeof runBusinessIntelligenceHealthCheck>> | null = null;
+    try {
+      businessIntelligence = await runBusinessIntelligenceHealthCheck();
+    } catch (error) {
+      console.warn('[GBIS] Runtime snapshot unavailable while serving GEAS advisory:', error);
+    }
     return res.json({
       ok: true,
       advisory,
-      businessIntelligence: {
+      businessIntelligence: businessIntelligence ? {
         status: businessIntelligence.status,
         pipeline: businessIntelligence.pipeline,
         counts: businessIntelligence.snapshot.counts,
         latestIngestion: businessIntelligence.snapshot.latestIngestion,
+      } : {
+        status: 'unavailable',
+        pipeline: null,
+        counts: null,
+        latestIngestion: null,
       },
     });
   } catch (error) {
