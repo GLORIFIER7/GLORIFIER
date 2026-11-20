@@ -36,29 +36,86 @@ for (const fixture of workflowFixtures) {
 }
 
 type ScanWorkflowContract = {
-  cron: string | null;
+  scheduleSectionCount: number;
+  crons: string[];
+  concurrencySectionCount: number;
   concurrencyGroup: string | null;
   cancelInProgress: string | null;
+  scanStepCount: number;
+  persistenceEntryCount: number;
   persistence: string | null;
+};
+type IndentedLine = { line: string; index: number };
+const getIndentedBlock = (lines: string[], startIndex: number, parentIndent: number): IndentedLine[] => {
+  const block: IndentedLine[] = [];
+  for (let index = startIndex + 1; index < lines.length; index += 1) {
+    const line = lines[index] ?? '';
+    if (!line.trim()) continue;
+    const indent = line.length - line.trimStart().length;
+    if (indent <= parentIndent) break;
+    block.push({ line, index });
+  }
+  return block;
+};
+const parseYamlScalar = (line: string, prefix: string): string => {
+  const value = line.slice(prefix.length).trim();
+  if (value.length >= 2
+      && ((value.startsWith("'") && value.endsWith("'"))
+        || (value.startsWith('"') && value.endsWith('"')))) {
+    return value.slice(1, -1);
+  }
+  return value;
 };
 const parseScanWorkflowContract = (text: string): ScanWorkflowContract => {
   const lines = text.split('\n').map(line => line.endsWith('\r') ? line.slice(0, -1) : line);
-  const cronLine = lines.find(line => line.startsWith('    - cron: '));
-  const concurrencyIndex = lines.indexOf('concurrency:');
-  const groupLine = concurrencyIndex >= 0 ? lines[concurrencyIndex + 1] ?? '' : '';
-  const cancelLine = concurrencyIndex >= 0 ? lines[concurrencyIndex + 2] ?? '' : '';
-  const persistLine = lines.find(line => line.startsWith('          GEAS_SCAN_PERSIST:'));
+  const scheduleIndexes = lines
+    .map((line, index) => line === '  schedule:' ? index : -1)
+    .filter(index => index >= 0);
+  const crons = scheduleIndexes.flatMap(index => getIndentedBlock(lines, index, 2)
+    .filter(({ line }) => line.startsWith('    - cron: '))
+    .map(({ line }) => parseYamlScalar(line, '    - cron: ')));
+  const concurrencyIndexes = lines
+    .map((line, index) => line === 'concurrency:' ? index : -1)
+    .filter(index => index >= 0);
+  const concurrencyBlock = concurrencyIndexes.length === 1
+    ? getIndentedBlock(lines, concurrencyIndexes[0]!, 0)
+    : [];
+  const groupLines = concurrencyBlock.filter(({ line }) => line.startsWith('  group: '));
+  const cancelLines = concurrencyBlock.filter(({ line }) => line.startsWith('  cancel-in-progress: '));
+  const scanStepIndexes = lines
+    .map((line, index) => line.trim() === '- name: Execute authoritative architecture scan' ? index : -1)
+    .filter(index => index >= 0);
+  let persistenceEntries: IndentedLine[] = [];
+  if (scanStepIndexes.length === 1) {
+    const scanStepBlock = getIndentedBlock(lines, scanStepIndexes[0]!, 6);
+    const envEntries = scanStepBlock.filter(({ line }) => line === '        env:');
+    if (envEntries.length === 1) {
+      persistenceEntries = getIndentedBlock(lines, envEntries[0]!.index, 8)
+        .filter(({ line }) => /^ {10}GEAS_SCAN_PERSIST:\\s*/.test(line));
+    }
+  }
   return {
-    cron: cronLine ? cronLine.slice('    - cron: '.length).trim().replaceAll('"', '').replaceAll("'", '') : null,
-    concurrencyGroup: groupLine.startsWith('  group: ') ? groupLine.slice('  group: '.length).trim() : null,
-    cancelInProgress: cancelLine.startsWith('  cancel-in-progress: ') ? cancelLine.slice('  cancel-in-progress: '.length).trim() : null,
-    persistence: persistLine ? persistLine.slice('          GEAS_SCAN_PERSIST: '.length).trim().replaceAll("'", '').replaceAll('"', '') : null,
+    scheduleSectionCount: scheduleIndexes.length,
+    crons,
+    concurrencySectionCount: concurrencyIndexes.length,
+    concurrencyGroup: groupLines.length === 1 ? parseYamlScalar(groupLines[0]!.line, '  group: ') : null,
+    cancelInProgress: cancelLines.length === 1 ? parseYamlScalar(cancelLines[0]!.line, '  cancel-in-progress: ') : null,
+    scanStepCount: scanStepIndexes.length,
+    persistenceEntryCount: persistenceEntries.length,
+    persistence: persistenceEntries.length === 1
+      ? parseYamlScalar(persistenceEntries[0]!.line, '          GEAS_SCAN_PERSIST: ')
+      : null,
   };
 };
 const isExpectedArtifactOnlyScanContract = (contract: ScanWorkflowContract): boolean =>
-  contract.cron === '17 */6 * * *'
+  contract.scheduleSectionCount === 1
+  && contract.crons.length === 1
+  && contract.crons[0] === '17 */6 * * *'
+  && contract.concurrencySectionCount === 1
   && contract.concurrencyGroup === 'geas-architecture-scan'
   && contract.cancelInProgress === 'false'
+  && contract.scanStepCount === 1
+  && contract.persistenceEntryCount === 1
   && contract.persistence === 'false';
 const validArtifactOnlyWorkflowFixture = [
   'on:',
@@ -76,10 +133,20 @@ const validArtifactOnlyWorkflowFixture = [
 ].join('\n');
 const scanWorkflowContractFixtures = [
   { name: 'valid artifact-only schedule', text: validArtifactOnlyWorkflowFixture, expected: true },
-  { name: 'missing concurrency guard', text: validArtifactOnlyWorkflowFixture.replace('concurrency:\n  group: geas-architecture-scan\n  cancel-in-progress: false\n', ''), expected: false },
+  { name: 'missing concurrency guard', text: validArtifactOnlyWorkflowFixture.replace('concurrency:\\n  group: geas-architecture-scan\\n  cancel-in-progress: false\\n', ''), expected: false },
   { name: 'cancel in-progress scan', text: validArtifactOnlyWorkflowFixture.replace('cancel-in-progress: false', 'cancel-in-progress: true'), expected: false },
   { name: 'persistence enabled', text: validArtifactOnlyWorkflowFixture.replace("GEAS_SCAN_PERSIST: 'false'", "GEAS_SCAN_PERSIST: 'true'"), expected: false },
   { name: 'unexpected scan cadence', text: validArtifactOnlyWorkflowFixture.replace('17 */6 * * *', '17 */3 * * *'), expected: false },
+  { name: 'additional cron schedule', text: validArtifactOnlyWorkflowFixture.replace('    - cron: "17 */6 * * *"', '    - cron: "17 */6 * * *"\\n    - cron: "0 */1 * * *"'), expected: false },
+  { name: 'duplicate schedule section', text: validArtifactOnlyWorkflowFixture.replace('concurrency:', '  schedule:\\n    - cron: "0 */1 * * *"\\nconcurrency:'), expected: false },
+  { name: 'persistence flag in unrelated step only', text: validArtifactOnlyWorkflowFixture.replace(
+    "      - name: Execute authoritative architecture scan\\n        env:\\n          GEAS_SCAN_PERSIST: 'false'",
+    "      - name: Unrelated step\\n        env:\\n          GEAS_SCAN_PERSIST: 'false'\\n      - name: Execute authoritative architecture scan\\n        run: npm run scan:geas-architecture",
+  ), expected: false },
+  { name: 'missing authoritative scan step', text: validArtifactOnlyWorkflowFixture.replace(
+    '      - name: Execute authoritative architecture scan',
+    '      - name: Run a different step',
+  ), expected: false },
 ];
 for (const fixture of scanWorkflowContractFixtures) {
   const actual = isExpectedArtifactOnlyScanContract(parseScanWorkflowContract(fixture.text));
@@ -88,7 +155,7 @@ for (const fixture of scanWorkflowContractFixtures) {
   }
 }
 if (!isExpectedArtifactOnlyScanContract(parseScanWorkflowContract(workflowText))) {
-  throw new Error('GEAS GitHub scan must remain six-hourly, serialized, and non-persistent');
+  throw new Error('GEAS GitHub scan must have exactly one six-hour schedule, serialize runs, and disable persistence on the authoritative scan step');
 }
 const scanOperationsDoc = readFileSync(scanOperationsDocPath, 'utf8');
 for (const requiredStatement of [
@@ -98,6 +165,8 @@ for (const requiredStatement of [
   'does not load previous PostgreSQL source observations',
   'does not acquire the PostgreSQL lease',
   'does not coordinate with the application daemon',
+  'one active scanner process at a time',
+  'application daemon must remain disabled during the artifact-only workflow',
 ]) {
   if (!scanOperationsDoc.includes(requiredStatement)) {
     throw new Error(`GEAS scan operations documentation is missing: ${requiredStatement}`);
