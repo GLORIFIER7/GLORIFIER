@@ -3200,7 +3200,7 @@ app.get('/api/business-intelligence/status', async (_req: Request, res: Response
   }
 });
 
-app.get('/api/business-intelligence/advisory', async (_req: Request, res: Response) => {
+app.get('/api/business-intelligence/advisory', geasRateLimit, requireOwnerOrInternalService, async (_req: Request, res: Response) => {
   try {
     const [report, scan] = await Promise.all([
       getLatestIntelligenceReport(),
