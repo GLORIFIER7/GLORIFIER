@@ -69,11 +69,11 @@ async function run() {
   // BNB retains its separately evidenced technical verification; Solana stays partial
   // pending independent review of the historical mint-transaction provenance.
   const assetRegistrySource = readFileSync(new URL('./asset-registry.ts', import.meta.url), 'utf8');
-  const glrSeedMatch = assetRegistrySource.match(
-    /async function seedCanonicalGLRRegistry\\(\\) \\{([\\s\\S]*?)\\n\\}\\n\\/\\*\\*/
-  );
-  assert.ok(glrSeedMatch, 'GLR seed function must remain inspectable by the regression guard');
-  const glrSeed = glrSeedMatch[1];
+  const seedStart = assetRegistrySource.indexOf('async function seedCanonicalGLRRegistry() {');
+  const seedEnd = assetRegistrySource.indexOf('\n/**', seedStart);
+  assert.notEqual(seedStart, -1, 'GLR seed function must remain inspectable by the regression guard');
+  assert.notEqual(seedEnd, -1, 'GLR seed function must have a stable ending marker');
+  const glrSeed = assetRegistrySource.slice(seedStart, seedEnd);
   const deploymentSeedStatus = (deploymentId: string) => {
     const marker = `deploymentId: '${deploymentId}'`;
     const start = glrSeed.indexOf(marker);
