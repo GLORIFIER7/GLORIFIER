@@ -532,5 +532,5 @@ A comment-only Amazon Q review on PR #882 identified that the new `isMatchingSou
 
 - **Base:** `ada67818ef80a503408884904ce7a6efab0e35fe`.
 - **Branch:** `fix/geas-evidence-and-scan-mode-contract-20261120`.
-- **Evidence baseline:** GEAS scan run #44610696530; artifact SHA-256 `0f0f9f6d08d3e6f7c6d6b70e8a7a3d8d0d8f2a1a8d0a8a6f7c3b4a1f6e2d9b5c` (downloaded artifact independently checked; GitHub artifact metadata is authoritative for digest).
+- **Evidence baseline:** GEAS scan run #44610696530; artifact SHA-256 `0f0f6942504d416469063019d1707c0bdcaa75de74005e519206404b767673d7` (downloaded artifact independently checked; GitHub artifact metadata is authoritative for digest).
 - **Governance:** engineering findings auto-approved under the LOW-risk policy; this is not a GitHub review approval, merge authorization, deployment authorization, or production change.
