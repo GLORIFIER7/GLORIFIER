@@ -3,7 +3,7 @@ import { githubMcpRoute } from '../src/lib/github-mcp.ts';
 
 const HOST = '127.0.0.1';
 const PORT = Number(process.env.MCP_LOCAL_CONFORMANCE_PORT || 8787);
-const MAX_BODY_BYTES = 65_536;
+const MAX_HARNESS_BODY_BYTES = 1_048_576;
 
 // The conformance harness runs against the actual MCP route implementation.
 // It allows quota-safe local TCK execution without deploying a Worker or
@@ -20,8 +20,10 @@ const readRequestBody = async (request) => {
   for await (const chunk of request) {
     const bytes = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
     totalBytes += bytes.byteLength;
-    if (totalBytes > MAX_BODY_BYTES) {
-      throw new Error('Local MCP conformance request exceeds the configured body limit.');
+    if (totalBytes > MAX_HARNESS_BODY_BYTES) {
+      const error = new Error('Local MCP conformance request exceeds the harness safety limit.');
+      error.statusCode = 413;
+      throw error;
     }
     chunks.push(bytes);
   }
@@ -61,11 +63,14 @@ const server = createServer(async (incoming, outgoing) => {
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Local MCP conformance adapter failed.';
     process.stderr.write(`Local MCP harness error: ${message}\n`);
-    outgoing.writeHead(500, {
+    const statusCode = error && typeof error === 'object' && error.statusCode === 413 ? 413 : 500;
+    outgoing.writeHead(statusCode, {
       'Cache-Control': 'no-store',
       'Content-Type': 'application/json',
     });
-    outgoing.end(JSON.stringify({ error: 'Local MCP conformance adapter failed.' }));
+    outgoing.end(JSON.stringify({ error: statusCode === 413
+      ? 'Local MCP conformance request exceeds the harness safety limit.'
+      : 'Local MCP conformance adapter failed.' }));
   }
 });
 
