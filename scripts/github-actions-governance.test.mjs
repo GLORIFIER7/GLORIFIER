@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
-const [guardian, systemHealth, infrastructureHealth, geminiReview, bootstrap, ci, dockerImage, solanaReconcile, globalCollaboration, mediatorExpansion, globalResolution] = await Promise.all([
+const [guardian, systemHealth, infrastructureHealth, geminiReview, bootstrap, ci, dockerImage, solanaReconcile, globalCollaboration, mediatorExpansion, globalResolution, codeql] = await Promise.all([
   read('../.github/workflows/glorifier-code-guardian.yml'),
   read('../.github/workflows/system-health-guardian.yml'),
   read('../.github/workflows/infrastructure-health.yml'),
