@@ -1161,6 +1161,7 @@ const substantiveNistContext = createSourceFetchContext(
 );
 if (substantiveNistContext.conditionalHeaders['If-None-Match'] !== '"nist-identity-v1"') {
   throw new Error('substantive NIST cache evidence must retain its ETag validator');
+}
 const failedHttpCache = {
   ...cachedObservation,
   ok: false,
