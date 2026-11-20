@@ -1554,6 +1554,17 @@ export const extractSourceEvidenceExcerpt = (sourceId: string, body: string): st
     const excerpt = createEvidenceExcerpt(text, matchIndex, 0);
     if (isSubstantiveEvidenceExcerpt(excerpt)) return excerpt;
   }
+
+  // Some public NIST page variants expose the substantive body through a
+  // non-semantic container rather than a literal <main> element. Search only
+  // this source's curated, long-form phrases and anchor the excerpt at the
+  // exact phrase so unrelated page chrome cannot become supporting evidence.
+  const fullPageText = stripHtml(cleaned);
+  const fullPageMatchIndex = findEarliestKeywordIndex(fullPageText, keywords);
+  if (fullPageMatchIndex >= 0) {
+    const excerpt = createEvidenceExcerpt(fullPageText, fullPageMatchIndex, 0);
+    if (isSubstantiveEvidenceExcerpt(excerpt)) return excerpt;
+  }
   return null;
 };
 
