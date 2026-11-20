@@ -271,6 +271,42 @@ test('assigns every eligible provider an explicit model and a review role withou
   assert.equal(new Set(assignments.map((entry) => entry.providerId)).size, assignments.length);
 });
 
+test('assigns Anthropic Claude to the software architecture specialist when that role is selected', () => {
+  const providers = [
+    { providerId: 'gemini', modelId: 'gemini-flash' },
+    { providerId: 'anthropic', modelId: 'claude-free-model' },
+    { providerId: 'nvidia', modelId: 'nemotron' }
+  ];
+  const roles = [
+    { id: 'engineering-scientist' },
+    { id: 'software-architect' },
+    { id: 'cybersecurity-scientist' }
+  ];
+  const assignments = buildRepositoryCouncilAssignments(providers, roles);
+  assert.deepEqual(assignments.map(({ providerId, role }) => [providerId, role.id]), [
+    ['gemini', 'engineering-scientist'],
+    ['anthropic', 'software-architect'],
+    ['nvidia', 'cybersecurity-scientist']
+  ]);
+});
+
+test('does not reserve the architecture role when Claude is not an eligible contributor', () => {
+  const providers = [
+    { providerId: 'gemini', modelId: 'gemini-flash' },
+    { providerId: 'nvidia', modelId: 'nemotron' }
+  ];
+  const roles = [
+    { id: 'engineering-scientist' },
+    { id: 'software-architect' },
+    { id: 'cybersecurity-scientist' }
+  ];
+  const assignments = buildRepositoryCouncilAssignments(providers, roles);
+  assert.deepEqual(assignments.map(({ role }) => role.id), [
+    'engineering-scientist',
+    'software-architect'
+  ]);
+});
+
 test('requires an explicit repository-only free mode and $0 paid-inference policy', () => {
   const env = {
     GLORIFIER_REPOSITORY_AI_FREE_ONLY: 'true',
