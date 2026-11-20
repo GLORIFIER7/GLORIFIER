@@ -272,8 +272,8 @@ test('assigns every eligible provider an explicit model and a review role withou
 
 test('assigns Anthropic Claude to the software architecture specialist when that role is selected', () => {
   const providers = [
-    { providerId: 'gemini', modelId: 'gemini-flash' },
     { providerId: 'anthropic', modelId: 'claude-free-model' },
+    { providerId: 'gemini', modelId: 'gemini-flash' },
     { providerId: 'nvidia', modelId: 'nemotron' }
   ];
   const roles = [
@@ -283,8 +283,8 @@ test('assigns Anthropic Claude to the software architecture specialist when that
   ];
   const assignments = buildRepositoryCouncilAssignments(providers, roles);
   assert.deepEqual(assignments.map(({ providerId, role }) => [providerId, role.id]), [
-    ['gemini', 'engineering-scientist'],
     ['anthropic', 'software-architect'],
+    ['gemini', 'engineering-scientist'],
     ['nvidia', 'cybersecurity-scientist']
   ]);
 });
