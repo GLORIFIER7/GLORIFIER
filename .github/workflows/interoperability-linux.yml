@@ -297,7 +297,7 @@ jobs:
             echo "::endgroup::"
           done
           if ((${#failures[@]} > 0)); then
-            printf 'MCP conformance scenarios failed: %s\\n' "${failures[*]}" >&2
+            printf 'MCP conformance scenarios failed: %s\n' "${failures[*]}" >&2
             exit 1
           fi
       - name: Capture local MCP harness diagnostics
