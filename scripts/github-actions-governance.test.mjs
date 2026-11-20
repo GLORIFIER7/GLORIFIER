@@ -15,6 +15,7 @@ const [guardian, systemHealth, infrastructureHealth, geminiReview, bootstrap, ci
   read('../.github/workflows/global-collaboration.yml'),
   read('../.github/workflows/mediator-expansion.yml'),
   read('../.github/workflows/global-resolution.yml'),
+  read('../.github/workflows/codeql.yml'),
 ]);
 function sliceBetweenMarkers(source, startMarker, endMarker) {
   const start = source.indexOf(startMarker);
@@ -124,6 +125,12 @@ test('Solana workflow registration write access is main-only and owner-gated for
 
 test('GitHub Actions governance tests are required by GLORIFIER CI', () => {
   assert.match(ci, /node --test scripts\/github-actions-governance\.test\.mjs/);
+});
+
+test('CodeQL pull-request analyses are bound to the exact stable PR head SHA', () => {
+  const analyzeStep = codeql.slice(codeql.indexOf('      - name: Analyze'));
+  assert.match(analyzeStep, /ref:\s*\$\{\{\s*github\.event_name == 'pull_request' && format\('refs\/pull\/\{0\}\/head', github\.event\.pull_request\.number\) \|\| github\.ref\s*\}\}/);
+  assert.match(analyzeStep, /sha:\s*\$\{\{\s*github\.event_name == 'pull_request' && github\.event\.pull_request\.head\.sha \|\| github\.sha\s*\}\}/);
 });
 
 
