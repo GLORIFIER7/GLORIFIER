@@ -390,41 +390,27 @@ const getRepositoryTool = (readToken?: string): Promise<unknown> =>
 const isValidPerPage = (value: unknown): value is number =>
   typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 20;
 
-const listPullRequestsTool = (args: unknown, readToken?: string): Promise<unknown> => {
-  const input = toolArguments(args);
-  const state = input.state === undefined ? 'open' : input.state;
-  if (state !== 'open' && state !== 'closed' && state !== 'all') {
-    throw new Error('state must be open, closed, or all.');
-  }
-  const perPage = input.per_page === undefined ? 10 : input.per_page;
-  if (!isValidPerPage(perPage)) {
-    throw new Error('per_page must be an integer between 1 and 20.');
-  }
+const listPullRequestsTool = (input: JsonRecord, readToken?: string): Promise<unknown> => {
+  const state = (input.state === undefined ? 'open' : input.state) as string;
+  const perPage = (input.per_page === undefined ? 10 : input.per_page) as number;
   return readGithubJson(`/repos/${OWNER}/${REPOSITORY}/pulls`, new URLSearchParams({
     state,
     per_page: String(perPage),
   }), readToken);
 };
 
-const listWorkflowRunsTool = (args: unknown, readToken?: string): Promise<unknown> => {
-  const input = toolArguments(args);
-  const perPage = input.per_page === undefined ? 10 : input.per_page;
-  if (!isValidPerPage(perPage)) {
-    throw new Error('per_page must be an integer between 1 and 20.');
-  }
+const listWorkflowRunsTool = (input: JsonRecord, readToken?: string): Promise<unknown> => {
+  const perPage = (input.per_page === undefined ? 10 : input.per_page) as number;
   return readGithubJson(`/repos/${OWNER}/${REPOSITORY}/actions/runs`, new URLSearchParams({ per_page: String(perPage) }), readToken);
 };
 
-const readFileTool = (args: unknown, readToken?: string): Promise<unknown> => {
-  const input = toolArguments(args);
-  if (typeof input.path !== 'string') throw new Error('path is required and must be a string.');
-  const ref = input.ref === undefined ? 'main' : input.ref;
-  if (typeof ref !== 'string') throw new Error('ref must be a string.');
-  return readGithubFile(input.path, ref, readToken);
+const readFileTool = (input: JsonRecord, readToken?: string): Promise<unknown> => {
+  const path = input.path as string;
+  const ref = (input.ref === undefined ? 'main' : input.ref) as string;
+  return readGithubFile(path, ref, readToken);
 };
 
-const getToolArgumentError = (name: string, args: unknown): string | null => {
-  const input = toolArguments(args);
+const getToolArgumentError = (name: string, input: JsonRecord): string | null => {
   switch (name) {
     case 'github_get_repository':
       return null;
@@ -464,17 +450,18 @@ const getToolArgumentError = (name: string, args: unknown): string | null => {
 };
 
 const callTool = (name: string, args: unknown, readToken?: string): Promise<unknown> => {
-  const validationError = getToolArgumentError(name, args);
+  const input = toolArguments(args);
+  const validationError = getToolArgumentError(name, input);
   if (validationError) throw new Error(validationError);
   switch (name) {
     case 'github_get_repository':
       return getRepositoryTool(readToken);
     case 'github_list_open_pull_requests':
-      return listPullRequestsTool(args, readToken);
+      return listPullRequestsTool(input, readToken);
     case 'github_list_workflow_runs':
-      return listWorkflowRunsTool(args, readToken);
+      return listWorkflowRunsTool(input, readToken);
     case 'github_read_file':
-      return readFileTool(args, readToken);
+      return readFileTool(input, readToken);
     default:
       throw new Error('Unknown or unsupported GitHub tool. This MCP server exposes read-only tools only.');
   }
