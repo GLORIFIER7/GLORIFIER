@@ -211,6 +211,14 @@ export function normalizeIntelligenceReportToBiRecords(
   };
 }
 
+export function classifyBusinessIntelligenceIngestionStatus(
+  observationsUpserted: number,
+  rejectedEvidenceCount: number,
+): 'ingested' | 'partial' | 'empty' {
+  if (!Number.isFinite(observationsUpserted) || observationsUpserted <= 0) return 'empty';
+  return rejectedEvidenceCount > 0 ? 'partial' : 'ingested';
+}
+
 export type BusinessIntelligenceIngestionStatus = {
   status: 'ingested' | 'empty' | 'partial' | 'unavailable';
   observationsUpserted: number;
