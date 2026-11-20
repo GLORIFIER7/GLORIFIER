@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import {
   buildGeasBusinessIntelligenceAdvisory,
+  classifyBusinessIntelligenceIngestionStatus,
   getBusinessIntelligencePipelineProgress,
   normalizeIntelligenceReportToBiRecords,
 } from './business-intelligence-pipeline.js';
@@ -85,6 +86,27 @@ test('rejects malformed or untrusted evidence URLs and refuses unreferenced them
   assert.ok(result.observations.every((item) => item.sourceRef.startsWith('https://') || item.sourceRef.startsWith('http://')));
 });
 
+test('does not classify incidental AI substrings as the AI technology source family', () => {
+  const result = normalizeIntelligenceReportToBiRecords({
+    id: 'email-report',
+    evidence: [{
+      id: 'email-evidence',
+      source: 'email',
+      title: 'Customer email',
+      url: 'https://example.com/email',
+      summary: 'Customer message observation.',
+    }],
+  });
+  assert.equal(result.observations[0].domain, 'data-intelligence');
+});
+
+test('classifies an ingestion with zero persisted observations as empty even when evidence is rejected', () => {
+  assert.equal(classifyBusinessIntelligenceIngestionStatus(0, 5), 'empty');
+  assert.equal(classifyBusinessIntelligenceIngestionStatus(3, 5), 'partial');
+  assert.equal(classifyBusinessIntelligenceIngestionStatus(3, 0), 'ingested');
+  assert.equal(classifyBusinessIntelligenceIngestionStatus(-1, 0), 'empty');
+});
+
 test('reports only pipeline stages supported by a real ingestion result', () => {
   const progress = getBusinessIntelligencePipelineProgress({
     report: { sourceCount: 2, evidenceCount: 2 },
@@ -156,6 +178,13 @@ test('builds a read-only GEAS advisory with exact evidence references and no aut
   assert.equal(advisory.geas.analysisEvidenceCount, 1);
   assert.equal(advisory.geas.drift[0].status, 'unknown');
   assert.equal(advisory.economicTruth, 'Estimated opportunity value is NOT VERIFIED REVENUE.');
+
+  const unexpectedAction = buildGeasBusinessIntelligenceAdvisory({
+    report,
+    scan: { ...scan, irreversibleChangesExecuted: true },
+  });
+  assert.equal(unexpectedAction.governance.irreversibleActionsExecuted, true);
+  assert.match(unexpectedAction.limitations.join(' '), /irreversible changes were executed/i);
 });
 
 test('does not interpret a missing GEAS scan as zero risk or a complete advisory', () => {
