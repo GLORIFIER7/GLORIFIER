@@ -452,7 +452,7 @@ const run = async (): Promise<void> => {
         assert.equal(modernDiscoverBody.jsonrpc, '2.0');
         assert.equal(modernDiscoverBody.id, 'discover-1');
         assert.equal(modernDiscoverBody.result.resultType, 'complete');
-        assert.deepEqual(modernDiscoverBody.result.supportedVersions, ['2026-07-28']);
+        assert.deepEqual(modernDiscoverBody.result.supportedVersions, ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26']);
         assert.deepEqual(modernDiscoverBody.result.capabilities, { tools: {} },
           'modern discovery must advertise only the read-only tool capability actually implemented');
         assert.deepEqual(
@@ -635,7 +635,7 @@ const run = async (): Promise<void> => {
         };
         assert.equal(unsupportedModernVersion.status, 400);
         assert.equal(unsupportedModernBody.error.code, -32022);
-        assert.deepEqual(unsupportedModernBody.error.data.supported, ['2026-07-28']);
+        assert.deepEqual(unsupportedModernBody.error.data.supported, ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26']);
         assert.equal(unsupportedModernBody.error.data.requested, '2026-01-01');
 
         const modernUnknownMethod = await worker.fetch(
