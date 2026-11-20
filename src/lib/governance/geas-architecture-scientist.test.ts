@@ -158,6 +158,30 @@ if (!nistIdentityTenetExcerpt
     || /Skip to main content|Official websites use \.gov|Secure \.gov websites/.test(nistIdentityTenetExcerpt)) {
   throw new Error('NIST source-specific fallback must extract substantive main-region text without page chrome');
 }
+const nistIdentityNonSemanticMainHtml = [
+  '<!doctype html><html><body>',
+  '<div class="page-utility">Announcement history blogs news releases resources</div>',
+  '<div role="main"><h1>Design Tenets for Agent Identity Management Systems</h1>',
+  `<p>${nistIdentityPhrase}</p>`,
+  `<p>${nistDelegationPhrase}</p>`,
+  '</div></body></html>',
+].join('');
+const nistIdentityNonSemanticMainText = stripHtmlForEvidence(nistIdentityNonSemanticMainHtml);
+if (!nistIdentityNonSemanticMainText.includes(nistIdentityPhrase)
+    || !nistIdentityNonSemanticMainText.includes('Announcement history blogs news releases resources')) {
+  throw new Error('NIST non-semantic main fixture must reproduce whole-page chrome around substantive article text');
+}
+const nistIdentityNonSemanticMainExcerpt = extractSourceEvidenceExcerpt(
+  'nist-agent-identity-design-tenets',
+  nistIdentityNonSemanticMainHtml,
+);
+if (!nistIdentityNonSemanticMainExcerpt
+    || !nistIdentityNonSemanticMainExcerpt.startsWith(nistIdentityPhrase)
+    || !nistIdentityNonSemanticMainExcerpt.includes('scopes attenuate')
+    || /Announcement history blogs news releases resources/i.test(nistIdentityNonSemanticMainExcerpt)) {
+  throw new Error('NIST exact-phrase fallback must extract substantive text when the page has no literal main element');
+}
+
 const nistIdentityTenetObservation: SourceObservation = {
   sourceId: 'nist-agent-identity-design-tenets',
   ok: true,
