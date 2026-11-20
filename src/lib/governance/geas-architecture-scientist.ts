@@ -1500,16 +1500,14 @@ const SOURCE_PATTERN_KEYWORD_OVERRIDES: Readonly<Record<string, readonly string[
     'access delegation',
   ],
   'nist-agent-identity-design-tenets': [
-    'Distinct Agent Identification',
-    'Agent Linking, Delegation & Attenuation',
-    'Least & Zero Standing Privilege',
-    'Short-Lived, Dynamic & Revocable Authorization',
-    'Human-in-the-Loop Triggers',
-    'Mandates and Constraints',
-    'Architectural Separation of Policy from Reasoning',
-    'Deterministic Access Decisions',
-    'Continuous Monitoring',
-    'Immutable Evidence',
+    'Additionally, as authority is delegated down to sub-agents or downstream services, scopes attenuate so that downstream entities can never claim more authority than the parent.',
+    'Agents operate with zero standing privilege, holding no persistent rights when idle.',
+    'All access grants are Just-In-Time (JIT), time-bounded and audience-specific.',
+    'Every organization defines risk thresholds and tolerances that, when reached, initiate human review of agentic actions.',
+    'The logic that determines what an agent attempts to do is architecturally separated from the systems that determine what it is allowed to do.',
+    'Organizations maintain deterministic capabilities as the primary mechanism for making access decisions in agentic scenarios.',
+    'Agents operate at a scale and velocity that is not achievable for humans',
+    'The enterprise maintains an unbroken, tamper-evident chain of custody and append-only body of evidence',
   ],
   'nist-ir-8259r1': [
     'This publication describes recommended activities related to cybersecurity that manufacturers should consider performing before their IoT products are sold to customers.',
@@ -1537,6 +1535,10 @@ export const getSourcePatternKeywords = (sourceId: string): string[] => {
       .flatMap((pattern) => pattern.keywords),
   )];
 };
+
+/** Extract a source-specific substantive excerpt without promoting it to claim verification. */
+export const extractSourceEvidenceExcerpt = (sourceId: string, body: string): string | null =>
+  extractEvidence(body, getSourcePatternKeywords(sourceId));
 
 const createUnavailableSourceObservation = (
   sourceId: string,
@@ -1590,7 +1592,7 @@ const createFetchedSourceObservation = (
 ): SourceObservation => {
   const normalizedText = stripHtml(body);
   const contentHash = createHash('sha256').update(normalizedText).digest('hex');
-  const excerpt = response.ok ? extractEvidence(body, getSourcePatternKeywords(source.id)) : null;
+  const excerpt = response.ok ? extractSourceEvidenceExcerpt(source.id, body) : null;
   const evidenceStatus: EvidenceStatus = excerpt
     ? 'content-matched'
     : response.ok ? 'source-available' : 'not-observed';
