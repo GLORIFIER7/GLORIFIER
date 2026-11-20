@@ -3,7 +3,7 @@
 **Review date:** 2026-11-19 (Asia/Vientiane)  
 **Repository baseline:** GLORIFIER7/GLORIFIER main at `ada67818ef80a503408884904ce7a6efab0e35fe`  
 **Document status:** source-backed architecture synthesis and prioritized adoption plan  
-**Change boundary:** documentation only; no provider was called, no inference was run, no dependency was installed, and no production setting was changed.
+**Change boundary:** documentation plus CI/test changes; no runtime behavior, dependency, secret, or production setting was changed, and no provider was called or inference run.
 
 ## Executive decision
 
