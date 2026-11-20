@@ -63,7 +63,7 @@ server.on('connect', (_incoming, socket) => {
     'Content-Length: 0',
     '',
     '',
-  ].join('\\r\\n'));
+  ].join('\r\n'));
 });
 
 const server = createServer(async (incoming, outgoing) => {
