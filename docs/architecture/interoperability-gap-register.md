@@ -599,6 +599,23 @@ No independent external MCP client handshake, A2A TCK, authenticated two-agent e
 **Decision:** Issue #471 remains OPEN. The test-order false-negative is being repaired in PR #902; the actual MCP full-server conformance, A2A interoperability, Linux host, identity, NEURAL execution, GPU/provider, and economic evidence gates remain separate and incomplete.
 
 
+## MCP branch-local conformance and harness-hardening checkpoint — 2026-11-20
+
+This checkpoint records branch-local validation separately from the earlier public-Pages TCK. The local test harness runs the repository's actual read-only MCP route on loopback; it is not a production endpoint test. Each report below is tied to the exact commit checked out by GitHub Actions.
+
+| Workflow run | Tested source SHA | Recorded outcome |
+|---|---|---|
+| [#44643922029](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/44643922029) | `affe861d6339ad6c6a917b3136ec9d547f91d9a2` | Failed — 102 passed / 63 failed in the archived runner report. |
+| [#44645410285](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/44645410285) | `4808431fa31acac0729bf37024a40d80597d5d92` | Failed — 104 passed / 61 failed in the archived runner report. |
+| [#44652653951](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/44652653951) | `0b8e4f66c3e6facea1aa45d6f45a98f9d92d028b` | Passed — the `Official MCP TCK against exact PR source` job completed successfully. It included harness contract tests, an actual read-only `github_get_repository` call, the legacy 2025-11-25 `tools-list` scenario, and the advertised 2026-07-28 read-only scenarios (`tools-list`, `tools-call-error`, `dns-rebinding-protection`, and `http-header-validation`). Artifact: [#14591209371](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/44652653951/artifacts/14591209371). |
+
+The 102/63 and 104/61 reports belong to their stated earlier revisions; they are not evidence for later commits. The successful #44652653951 run validates only the listed, advertised subset at SHA `0b8e4f66c3e6facea1aa45d6f45a98f9d92d028b`. The PR branch subsequently advanced to `57ca00496a48764cebf89e3e6d2b5a6da9369cc2`; the later changes are not covered by that earlier run and require their own exact-head CI result.
+
+Extension/pending scenarios reported by the frozen runner as unscored are kept separate from scored failures and are not included in the failed counts. Unsupported prompts, resources, completions, tasks, multimedia, subscriptions, or progress features are not treated as supported capabilities.
+
+**Decision:** The exact-source CI at SHA `0b8e4f66c3e6facea1aa45d6f45a98f9d92d028b` passed its declared read-only MCP subset. Full MCP 2026-07-28 server conformance and an independent external-client exchange against an authorized staging endpoint remain **NOT VERIFIED**.
+
+
 ## EDDI external workforce assessment — 2026-11-18
 
 | ID | Area | Observed evidence | Gap / required remediation | Acceptance evidence |
