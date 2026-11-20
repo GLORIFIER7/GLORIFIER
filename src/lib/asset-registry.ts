@@ -396,8 +396,11 @@ export interface CanonicalAssetDeploymentRecord {
   lastVerifiedAt: string | null;
 }
 
-async function seedCanonicalGLRRegistry() {
-  const db = getPostgresPool();
+type CanonicalRegistryQueryClient = {
+  query: (sql: string, values?: any[]) => Promise<any>;
+};
+
+export async function seedCanonicalGLRRegistry(db: CanonicalRegistryQueryClient = getPostgresPool()) {
   await db.query(`INSERT INTO canonical_asset_registry
     (asset_id,namespace,name,symbol,asset_class,canonical_status,decimals,supply_policy,canonical_metadata)
     VALUES('glr','glorifier','GLORIFIER','GLR','crypto','active',18,'fixed-max-supply-1000000000',$1)
@@ -412,7 +415,7 @@ async function seedCanonicalGLRRegistry() {
       verificationRule: 'each-chain-independent'
     })]);
 
-  await upsertCanonicalGLRDeployment({
+  await upsertCanonicalGLRDeployment(db, {
     deploymentId: 'glr-ethereum-mainnet', network: 'Ethereum Mainnet', networkFamily: 'evm', networkId: 'evm:1', chainId: 1, identifierType: 'contract',
     contractAddress: '0x9db6f9afe2f4ada50060d32d7c7c0bebbccf89eb',
     deploymentTransaction: '0x8b92e5b669ea3188fe55052ed68d3eae0cc7715a0cf8c96e71ee7e95d846f81a',
@@ -420,7 +423,7 @@ async function seedCanonicalGLRRegistry() {
     verificationMode: 'workflow-reconciliation',
     evidence: { etherscanVerified: true, source: 'github-actions-evidence' }
   });
-  await upsertCanonicalGLRDeployment({
+  await upsertCanonicalGLRDeployment(db, {
     deploymentId: 'glr-bnb-mainnet', network: 'BNB Smart Chain Mainnet', networkFamily: 'evm', networkId: 'evm:56', chainId: 56, identifierType: 'contract',
     contractAddress: '0x5e0B0A449232FDA7cA6Ea3419A50873b08F64804',
     deploymentTransaction: '0xf5698f6bbde7ff173be1cbd0bb83da53f03389842c68ca2f6e4e287b89d9bbc0',
@@ -432,7 +435,7 @@ async function seedCanonicalGLRRegistry() {
     verificationWorkflowCommit: '8921c2e31b79107cf05aa3ba4bdb43715dda69d2',
     evidence: { onChainAssertions: 'PASSED', bscScanVerified: true, blockchainTransactionBroadcast: false, deployerNonce: 3, source: 'github-actions-evidence' }
   });
-  await upsertCanonicalGLRDeployment({
+  await upsertCanonicalGLRDeployment(db, {
     deploymentId: 'glr-solana-mainnet-beta',
     network: 'Solana Mainnet Beta',
     networkFamily: 'solana',
@@ -474,11 +477,7 @@ async function seedCanonicalGLRRegistry() {
  * Unknown ERC-1155 contract identifiers remain pending instead of being guessed from an OpenSea slug.
  * Existing canonical records and independently collected evidence are preserved on subsequent initialization.
  */
-type CanonicalNFTRegistryQueryClient = {
-  query: (sql: string, values?: any[]) => Promise<any>;
-};
-
-export async function seedCanonicalNFTRegistry(db: CanonicalNFTRegistryQueryClient = getPostgresPool()) {
+export async function seedCanonicalNFTRegistry(db: CanonicalRegistryQueryClient = getPostgresPool()) {
   const assets = [
     {
       assetId: 'glorifier-erc721',
@@ -599,8 +598,8 @@ function canonicalDeploymentValues(input: CanonicalDeploymentUpsertInput) {
   ];
 }
 
-async function upsertCanonicalGLRDeployment(input: CanonicalDeploymentUpsertInput) {
-  await getPostgresPool().query(`INSERT INTO canonical_asset_deployments
+async function upsertCanonicalGLRDeployment(db: CanonicalRegistryQueryClient, input: CanonicalDeploymentUpsertInput) {
+  await db.query(`INSERT INTO canonical_asset_deployments
     (deployment_id,asset_id,network,network_family,network_id,chain_id,identifier_type,contract_address,asset_identifier,program_id,deployment_transaction,deployment_block,status,explorer,source_verification_status,deployer_address,initial_holder_address,verification_mode,verification_workflow_commit,evidence,first_verified_at,last_verified_at)
     VALUES($1,'glr',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,NOW(),NOW())
     ON CONFLICT(deployment_id) DO UPDATE SET

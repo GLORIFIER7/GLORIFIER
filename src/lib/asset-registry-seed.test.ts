@@ -1,10 +1,33 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { seedCanonicalNFTRegistry } from './asset-registry';
+import { seedCanonicalGLRRegistry, seedCanonicalNFTRegistry } from './asset-registry';
 import { test } from 'node:test';
 
+type QueryCall = { sql: string; values?: unknown[] };
+
+test('GLR deployment upserts apply the evidence-backed status on insert and on conflict', async () => {
+  const calls: QueryCall[] = [];
+  await seedCanonicalGLRRegistry({
+    async query(sql, values) {
+      calls.push({ sql, values });
+      return { rows: [] };
+    }
+  });
+
+  const deployments = calls.filter(({ sql }) => sql.includes('INSERT INTO canonical_asset_deployments'));
+  assert.equal(deployments.length, 3);
+  const statuses = new Map(deployments.map(({ values }) => [values?.[0], values?.[11]]));
+  assert.deepEqual(statuses, new Map([
+    ['glr-ethereum-mainnet', 'partially_verified'],
+    ['glr-bnb-mainnet', 'fully_verified'],
+    ['glr-solana-mainnet-beta', 'partially_verified'],
+  ]));
+  for (const { sql } of deployments) {
+    assert.match(sql, /ON CONFLICT\(deployment_id\) DO UPDATE SET[\s\S]*?\bstatus\s*=\s*EXCLUDED\.status\b/i);
+  }
+});
+
 test('asset-registry-seed regression suite', async () => {
-type QueryCall = { sql: string; values?: any[] };
 
 async function run() {
   const calls: QueryCall[] = [];
@@ -16,19 +39,6 @@ async function run() {
   };
 
   await seedCanonicalNFTRegistry(db);
-
-  // Ethereum's canonical identity remains partial while the second same-deployer
-  // GLORIFIER/GLR contract has not been reconciled by the owner.
-  const registrySource = readFileSync(new URL('./asset-registry.ts', import.meta.url), 'utf8');
-  const ethereumSeedStart = registrySource.indexOf("deploymentId: 'glr-ethereum-mainnet'");
-  const bnbSeedStart = registrySource.indexOf("deploymentId: 'glr-bnb-mainnet'");
-  assert.ok(ethereumSeedStart >= 0 && bnbSeedStart > ethereumSeedStart, 'canonical Ethereum and BNB seed entries must remain identifiable');
-  const ethereumSeed = registrySource.slice(ethereumSeedStart, bnbSeedStart);
-  assert.match(ethereumSeed, /status:\s*'partially_verified'/, 'Ethereum seed must not overstate unresolved canonical identity');
-  assert.doesNotMatch(ethereumSeed, /status:\s*'fully_verified'/, 'Ethereum seed must not promote unresolved identity to fully verified');
-  const upsertStart = registrySource.indexOf('async function upsertCanonicalGLRDeployment');
-  assert.ok(upsertStart >= 0, 'canonical GLR deployment upsert must remain present');
-  assert.match(registrySource.slice(upsertStart), /status=EXCLUDED\.status/, 'the tested seed status is applied on conflict to persisted rows');
 
   assert.equal(calls.length, 4, 'seed should write two collection identities and their two supplied deployment references');
   const assetCalls = calls.filter((call) => call.sql.includes('INSERT INTO canonical_asset_registry'));
@@ -50,8 +60,10 @@ async function run() {
     assert.match(call.sql, /ON CONFLICT\(asset_id\) DO NOTHING/);
     assert.doesNotMatch(call.sql, /canonical_metadata=EXCLUDED\.canonical_metadata/);
   }
-  assert.match(deploymentCalls[0].sql, /ON CONFLICT\(deployment_id\) DO NOTHING/);
-  assert.doesNotMatch(deploymentCalls[0].sql, /evidence=EXCLUDED\.evidence/);
+  for (const { sql } of deploymentCalls) {
+    assert.match(sql, /ON CONFLICT\(deployment_id\) DO NOTHING/);
+    assert.doesNotMatch(sql, /evidence=EXCLUDED\.evidence/);
+  }
   assert.equal(deploymentCalls[0].values?.[0], 'glorifier-erc721-ethereum-mainnet');
   assert.equal(deploymentCalls[0].values?.[3], '0xd62eb4963423f6e224af0bcccabf75f566fb9ad7');
   assert.equal(deploymentCalls[1].values?.[0], 'glorifier-erc1155-ethereum-mainnet');
