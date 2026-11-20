@@ -1,8 +1,10 @@
 name: GLORIFIER CodeQL Security
 
 on:
+  # Scan the exact pushed branch commit as well as PR merge commits. The
+  # main-branch ruleset requires CodeQL evidence tied to the PR head or base SHA.
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
     branches: [main]
   schedule:
@@ -43,3 +45,7 @@ jobs:
         uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
         with:
           category: "/language:${{ matrix.language }}"
+          # Publish same-repository PR analyses to the stable PR head SHA, not a regenerated merge candidate.
+          # The CodeQL Action ignores these overrides for fork PRs; non-PR events retain their native ref/SHA.
+          ref: ${{ github.event_name == 'pull_request' && format('refs/pull/{0}/head', github.event.pull_request.number) || github.ref }}
+          sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
