@@ -2016,7 +2016,7 @@ app.get('/api/ai/specialists', (_req: Request, res: Response) => {
   });
 });
 
-app.post('/api/ai/specialist-council', async (req: Request, res: Response) => {
+app.post('/api/ai/specialist-council', aiCouncilRateLimit, async (req: Request, res: Response) => {
   try {
     const { objective, roles, providerIds, temperature, standingMission } = req.body || {};
     if (typeof objective !== 'string' || !objective.trim()) {
