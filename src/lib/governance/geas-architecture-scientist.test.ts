@@ -14,6 +14,7 @@ import {
   buildArchitectureEvidence,
   buildObservedArchitecturePatterns,
   createSourceFetchContext,
+  shouldForceUnconditionalSourceRefresh,
   reuseNotModifiedSourceObservation,
   stripHtml,
   stripHtmlForEvidence,
@@ -1109,6 +1110,57 @@ if (conditionalHeaders['If-None-Match'] !== '"v1"' || conditionalHeaders['If-Mod
 if (Object.keys(buildConditionalRequestHeaders('https://example.org/changed', cachedObservation)).length !== 0) {
   throw new Error('URL changes must suppress conditional request headers');
 }
+
+const nistIdentityUrl = 'https://www.nist.gov/blogs/cybersecurity-insights/design-tenets-agent-identity-management-systems';
+const staleNistIdentityCache = {
+  ...cachedObservation,
+  evidence_excerpt: null,
+  evidence_status: 'source-available' as const,
+  final_url: nistIdentityUrl,
+  source_url: nistIdentityUrl,
+  etag: '"nist-identity-v1"',
+};
+if (!shouldForceUnconditionalSourceRefresh('nist-agent-identity-design-tenets', staleNistIdentityCache)) {
+  throw new Error('a cached NIST source-available row without an excerpt must force one unconditional body refresh after selector changes');
+}
+if (shouldForceUnconditionalSourceRefresh('aws-well-architected', staleNistIdentityCache)) {
+  throw new Error('the NIST cache refresh exception must not affect unrelated sources');
+}
+const refreshedNistCache = shouldForceUnconditionalSourceRefresh('nist-agent-identity-design-tenets', staleNistIdentityCache)
+  ? null
+  : staleNistIdentityCache;
+const nistRefreshContext = createSourceFetchContext(
+  nistIdentityUrl,
+  refreshedNistCache,
+  Date.parse('2026-11-20T03:00:00.000Z'),
+);
+if (Object.keys(nistRefreshContext.conditionalHeaders).length !== 0) {
+  throw new Error('the stale NIST source-available row must not send ETag or Last-Modified validators');
+}
+if (reuseNotModifiedSourceObservation(
+  { id: 'nist-agent-identity-design-tenets', url: nistIdentityUrl },
+  refreshedNistCache,
+  { finalUrl: nistIdentityUrl, etag: null, lastModified: null },
+  nistRefreshContext.observedAt,
+  nistRefreshContext.nowMs,
+) !== null) {
+  throw new Error('a 304 response during the forced NIST body refresh must not reuse the stale source-available row');
+}
+const substantiveNistCache = {
+  ...staleNistIdentityCache,
+  evidence_excerpt: 'Agentic infrastructure enables the unique, cryptographically verifiable identification of agents distinguishable from other identities.',
+  evidence_status: 'content-matched' as const,
+};
+if (shouldForceUnconditionalSourceRefresh('nist-agent-identity-design-tenets', substantiveNistCache)) {
+  throw new Error('a NIST cache row with substantive evidence must retain normal conditional-fetch behavior');
+}
+const substantiveNistContext = createSourceFetchContext(
+  nistIdentityUrl,
+  substantiveNistCache,
+  Date.parse('2026-11-20T03:00:00.000Z'),
+);
+if (substantiveNistContext.conditionalHeaders['If-None-Match'] !== '"nist-identity-v1"') {
+  throw new Error('substantive NIST cache evidence must retain its ETag validator');
 const failedHttpCache = {
   ...cachedObservation,
   ok: false,
