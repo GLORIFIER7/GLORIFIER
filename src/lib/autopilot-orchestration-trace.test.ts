@@ -80,6 +80,7 @@ const buildTrace = (geasDecision: string = 'allow') => ({
     capabilityDecision: 'allow',
     geasPolicyVersion: 'GEAS-3.0',
     geasDecision,
+    evaluatedAt: '2026-11-20T05:00:00.000Z',
     geasReasons: ['policy requirements satisfied'],
   }],
 });
