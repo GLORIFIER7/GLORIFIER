@@ -35,6 +35,9 @@ test('harness failures preserve JSON-RPC error envelopes for oversized and inter
 
 test('CONNECT requests receive an explicit 405 response before Fetch Request construction', async () => {
   const source = await readFile(new URL('./mcp-local-conformance-server.mjs', import.meta.url), 'utf8');
+  const serverDeclaration = source.indexOf('const server = createServer');
+  const connectHandler = source.indexOf("server.on('connect'");
+  assert.ok(serverDeclaration >= 0 && connectHandler > serverDeclaration, 'CONNECT handler must be registered after the HTTP server is initialized');
   assert.match(source, /server\.on\('connect',[\s\S]*?405 Method Not Allowed[\s\S]*?Allow: POST/);
 });
 
