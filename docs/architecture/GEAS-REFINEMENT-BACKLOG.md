@@ -512,3 +512,25 @@ A comment-only Amazon Q review on PR #882 identified that the new `isMatchingSou
 - **Standards watch:** ETSI TC NET is an emerging standards-work candidate for network/edge/cloud/AI federation, but no normative pattern was admitted from the announcement alone. FOCUS 1.5 remains a working draft ahead of its scheduled 2026-12-03 ratification; FOCUS 1.4 remains the current invoice-reconciliation baseline. OWASP ACS v0.1.4 and OpenTelemetry GenAI agent-span conventions remain version/status-sensitive; ACS self-declarations and Development-status semantic conventions are not independent conformance evidence. SLSA v1.2 is the approved provenance baseline.
 - **Verification state:** The prior exact-head GEAS run #44017766795 passed for head 86c6564f0f0d6974fdde305c87a4887bb89c5e65. Subsequent review-fix commits changed the branch; all checks must be re-observed against the new final head before any merge decision. PR #910 remains draft and unmerged.
 - **Safety:** No provider readiness, inference, paid API, production deployment, configuration write, database mutation, migration, restart, publication, or secret readout was performed.
+
+
+## 2026-11-20 — NIST agent identity evidence and scan execution contract
+
+- **Auto-approved finding — NIST Agent Identity Design Tenets extraction (LOW):** The exact-main GEAS scan #44610696530 observed `nist-agent-identity-design-tenets` at HTTP 200 with content SHA-256 `020b784f25641349bc257a2d5a02deb8d1f7a358c30074ca2e2ce83e4ddd5a74`, but classified it `source-available` with no substantive excerpt. The official NIST article, published 2026-10-27, contains substantive design-tenet prose on delegation attenuation, zero standing privilege, JIT authorization, human escalation, deterministic decisions, and tamper-evident evidence. The previous selector began at an early heading and did not yield a substantive excerpt. Replaced it with article-body phrases and added a tested source-specific extraction helper. This strengthens the existing `agent-identity-delegation` analysis pattern; it does not create implementation claims or claim-supported evidence.
+  - **Rationale:** preserve substantive NIST evidence while rejecting navigation chrome and keeping `content-matched` classified as `analysis`.
+  - **Risk:** LOW; deterministic evidence extraction and tests only, no production behavior, data, credentials, or permissions changed.
+  - **Affected files:** `src/lib/governance/geas-architecture-scientist.ts`, `src/lib/governance/geas-architecture-scientist.test.ts`.
+  - **Tests:** exact source URL/cadence association, substantive phrase selection, HTML page-chrome rejection, analysis-only pattern admission, and rejection of source-availability-only observations. Existing `test:geas-scientist` CI gate.
+  - **Implementation commit:** `d34b488db455de7b420bf43fe918348e01d6f98f`.
+
+- **Auto-approved finding — GitHub scan execution/cadence contract (LOW):** The GitHub workflow schedules an artifact-only scan at `17 */6 * * *`, uses concurrency group `geas-architecture-scan`, and sets `GEAS_SCAN_PERSIST=false`. In non-persistent mode the scanner does not load previous PostgreSQL observations, does not write scan/evidence rows, and does not acquire the database lease; it therefore cannot reuse cross-run ETag/Last-Modified validators. GitHub concurrency serializes GitHub runs only and does not coordinate with the application daemon. The previous operations guide did not distinguish the artifact-only CI path from the persistent application daemon.
+  - **Rationale:** make scan cadence, persistence, lease ownership, and cache limitations explicit; prevent accidental production database writes or removal of the GitHub overlap guard.
+  - **Risk:** LOW; documentation and an existing CI validator only. No workflow schedule, runtime behavior, database state, or production configuration changed.
+  - **Affected files:** `scripts/geas-source-cadence-validate.ts`, `docs/architecture/geas-scan-operations.md`.
+  - **Tests:** valid/invalid workflow fixtures for cadence, concurrency group, cancellation policy and persistence flag; documentation assertions. The existing GEAS Architecture Science Scan workflow runs this validator.
+  - **Implementation commits:** `b94b2d2ccfb5e966c0538ceb88d37f4a0bc8a49e` (validator and operations guide), `3bbad75741e322a200871382b2aa43869bf236c7` (correct newline escapes in the regression fixtures).
+
+- **Base:** `ada67818ef80a503408884904ce7a6efab0e35fe`.
+- **Branch:** `fix/geas-evidence-and-scan-mode-contract-20261120`.
+- **Evidence baseline:** GEAS scan run #44610696530; artifact SHA-256 `0f0f9f6d08d3e6f7c6d6b70e8a7a3d8d0d8f2a1a8d0a8a6f7c3b4a1f6e2d9b5c` (downloaded artifact independently checked; GitHub artifact metadata is authoritative for digest).
+- **Governance:** engineering findings auto-approved under the LOW-risk policy; this is not a GitHub review approval, merge authorization, deployment authorization, or production change.
