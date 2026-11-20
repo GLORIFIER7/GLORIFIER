@@ -90,7 +90,7 @@ class MemoryMissionStore implements AutopilotMissionStore {
   }
 }
 
-const buildTrace = <T extends 'allow' | 'deny' | 'escalate' = 'allow'>(geasDecision: T = 'allow' as T) => ({
+const buildTrace = () => ({
   schemaVersion: 1 as const,
   plannedAt: '2026-11-20T05:00:00.000Z',
   aiCeo: { provider: 'gemini', model: 'gemini-2.5-flash' },
@@ -107,13 +107,21 @@ const buildTrace = <T extends 'allow' | 'deny' | 'escalate' = 'allow'>(geasDecis
     risk: 'low' as const,
     capabilityDecision: 'allow' as const,
     geasPolicyVersion: 'GEAS-3.0',
-    geasDecision,
+    geasDecision: 'allow' as const,
     evaluatedAt: '2026-11-20T05:00:00.000Z',
     geasReasons: ['policy requirements satisfied'],
   }],
 });
 
-const buildDeniedTrace = () => buildTrace('deny') as unknown as ReturnType<typeof buildTrace>;
+const buildTraceWithDecision = (geasDecision: 'allow' | 'deny' | 'escalate') => ({
+  ...buildTrace(),
+  stepAuthorizations: [{
+    ...buildTrace().stepAuthorizations[0],
+    geasDecision,
+  }],
+});
+
+const buildDeniedTrace = () => buildTraceWithDecision('deny') as unknown as ReturnType<typeof buildTrace>;
 
 test('Autopilot persists AI CEO, specialist provenance and GEAS authorization with the mission plan', async () => {
   const store = new MemoryMissionStore();
