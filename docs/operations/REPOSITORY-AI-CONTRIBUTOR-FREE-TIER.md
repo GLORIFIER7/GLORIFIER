@@ -156,7 +156,7 @@ The intended flow is:
 
 Owner-attested free provider pool -> exact owner-approved public mission ID -> GEAS mission authorization -> whole-payload credential screening -> provider-specific specialist review -> AI CEO plan -> source inspection -> credential screening -> durable quota reservation -> isolated branch -> bounded file updates -> independent GitHub readback -> draft PR
 
-All eligible providers can contribute one independent specialist analysis per mission (up to sixteen providers). Provider/model attribution is retained in findings. Multiple responses are not treated as consensus; disagreements and missing evidence remain visible.
+Eligible providers can contribute one independent specialist analysis per mission (up to sixteen providers). When the `software-architect` role is selected, the `anthropic` provider is explicitly assigned to that role as GLORIFIER's independent Claude architecture specialist; other eligible providers are distributed across the remaining selected roles. This role mapping does not make Claude eligible or authorize inference: the existing fresh Anthropic promotional-credit attestation, zero-billing boundary, exact model/endpoint match, mission approval, credential screening, durable quota reservation, and GEAS checks remain mandatory. Provider/model attribution is retained in findings. Multiple responses are not treated as consensus; disagreements and missing evidence remain visible.
 
 Each repository mission can edit at most two already-inspected files under the existing Autopilot allowlist. The plan must create one isolated branch from main, re-read inspected files on that branch, update only those files with their inspected content hashes, and end by creating a draft PR.
 
