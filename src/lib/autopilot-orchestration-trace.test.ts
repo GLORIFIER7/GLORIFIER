@@ -143,3 +143,41 @@ test('Autopilot refuses to persist a mission plan with a non-allow GEAS decision
   );
   assert.equal((await store.get(created.id))?.steps.length, 0);
 });
+
+test('Autopilot expired execution leases require reconciliation before any retry', async () => {
+  const store = new MemoryMissionStore();
+  const created = await createAutopilotMission(store, {
+    requester: 'owner',
+    idempotencyKey: 'governance-trace-expired-lease-001',
+    objective: 'Inspect the configured repository identity.',
+    now: '2026-11-20T05:00:00.000Z',
+  });
+  const claimed = await claimNextAutopilotMission(store, 'worker-1', 120_000, '2026-11-20T05:01:00.000Z');
+  assert.ok(claimed);
+
+  const executing = await store.save({
+    ...claimed!,
+    status: 'executing',
+    steps: [{
+      id: 'inspect',
+      capability: 'github.get_repository',
+      objective: 'Inspect repository metadata.',
+      effect: 'read-only',
+      status: 'running',
+      idempotencyKey: 'governance-trace-expired-step-001',
+      evidenceRefs: [],
+      attemptCount: 1,
+    }],
+  }, claimed!.version);
+  assert.ok(executing);
+
+  const recovered = await store.recoverExpired('2026-11-20T05:04:00.000Z');
+  assert.equal(recovered, 1);
+
+  const stored = await store.get(created.id);
+  assert.equal(stored?.status, 'reconciliation-required');
+  assert.equal(stored?.leaseOwner, undefined);
+  assert.equal(stored?.leaseExpiresAt, undefined);
+  assert.equal(stored?.steps[0]?.status, 'reconciliation-required');
+  assert.equal(await store.claimNext('worker-2', 120_000, '2026-11-20T05:05:00.000Z'), null);
+});
