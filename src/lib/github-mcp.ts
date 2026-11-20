@@ -32,7 +32,7 @@ export type GithubMcpRateLimiter = {
 };
 type McpMessage = {
   jsonrpc?: unknown;
-  id?: JsonRpcId;
+  id?: unknown;
   method?: unknown;
   params?: unknown;
 };
@@ -117,6 +117,10 @@ const rpcError = (id: JsonRpcId, code: number, message: string, status = 200): R
 
 const isRecord = (value: unknown): value is JsonRecord =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const isJsonRpcId = (value: unknown): value is JsonRpcId =>
+  value === null || typeof value === 'string' ||
+  (typeof value === 'number' && Number.isFinite(value));
 
 const isValidOrigin = (request: Request): boolean => {
   try {
@@ -790,14 +794,16 @@ const handleJsonRpc = (
   message: McpMessage,
   readToken?: string,
 ): Response | Promise<Response> => {
-  const id = typeof message.id === 'string' || typeof message.id === 'number' || message.id === null
-    ? message.id
-    : null;
+  const hasId = Object.hasOwn(message, 'id');
+  if (hasId && !isJsonRpcId(message.id)) {
+    return rpcError(null, -32600, 'Invalid JSON-RPC request ID.');
+  }
+  const id: JsonRpcId = hasId ? message.id as JsonRpcId : null;
   if (message.jsonrpc !== '2.0' || typeof message.method !== 'string') {
     return rpcError(id, -32600, 'Invalid JSON-RPC request.');
   }
   if (message.method.startsWith('notifications/')) return emptyNotificationResponse();
-  if (!Object.hasOwn(message, 'id')) return emptyNotificationResponse();
+  if (!hasId) return emptyNotificationResponse();
 
   const protocolMode = resolveMcpProtocolMode(request, message, id);
   if ('response' in protocolMode) return protocolMode.response;
@@ -850,22 +856,45 @@ const parseMcpRequest = async (request: Request): Promise<ParsedMcpRequest> => {
   }
 };
 
+type RateLimitableMcpToolCall = { id: JsonRpcId; name: GithubReadToolName };
+
+const getRateLimitableMcpToolCall = (
+  request: Request,
+  message: McpMessage,
+): RateLimitableMcpToolCall | null => {
+  // Do not reserve upstream quota for malformed JSON-RPC envelopes or IDs.
+  if (message.jsonrpc !== '2.0' || message.method !== 'tools/call' ||
+      !Object.hasOwn(message, 'id') || !isJsonRpcId(message.id)) return null;
+
+  const id = message.id;
+  const protocolMode = resolveMcpProtocolMode(request, message, id);
+  if ('response' in protocolMode) return null;
+
+  // Modern MCP routing and envelope checks must complete before quota is
+  // reserved. handleJsonRpc repeats these pure validations before dispatch.
+  if (protocolMode.mode === 'modern') {
+    if (validateModernRequestEnvelope(message, id)) return null;
+    if (validateModernRoutingHeaders(request, message, id)) return null;
+  }
+
+  const params = isRecord(message.params) ? message.params : {};
+  // Only the four allowlisted read tools make upstream GitHub API requests.
+  // Unknown tools and invalid arguments are rejected locally without quota.
+  if (typeof params.name !== 'string' ||
+      !AUTOPILOT_READ_TOOL_NAMES.has(params.name as GithubReadToolName)) return null;
+  if (getToolArgumentError(params.name, toolArguments(params.arguments)) !== null) return null;
+
+  return { id, name: params.name as GithubReadToolName };
+};
+
 const enforceMcpToolRateLimit = async (
   request: Request,
   message: McpMessage,
   rateLimiter: GithubMcpRateLimiter | undefined,
 ): Promise<Response | null> => {
-  if (message.method !== 'tools/call' || !Object.hasOwn(message, 'id')) return null;
-  const params = isRecord(message.params) ? message.params : {};
-  // Only the four allowlisted read tools make upstream GitHub API requests.
-  // Unknown tools are rejected locally and must not consume the upstream quota.
-  if (typeof params.name !== 'string' ||
-      !AUTOPILOT_READ_TOOL_NAMES.has(params.name as GithubReadToolName)) return null;
-  if (getToolArgumentError(params.name, toolArguments(params.arguments)) !== null) return null;
-
-  const id = typeof message.id === 'string' || typeof message.id === 'number' || message.id === null
-    ? message.id
-    : null;
+  const candidate = getRateLimitableMcpToolCall(request, message);
+  if (!candidate) return null;
+  const { id } = candidate;
   if (!rateLimiter) {
     return rpcError(id, -32003, 'MCP rate-limit service is not configured.', 503);
   }
