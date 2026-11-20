@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BrainCircuit, Globe2, Activity, Database, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { getIdToken } from '../lib/firebase';
 
 type RuntimeStatus = {
   status?: string;
@@ -68,7 +69,13 @@ export const BusinessIntelligenceArchitecturePanel: React.FC = () => {
       const requests = await Promise.allSettled([
         fetch('/api/business-intelligence/architecture').then(async r=>{const p=await r.json();if(!r.ok||!p.ok)throw new Error(p.error||'BI architecture unavailable');return p.architecture;}),
         fetch('/api/business-intelligence/status').then(async r=>{const p=await r.json();if(!r.ok||!p.ok)throw new Error(p.error||'BI runtime status unavailable');return p;}),
-        fetch('/api/business-intelligence/advisory').then(async r=>{const p=await r.json();if(!r.ok||!p.ok)throw new Error(p.error||'GEAS business advisory unavailable');return p.advisory;})
+        getIdToken().then(async token=>{
+          if(!token) throw new Error('Owner authentication required for GEAS advisory. Sign in and retry.');
+          const r=await fetch('/api/business-intelligence/advisory',{headers:{Authorization:`Bearer ${token}`},cache:'no-store'});
+          const p=await r.json();
+          if(!r.ok||!p.ok) throw new Error(p.error||'GEAS business advisory unavailable');
+          return p.advisory;
+        })
       ]);
       if(cancelled) return;
       if(requests[0].status==='fulfilled'){setData(requests[0].value);setError(null);}
@@ -153,6 +160,7 @@ export const BusinessIntelligenceArchitecturePanel: React.FC = () => {
         <div className="text-[10px] text-slate-400">
           GEAS scan: {geas?.scanId || 'not available'} · drift findings: {drift.length} · Human approval required: {advisory.governance?.humanApprovalRequired ? 'yes' : 'not established'}
         </div>
+        {advisory.governance?.irreversibleActionsExecuted && <div role="alert" className="text-xs text-red-300">GEAS scan reports irreversible changes executed. Stop and require immediate owner review.</div>}
         {advisory.intelligence?.sourceStatuses?.map((item,index)=><div key={index} className="text-[10px] text-slate-400">Source collection: {item}</div>)}
         {advisory.limitations?.map((item,index)=><div key={index} className="text-[10px] text-amber-300">{item}</div>)}
         {drift.slice(0,4).map(item=><div key={item.id} className="border-t border-slate-800 pt-2">
