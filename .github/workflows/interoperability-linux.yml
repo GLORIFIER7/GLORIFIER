@@ -169,7 +169,7 @@ jobs:
       - name: Install locked GLORIFIER dependencies
         run: npm ci --no-audit --no-fund --ignore-scripts
       - name: Test MCP local conformance harness contracts
-        run: node --test scripts/mcp-local-conformance-server.test.mjs
+        run: node --import tsx/esm --test scripts/mcp-local-conformance-server.test.mjs
       - name: Checkout pinned official MCP conformance runner
         uses: actions/checkout@v4
         with:
