@@ -832,6 +832,26 @@ const run = async (): Promise<void> => {
             'unknown/prototype tool names must not consume the upstream rate limit');
         }
 
+        // JSON-RPC notifications have no id and must not receive JSON-RPC
+        // error responses or consume a quota for an upstream call that is
+        // intentionally not executed by this transport.
+        capturedRequest = null;
+        const rateLimitKeysBeforeNotification = [...mcpRateLimitKeys];
+        const toolCallNotification = await worker.fetch(
+          mcpPost({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: { name: 'github_get_repository', arguments: {} },
+          }, '203.0.113.42'),
+          env,
+        );
+        assert.equal(toolCallNotification.status, 202,
+          'a tools/call notification must be acknowledged without a JSON-RPC response');
+        assert.equal(await toolCallNotification.text(), '');
+        assert.deepEqual(mcpRateLimitKeys, rateLimitKeysBeforeNotification,
+          'a notification without an id must not consume the upstream tool-call quota');
+        assert.equal(capturedRequest, null, 'a JSON-RPC notification must not call upstream GitHub');
+
     };
 
     const verifyMcpMethodAndMediaValidation = async (): Promise<void> => {
