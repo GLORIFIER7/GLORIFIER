@@ -1,7 +1,23 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { runSpecialistCouncil, isStandingMissionRequestAuthorized, SpecialistCouncilInputError } from './specialist-council.ts';
-import { aiOrchestrator } from './orchestrator';
+import { aiOrchestrator, assertAIProviderResponseAttribution } from './orchestrator';
+
+test('automatic provider responses must match the actual provider adapter and an advertised model', () => {
+  const provider = { id: 'gemini' as const, models: () => ['gemini-free-test'] };
+  assert.throws(
+    () => assertAIProviderResponseAttribution(provider, { provider: 'openai', model: 'gpt-free-test' }),
+    /mismatched provider attribution/,
+  );
+  assert.throws(
+    () => assertAIProviderResponseAttribution(provider, { provider: 'gemini', model: 'unregistered-model' }),
+    /unregistered model attribution/,
+  );
+  assert.doesNotThrow(() => assertAIProviderResponseAttribution(provider, {
+    provider: 'gemini',
+    model: 'gemini-free-test',
+  }));
+});
 
 const roles = ['engineering-scientist', 'software-architect'];
 const providerSelections = [
