@@ -297,6 +297,31 @@ test('automatic specialist provider failures fail closed without exposing provid
 });
 
 
+
+test('automatic specialist responses must match the provider/model selected by the orchestrator', async () => {
+  const originalGenerateWithAttribution = aiOrchestrator.generateWithAttribution;
+  aiOrchestrator.generateWithAttribution = async () => ({
+    response: {
+      provider: 'openai',
+      model: 'gpt-free-test',
+      text: 'This response was attributed to the wrong provider.',
+    } as never,
+    providerId: 'gemini',
+    modelId: 'gemini-free-test',
+  });
+  try {
+    await assert.rejects(
+      () => runSpecialistCouncil({
+        objective: 'Inspect a repository change.',
+        roles: [roles[0]],
+      }),
+      /unexpected provider\/model attribution/i,
+    );
+  } finally {
+    aiOrchestrator.generateWithAttribution = originalGenerateWithAttribution;
+  }
+});
+
 test('invalid council objectives, roles, and temperatures use a typed client-input error', async () => {
   await assert.rejects(
     () => runSpecialistCouncil({ objective: '', roles: [roles[0]] }),
