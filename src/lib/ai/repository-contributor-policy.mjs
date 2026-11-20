@@ -393,18 +393,28 @@ export function buildRepositoryCouncilAssignments(eligibleProviders, roles) {
   const fallbackRoles = safeRoles.filter((role) => !reservedRoleIds.has(role.id));
   let fallbackIndex = 0;
 
-  return providers.map((provider) => {
+  const roleByProviderId = new Map();
+  // Assign fallback roles in a canonical provider order so the same eligible
+  // providers receive the same specialist roles regardless of discovery order.
+  const stableProviders = [...providers].sort((left, right) =>
+    left.providerId.localeCompare(right.providerId),
+  );
+  for (const provider of stableProviders) {
     const preferredRoleId = PROVIDER_SPECIALIST_ROLE_PREFERENCES[provider.providerId];
     const preferredRole = typeof preferredRoleId === 'string' ? rolesById.get(preferredRoleId) : null;
     const role = preferredRole || (fallbackRoles.length
       ? fallbackRoles[fallbackIndex++ % fallbackRoles.length]
       : safeRoles[fallbackIndex++ % safeRoles.length]);
-    return {
-      providerId: provider.providerId,
-      modelId: provider.modelId,
-      role
-    };
-  });
+    roleByProviderId.set(provider.providerId, role);
+  }
+
+  // Preserve the caller's provider ordering in the returned result while
+  // keeping role allocation stable by provider identity.
+  return providers.map((provider) => ({
+    providerId: provider.providerId,
+    modelId: provider.modelId,
+    role: roleByProviderId.get(provider.providerId)
+  }));
 }
 
 export function isSafeRepositoryContributionInput(value) {
