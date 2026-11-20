@@ -195,7 +195,7 @@ jobs:
           echo "$!" > "$RUNNER_TEMP/glorifier-mcp-local-server.pid"
 
           ready=false
-          for attempt in $(seq 1 30); do
+          for _ in $(seq 1 30); do
             status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$MCP_CONFORMANCE_URL" || true)"
             if [ "$status" = "405" ]; then
               ready=true
