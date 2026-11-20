@@ -785,6 +785,7 @@ const run = async (): Promise<void> => {
         mcpRateLimitAllowed = true;
 
         capturedRequest = null;
+        const rateLimitKeysBeforeUnavailable = [...mcpRateLimitKeys];
         mcpRateLimitThrows = true;
         const unavailableMcpRateLimiter = await worker.fetch(
           mcpPost({
@@ -807,6 +808,8 @@ const run = async (): Promise<void> => {
         assert.equal(unavailableMcpRateLimiterBody.error.code, -32003);
         assert.match(unavailableMcpRateLimiterBody.error.message, /rate-limit service is unavailable/i);
         assert.equal(capturedRequest, null, 'rate-limit service failures must not reach GitHub');
+        assert.deepEqual(mcpRateLimitKeys, rateLimitKeysBeforeUnavailable,
+          'an unavailable rate-limit backend must not record a key');
         mcpRateLimitThrows = false;
         const rateLimitKeysBeforeUnknownTools = [...mcpRateLimitKeys];
 
