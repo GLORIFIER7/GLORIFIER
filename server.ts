@@ -3239,8 +3239,8 @@ app.get('/api/business-intelligence/report', async (_req: Request, res: Response
     const evidence = report?.evidence || [];
     const sourceCount = report?.sourceCount || 0;
     const evidenceCount = evidence.length;
-    const githubEvidenceCount = evidence.filter((item) => /github/i.test(item.source)).length;
-    const marketEvidenceCount = evidence.filter((item) => /competitor|company|market|product|pricing|funding|acquisition/i.test(String(item.title)+' '+String(item.summary))).length;
+    const githubEvidenceCount = evidence.filter((item: { source?: unknown } | null) => /github/i.test(String(item?.source ?? ''))).length;
+    const marketEvidenceCount = evidence.filter((item: { title?: unknown; summary?: unknown } | null) => /competitor|company|market|product|pricing|funding|acquisition/i.test(String(item?.title ?? '')+' '+String(item?.summary ?? ''))).length;
     const hasEvidence = evidenceCount > 0;
     const insights = [
       { id:'web_mentions', title:'Public web intelligence', status:hasEvidence ? 'observed' : 'not-available', summary:hasEvidence ? 'Public-source evidence was collected; inspect each source and collection status.' : 'No public-source evidence is available in the latest report.', metrics:[{label:'Sources',value:String(sourceCount)},{label:'Evidence',value:String(evidenceCount)}], actions:['Review source-backed signals before acting.'] },
