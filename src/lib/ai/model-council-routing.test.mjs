@@ -128,6 +128,11 @@ test('AI council route requires owner authorization and has a principal-scoped s
     serverSource,
     /app\.post\('\/api\/ai\/council',\s*requireOwnerOrInternalService,\s*aiCouncilRateLimit,/,
   );
+  assert.match(
+    serverSource,
+    /app\\.post\\('\\/api\\/ai\\/specialist-council',\\s*aiCouncilRateLimit,/,
+    'provider-fanout Specialist Council requests must share the principal/IP-aware spend limiter',
+  );
   assert.match(serverSource, /createModelCouncilRateLimit\(\{[\s\S]*?limit:\s*2/);
   assert.match(serverSource, /import \{ isIP \} from 'node:net'/);
   assert.match(serverSource, /req\.get\('x-real-ip'\)/);
