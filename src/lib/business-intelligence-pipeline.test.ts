@@ -194,5 +194,5 @@ test('does not interpret a missing GEAS scan as zero risk or a complete advisory
   assert.equal(advisory.geas.status, 'not-available');
   assert.equal(advisory.geas.drift.length, 0);
   assert.equal(advisory.governance.humanApprovalRequired, true);
-  assert.match(advisory.limitations.join(' '), /GEAS scan/i);
+  assert.match(advisory.limitations.join(' '), /GEAS (?:architecture )?scan/i);
 });
