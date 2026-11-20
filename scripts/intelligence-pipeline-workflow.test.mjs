@@ -50,5 +50,12 @@ assert.match(
   'the refresh request must remain gated on a configured endpoint',
 );
 
+const refreshStep = workflow.match(/- name: Refresh configured intelligence report([\\s\\S]*?)(?=\\n      - name:|\\s*$)/)?.[1] ?? '';
+assert.equal(
+  (refreshStep.match(/-X POST/g) || []).length,
+  2,
+  'both configured-key and no-key scheduled paths must invoke the refresh POST endpoint',
+);
+
 console.log('Intelligence pipeline PR concurrency regression tests passed');
 });
