@@ -641,7 +641,7 @@ export const stripHtml = (input: string): string => {
 
 /**
  * Extract evidence from the document's semantic content region, not site chrome.
- * Prefer <main>, then <article>; otherwise remove common navigation/sidebar/footer
+ * Prefer <article>, then <main>; otherwise remove common navigation/sidebar/footer
  * elements before normalizing text. The full-page hash still uses stripHtml().
  */
 const removeHtmlChrome = (input: string): string => {
@@ -1235,8 +1235,8 @@ export function trimEvidenceExcerptToWordBoundaries(
   return text.slice(startIndex, endIndex).trim();
 }
 
-const createEvidenceExcerpt = (text: string, matchIndex: number): string => {
-  const start = Math.max(0, matchIndex - 240);
+const createEvidenceExcerpt = (text: string, matchIndex: number, contextBefore = 240): string => {
+  const start = Math.max(0, matchIndex - contextBefore);
   const end = Math.min(text.length, matchIndex + 760);
   return trimEvidenceExcerptToWordBoundaries(text, start, end);
 };
@@ -1500,6 +1500,7 @@ const SOURCE_PATTERN_KEYWORD_OVERRIDES: Readonly<Record<string, readonly string[
     'access delegation',
   ],
   'nist-agent-identity-design-tenets': [
+    'Agentic infrastructure enables the unique, cryptographically verifiable identification of agents distinguishable from other identities.',
     'Additionally, as authority is delegated down to sub-agents or downstream services, scopes attenuate so that downstream entities can never claim more authority than the parent.',
     'Agents operate with zero standing privilege, holding no persistent rights when idle.',
     'All access grants are Just-In-Time (JIT), time-bounded and audience-specific.',
@@ -1537,8 +1538,24 @@ export const getSourcePatternKeywords = (sourceId: string): string[] => {
 };
 
 /** Extract a source-specific substantive excerpt without promoting it to claim verification. */
-export const extractSourceEvidenceExcerpt = (sourceId: string, body: string): string | null =>
-  extractEvidence(body, getSourcePatternKeywords(sourceId));
+export const extractSourceEvidenceExcerpt = (sourceId: string, body: string): string | null => {
+  const keywords = getSourcePatternKeywords(sourceId);
+  const standardExcerpt = extractEvidence(body, keywords);
+  if (standardExcerpt || sourceId !== 'nist-agent-identity-design-tenets') return standardExcerpt;
+
+  // NIST's page can expose an unrelated <article> card before the substantive <main> region.
+  // Search the main candidate only when the preferred article extraction yields no evidence.
+  const cleaned = removeHtmlChrome(body);
+  const mainCandidates = extractTopLevelElements(cleaned, 'main');
+  for (const candidate of mainCandidates) {
+    const text = stripHtml(candidate);
+    const matchIndex = findEarliestKeywordIndex(text, keywords);
+    if (matchIndex < 0) continue;
+    const excerpt = createEvidenceExcerpt(text, matchIndex, 0);
+    if (isSubstantiveEvidenceExcerpt(excerpt)) return excerpt;
+  }
+  return null;
+};
 
 const createUnavailableSourceObservation = (
   sourceId: string,
