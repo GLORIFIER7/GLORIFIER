@@ -29,6 +29,27 @@ const BLOCKED_COMMANDS = [
   { matches: /\b(?:railway\s+up|fly\s+deploy|docker\s+push)\b/i, reason: 'Infrastructure deployment and image publication require a separate release approval.' },
 ];
 
+// Shell is not a sandbox. Only vetted single-command inspections and local
+// verification commands may run without a separate human-controlled path.
+// In particular, never allow shell redirection, pipelines, command substitution,
+// inline interpreters or arbitrary scripts to bypass protected file-edit tools.
+const SAFE_BASH_COMMANDS = [
+  /^pwd$/,
+  /^git (?:status|diff|log|show|rev-parse|ls-files|grep)(?: [A-Za-z0-9_./:@+=,~*\\-]+)*$/,
+  /^npm run (?:lint|build|typecheck|test(?::[A-Za-z0-9_-]+)?|check(?::[A-Za-z0-9_-]+)?|validate(?::[A-Za-z0-9_-]+)?|verify(?::[A-Za-z0-9_-]+)?)(?: --(?: [A-Za-z0-9_./:@+=,~*\\-]+)+)?$/,
+  /^node (?:--test|--check)(?: [A-Za-z0-9_./:@+=,~*\\-]+)+$/,
+  /^node --import [A-Za-z0-9_./:@+=,~*\\-]+ --test(?: [A-Za-z0-9_./:@+=,~*\\-]+)+$/,
+  /^tsx [A-Za-z0-9_./:@+=,~*\\-]+\\.test\\.ts$/,
+  /^uv run --locked pytest(?: [A-Za-z0-9_./:@+=,~*\\-]+)*$/,
+  /^pytest(?: [A-Za-z0-9_./:@+=,~*\\-]+)*$/,
+  /^go test(?: [A-Za-z0-9_./:@+=,~*\\-]+)*$/,
+  /^cargo test(?: [A-Za-z0-9_./:@+=,~*\\-]+)*$/,
+  /^npx --no-install tsc --noEmit(?: [A-Za-z0-9_./:@+=,~*\\-]+)*$/,
+  /^rg(?: [A-Za-z0-9_./:@+=,~*\\-]+)+$/,
+  /^ls(?: [A-Za-z0-9_./:@+=,~*\\-]+)*$/,
+  /^cat [A-Za-z0-9_./:@+=,~*\\-]+$/,
+];
+
 function isForceFlagPresent(command) {
   return /--force(?:-with-lease|-if-includes)?(?:=|\b)/i.test(command)
     || /(?:^|\s)-[a-z]*f[a-z]*(?:\s|$)/i.test(command);
@@ -84,7 +105,11 @@ export function decidePreToolUse(event) {
     const blocked = BLOCKED_COMMANDS.find((entry) =>
       entry.matches.test(command) && (!entry.requiresForceFlag || isForceFlagPresent(command)),
     );
-    return blocked ? deny(blocked.reason) : null;
+    if (blocked) return deny(blocked.reason);
+    if (!SAFE_BASH_COMMANDS.some((pattern) => pattern.test(command.trim()))) {
+      return deny('This shell command is not an approved read-only inspection or local validation command. Use reviewed file-edit tools or obtain owner authorization.');
+    }
+    return null;
   }
 
   return null;
