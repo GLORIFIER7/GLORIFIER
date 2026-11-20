@@ -40,11 +40,12 @@ function normalizeTarget(rawPath, cwd) {
     return { error: 'A valid target path is required for file writes.' };
   }
   const candidate = rawPath.trim().replaceAll('\\', '/');
-  if (/^(?:[a-z]:\/|\/\/)/i.test(candidate)) {
-    return { error: 'Absolute paths outside the checked-out repository are not allowed.' };
+  if (candidate.startsWith('//') || (/^[a-z]:\//i.test(candidate) && process.platform !== 'win32')) {
+    return { error: 'This absolute path format cannot be safely resolved inside the checked-out repository.' };
   }
-  const absolute = path.resolve(cwd, candidate);
-  const relative = path.relative(path.resolve(cwd), absolute).replaceAll('\\', '/');
+  const root = path.resolve(cwd);
+  const absolute = path.isAbsolute(candidate) ? path.resolve(candidate) : path.resolve(root, candidate);
+  const relative = path.relative(root, absolute).replaceAll('\\', '/');
   if (relative === '..' || relative.startsWith('../') || path.isAbsolute(relative)) {
     return { error: 'Writes must remain inside the checked-out repository.' };
   }
