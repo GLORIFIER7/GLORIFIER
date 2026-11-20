@@ -82,7 +82,7 @@ test('rejects malformed or untrusted evidence URLs and refuses unreferenced them
   assert.equal(result.observations.length, 2);
   assert.equal(result.rejectedEvidenceCount, 2);
   assert.equal(result.signals.length, 1);
-  assert.ok(result.observations.every((item) => /^https?:\\/\\//.test(item.sourceRef)));
+  assert.ok(result.observations.every((item) => item.sourceRef.startsWith('https://') || item.sourceRef.startsWith('http://')));
 });
 
 test('reports only pipeline stages supported by a real ingestion result', () => {
