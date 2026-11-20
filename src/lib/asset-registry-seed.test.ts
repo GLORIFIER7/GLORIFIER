@@ -64,6 +64,42 @@ async function run() {
   assert.match(registryDoc, /ownerOf/);
   assert.match(registryDoc, /totalSupply/);
 
+  // Runtime GLR deployment seeds must agree with the canonical evidence registry.
+  // Ethereum stays partial while the second same-deployer contract is unresolved;
+  // BNB retains its separately evidenced technical verification; Solana stays partial
+  // pending independent review of the historical mint-transaction provenance.
+  const assetRegistrySource = readFileSync(new URL('./asset-registry.ts', import.meta.url), 'utf8');
+  const glrSeedMatch = assetRegistrySource.match(
+    /async function seedCanonicalGLRRegistry\\(\\) \\{([\\s\\S]*?)\\n\\}\\n\\/\\*\\*/
+  );
+  assert.ok(glrSeedMatch, 'GLR seed function must remain inspectable by the regression guard');
+  const glrSeed = glrSeedMatch[1];
+  const deploymentSeedStatus = (deploymentId: string) => {
+    const marker = `deploymentId: '${deploymentId}'`;
+    const start = glrSeed.indexOf(marker);
+    assert.notEqual(start, -1, `missing GLR deployment seed: ${deploymentId}`);
+    const nextSeed = glrSeed.indexOf('await upsertCanonicalGLRDeployment({', start + marker.length);
+    const block = glrSeed.slice(start, nextSeed === -1 ? undefined : nextSeed);
+    const status = block.match(/status: '([^']+)'/)?.[1];
+    assert.ok(status, `missing verification status for ${deploymentId}`);
+    return status;
+  };
+  assert.equal(
+    deploymentSeedStatus('glr-ethereum-mainnet'),
+    'partially_verified',
+    'Ethereum must not be promoted while canonical contract identity is unresolved'
+  );
+  assert.equal(
+    deploymentSeedStatus('glr-bnb-mainnet'),
+    'fully_verified',
+    'BNB keeps its separate, evidence-supported technical status'
+  );
+  assert.equal(
+    deploymentSeedStatus('glr-solana-mainnet-beta'),
+    'partially_verified',
+    'Solana must remain partial while mint provenance review is unresolved'
+  );
+
   console.log('Canonical NFT registry seed and evidence-guard tests passed.');
 }
 await run();
