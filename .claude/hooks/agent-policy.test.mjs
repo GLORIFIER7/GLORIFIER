@@ -11,6 +11,12 @@ test('allows ordinary source edits inside the repository', () => {
   }), null);
 });
 
+test('allows absolute source paths when they remain inside the checkout', () => {
+  assert.equal(decidePreToolUse({
+    tool_name: 'Write', tool_input: { file_path: path.join(cwd, 'src/example.ts') }, cwd,
+  }), null);
+});
+
 test('denies edits to workflows, secrets, release configuration, migrations and dependency locks', () => {
   for (const file of [
     '.github/workflows/ci.yml', '.env.production', '.dev.vars',
