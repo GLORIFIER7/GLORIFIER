@@ -123,7 +123,8 @@ export function createRequireAuthentication(verify: TokenVerifier = verifyBearer
 
 export const requireAuthentication = createRequireAuthentication();
 
-export function isOwner(decoded: DecodedIdToken): boolean {
+export function isOwner(decoded: DecodedIdToken | null | undefined): boolean {
+  if (!decoded || typeof decoded !== 'object') return false;
   const ownerUid = process.env.GLORIFIER_OWNER_UID?.trim();
   const ownerEmail = process.env.GLORIFIER_OWNER_EMAIL?.trim().toLowerCase();
   const claims = decoded as DecodedIdToken & { owner?: boolean; admin?: boolean; role?: string };
