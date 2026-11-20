@@ -39,13 +39,16 @@ const server = createServer(async (incoming, outgoing) => {
     const headers = new Headers();
 
     for (const [name, value] of Object.entries(incoming.headers)) {
-      if (name === 'connection' || name === 'host' || name === 'transfer-encoding') continue;
+      if (name === 'connection' || name === 'transfer-encoding') continue;
       if (typeof value === 'string') headers.set(name, value);
       else if (Array.isArray(value)) headers.set(name, value.join(', '));
     }
 
-    const host = incoming.headers.host || `${HOST}:${PORT}`;
-    const url = new URL(incoming.url || '/', `http://${host}`);
+    // Build the Fetch Request URL from the fixed loopback listener, never
+    // from the untrusted Host header supplied by the conformance client.
+    // Preserve that Host header separately so the production route can reject
+    // an authority mismatch exactly as it would behind Cloudflare.
+    const url = new URL(incoming.url || '/', `http://${HOST}:${PORT}`);
     const request = new Request(url, {
       method,
       headers,
