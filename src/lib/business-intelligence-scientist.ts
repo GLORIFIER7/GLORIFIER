@@ -96,11 +96,12 @@ export function getBusinessIntelligenceScientistPolicy() {
       autonomousContracting:false, autonomousPaymentMovement:false
     },
     continuousOperation:{
-      enabled:true,
-      cadence:'continuous/event-driven plus scheduled watchlists',
-      autonomousObservation:true,
-      autonomousAnalysis:true,
-      autonomousRecommendation:true,
+      targetCadence:'event-driven ingestion plus scheduled watchlists',
+      runtimeVerified:false,
+      watchlistSchedulerImplemented:false,
+      autonomousObservationRuntimeVerified:false,
+      autonomousAnalysisRuntimeVerified:false,
+      autonomousRecommendationRuntimeVerified:false,
       autonomousIrreversibleAction:false,
       humanApprovalForConsequentialActions:true
     }
@@ -336,6 +337,27 @@ export async function defineBusinessIntelligenceMetric(input:{
 export async function getGlobalBusinessIntelligenceArchitecture() {
   return {
     version:GLORIFIER_BI_SCIENTIST_VERSION,
+    identity:'Continuous business intelligence operating system for evidence-backed decision support.',
+    layers:[
+      'source systems','ingestion and connectors','data foundation and lineage',
+      'semantic business layer','intelligence and analytics','AI orchestration and specialist scientists',
+      'opportunity and monetization evidence','governance, security and compliance',
+      'human decision and authorized execution','outcome verification and economic truth'
+    ],
+    principles:[
+      'provider-neutral orchestration','evidence provenance','semantic consistency',
+      'security and privacy by design','estimated value is not verified revenue',
+      'human authority for consequential actions','measurable verified outcomes'
+    ],
+    sourceOfTruth:{
+      revenue:'Neon/PostgreSQL canonical target; production route cutover pending verification',
+      verification:'Evidence-backed outcome records',
+      orchestration:'GLORIFIER provider-neutral AI layer'
+    },
+    runtimeEndpoints:{
+      status:'/api/business-intelligence/status',
+      advisory:'/api/business-intelligence/advisory'
+    },
     sourceFamilies:[...GLOBAL_BI_SOURCE_FAMILIES],
     sourceCatalog:GLOBAL_BI_SOURCE_CATALOG,
     pipeline:[...BI_INTELLIGENCE_PIPELINE],
@@ -347,9 +369,10 @@ export async function getGlobalBusinessIntelligenceArchitecture() {
       estimatesAreNotFacts:true
     },
     continuousOperation:{
-      enabled:true,
-      mode:'event-driven plus scheduled watchlists',
-      observationAnalysisRecommendationAutonomous:true,
+      targetMode:'event-driven ingestion plus scheduled watchlists',
+      runtimeVerified:false,
+      watchlistSchedulerImplemented:false,
+      autonomousObservationAnalysisRecommendationRuntimeVerified:false,
       irreversibleActionsAutonomous:false
     },
     governance:{
@@ -382,7 +405,11 @@ export async function runBusinessIntelligenceHealthCheck() {
     status:pipeline.status,
     storageStatus:'available',
     version:GLORIFIER_BI_SCIENTIST_VERSION,
-    continuousOperation:{configured:true,runtimeVerified:false},
+    continuousOperation:{
+      scheduledRefreshOwner:'GLORIFIER Intelligence Pipeline workflow; endpoint configuration is required',
+      runtimeVerified:false,
+      watchlistSchedulerImplemented:false,
+    },
     sourceFamilies:GLOBAL_BI_SOURCE_FAMILIES.length,
     domains:BI_DOMAINS.length,
     pipeline,
