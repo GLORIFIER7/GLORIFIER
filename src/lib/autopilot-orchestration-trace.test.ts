@@ -62,8 +62,8 @@ class MemoryMissionStore implements AutopilotMissionStore {
   async recoverExpired() { return 0; }
 }
 
-const buildTrace = (geasDecision: string = 'allow') => ({
-  schemaVersion: 1,
+const buildTrace = () => ({
+  schemaVersion: 1 as const,
   plannedAt: '2026-11-20T05:00:00.000Z',
   aiCeo: { provider: 'gemini', model: 'gemini-2.5-flash' },
   specialists: [{
@@ -76,14 +76,22 @@ const buildTrace = (geasDecision: string = 'allow') => ({
     stepId: 'inspect',
     capability: 'github.get_repository',
     capabilityPolicyId: 'github.get_repository',
-    risk: 'low',
-    capabilityDecision: 'allow',
+    risk: 'low' as const,
+    capabilityDecision: 'allow' as const,
     geasPolicyVersion: 'GEAS-3.0',
-    geasDecision,
+    geasDecision: 'allow' as const,
     evaluatedAt: '2026-11-20T05:00:00.000Z',
     geasReasons: ['policy requirements satisfied'],
   }],
 });
+
+const buildDeniedTrace = () => ({
+  ...buildTrace(),
+  stepAuthorizations: [{
+    ...buildTrace().stepAuthorizations[0],
+    geasDecision: 'deny',
+  }],
+}) as unknown as ReturnType<typeof buildTrace>;
 
 test('Autopilot persists AI CEO, specialist provenance and GEAS authorization with the mission plan', async () => {
   const store = new MemoryMissionStore();
@@ -129,7 +137,7 @@ test('Autopilot refuses to persist a mission plan with a non-allow GEAS decision
       'worker-1',
       [{ id: 'inspect', capability: 'github.get_repository', objective: 'Inspect repository metadata.', effect: 'read-only' }],
       '2026-11-20T05:02:00.000Z',
-      buildTrace('deny'),
+      buildDeniedTrace(),
     ),
     /only allowed capability and GEAS decisions can be persisted/,
   );
