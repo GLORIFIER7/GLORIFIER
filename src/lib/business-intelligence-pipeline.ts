@@ -117,7 +117,7 @@ function normalizedTimestamp(...values: Array<string | undefined>): string {
 
 function domainForSource(source: string): string {
   const normalized = source.toLowerCase();
-  if (normalized.includes('glorifier') || normalized.includes('market') || normalized.includes('news')) {
+  if (normalized.includes('google-news-glorifier') || normalized.includes('market')) {
     return 'market-intelligence';
   }
   if (
@@ -130,6 +130,7 @@ function domainForSource(source: string): string {
   ) {
     return 'technology-intelligence';
   }
+  if (normalized.includes('news')) return 'market-intelligence';
   return 'data-intelligence';
 }
 
@@ -302,6 +303,7 @@ export function buildGeasBusinessIntelligenceAdvisory(input: {
   const normalized = report ? normalizeIntelligenceReportToBiRecords(report) : null;
   const evidence = (report?.evidence || []).filter((item) =>
     typeof item.id === 'string'
+    && typeof item.source === 'string'
     && typeof item.title === 'string'
     && validHttpUrl(item.url),
   );
@@ -338,7 +340,7 @@ export function buildGeasBusinessIntelligenceAdvisory(input: {
     return counts;
   }, {} as Record<string, number>);
   const hasReport = Boolean(report && reportEvidenceRefs.length > 0);
-  const hasScan = Boolean(scan && scan.scanId);
+  const hasScan = Boolean(scan && scan.scanId && scan.completedAt);
   const limitations: string[] = [];
   if (!hasReport) limitations.push('No valid public intelligence report evidence is available.');
   if (!hasScan) limitations.push('A persisted GEAS architecture scan is unavailable; this advisory cannot assess architecture drift.');
@@ -355,6 +357,7 @@ export function buildGeasBusinessIntelligenceAdvisory(input: {
     intelligence: {
       reportId: report?.id || null,
       generatedAt: report?.generatedAt || null,
+      sourceStatuses: report?.sourceStatuses || [],
       sourceCount: normalized?.sourceCount || 0,
       evidenceCount: reportEvidenceRefs.length,
       evidence: evidence.map((item) => ({
