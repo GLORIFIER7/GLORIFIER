@@ -17,6 +17,19 @@ async function run() {
 
   await seedCanonicalNFTRegistry(db);
 
+  // Ethereum's canonical identity remains partial while the second same-deployer
+  // GLORIFIER/GLR contract has not been reconciled by the owner.
+  const registrySource = readFileSync(new URL('./asset-registry.ts', import.meta.url), 'utf8');
+  const ethereumSeedStart = registrySource.indexOf("deploymentId: 'glr-ethereum-mainnet'");
+  const bnbSeedStart = registrySource.indexOf("deploymentId: 'glr-bnb-mainnet'");
+  assert.ok(ethereumSeedStart >= 0 && bnbSeedStart > ethereumSeedStart, 'canonical Ethereum and BNB seed entries must remain identifiable');
+  const ethereumSeed = registrySource.slice(ethereumSeedStart, bnbSeedStart);
+  assert.match(ethereumSeed, /status:\s*'partially_verified'/, 'Ethereum seed must not overstate unresolved canonical identity');
+  assert.doesNotMatch(ethereumSeed, /status:\s*'fully_verified'/, 'Ethereum seed must not promote unresolved identity to fully verified');
+  const upsertStart = registrySource.indexOf('async function upsertCanonicalGLRDeployment');
+  assert.ok(upsertStart >= 0, 'canonical GLR deployment upsert must remain present');
+  assert.match(registrySource.slice(upsertStart), /status=EXCLUDED\.status/, 'the tested seed status is applied on conflict to persisted rows');
+
   assert.equal(calls.length, 4, 'seed should write two collection identities and their two supplied deployment references');
   const assetCalls = calls.filter((call) => call.sql.includes('INSERT INTO canonical_asset_registry'));
   const deploymentCalls = calls.filter((call) => call.sql.includes('INSERT INTO canonical_asset_deployments'));
