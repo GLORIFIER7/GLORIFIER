@@ -122,7 +122,8 @@ const isValidOrigin = (request: Request): boolean => {
   try {
     const requestUrl = new URL(request.url);
     const hostHeader = request.headers.get('host');
-    if (hostHeader) {
+    if (hostHeader !== null) {
+      if (!hostHeader || hostHeader.trim() !== hostHeader) return false;
       // The HTTP authority must agree with the URL Cloudflare routed. Otherwise
       // an attacker can pair a hostile Host and Origin and make both compare
       // equal while rebinding the endpoint's authority.
@@ -134,7 +135,8 @@ const isValidOrigin = (request: Request): boolean => {
     }
 
     const origin = request.headers.get('origin');
-    if (!origin) return true;
+    if (origin === null) return true;
+    if (!origin || origin.trim() !== origin) return false;
     const parsedOrigin = new URL(origin);
     return !parsedOrigin.username && !parsedOrigin.password &&
       parsedOrigin.origin === requestUrl.origin;
