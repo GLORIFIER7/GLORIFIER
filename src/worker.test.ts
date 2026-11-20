@@ -892,6 +892,15 @@ const run = async (): Promise<void> => {
             Host: 'evil.example.com/path',
             Origin: 'https://glorifier.glorifier.workers.dev',
           },
+          {
+            'Content-Type': 'application/json',
+            Host: '',
+          },
+          {
+            'Content-Type': 'application/json',
+            Host: 'glorifier.glorifier.workers.dev',
+            Origin: '',
+          },
         ];
         for (const headers of hostileOriginHeaderCases) {
           const rejectedRebinding = await worker.fetch(
