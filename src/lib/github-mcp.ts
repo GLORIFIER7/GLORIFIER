@@ -119,10 +119,25 @@ const isRecord = (value: unknown): value is JsonRecord =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const isValidOrigin = (request: Request): boolean => {
-  const origin = request.headers.get('origin');
-  if (!origin) return true;
   try {
-    return new URL(origin).origin === new URL(request.url).origin;
+    const requestUrl = new URL(request.url);
+    const hostHeader = request.headers.get('host');
+    if (hostHeader) {
+      // The HTTP authority must agree with the URL Cloudflare routed. Otherwise
+      // an attacker can pair a hostile Host and Origin and make both compare
+      // equal while rebinding the endpoint's authority.
+      const headerUrl = new URL(`${requestUrl.protocol}//${hostHeader}`);
+      if (headerUrl.username || headerUrl.password || headerUrl.pathname !== '/' ||
+          headerUrl.search || headerUrl.hash || headerUrl.host !== requestUrl.host) {
+        return false;
+      }
+    }
+
+    const origin = request.headers.get('origin');
+    if (!origin) return true;
+    const parsedOrigin = new URL(origin);
+    return !parsedOrigin.username && !parsedOrigin.password &&
+      parsedOrigin.origin === requestUrl.origin;
   } catch {
     return false;
   }
