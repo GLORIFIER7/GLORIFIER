@@ -95,7 +95,7 @@ const server = createServer(async (incoming, outgoing) => {
     outgoing.end(Buffer.from(await response.arrayBuffer()));
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Local MCP conformance adapter failed.';
-    process.stderr.write(`Local MCP harness error: ${message}\\n`);
+    process.stderr.write(`Local MCP harness error: ${message}\n`);
     const statusCode = error && typeof error === 'object' && error.statusCode === 413 ? 413 : 500;
     outgoing.writeHead(statusCode, {
       'Cache-Control': 'no-store',
@@ -111,7 +111,7 @@ const isDirectExecution = process.argv[1] &&
 
 if (isDirectExecution) {
   server.listen(PORT, HOST, () => {
-    process.stdout.write(`Local GLORIFIER MCP conformance server listening on http://${HOST}:${PORT}/mcp\\n`);
+    process.stdout.write(`Local GLORIFIER MCP conformance server listening on http://${HOST}:${PORT}/mcp\n`);
   });
   const shutdown = () => {
     server.close(() => process.exit(0));
