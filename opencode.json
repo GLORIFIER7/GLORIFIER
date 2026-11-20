@@ -1,0 +1,47 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "default_agent": "build",
+  "instructions": [
+    "AGENTS.md",
+    "AGENT_RUNTIME.md",
+    "GEMINI.md",
+    "CONTRIBUTING.md"
+  ],
+  "subagent_depth": 1,
+  "agent": {
+    "build": {
+      "permission": {
+        "edit": "allow",
+        "bash": {
+          "*": "ask",
+          "git status*": "allow",
+          "git diff*": "allow",
+          "git log*": "allow",
+          "git show*": "allow",
+          "git branch --show-current": "allow",
+          "git branch --list*": "allow",
+          "npm run lint": "allow",
+          "npm run build": "allow",
+          "npm run test:*": "allow",
+          "node --test *": "allow",
+          "node --import tsx/esm --test *": "allow",
+          "npx tsc --noEmit": "allow",
+          "git push*": "ask",
+          "git merge*": "deny",
+          "git reset --hard*": "deny",
+          "git clean*": "deny",
+          "git restore*": "deny",
+          "gh pr merge*": "deny",
+          "npm publish*": "deny",
+          "wrangler deploy*": "deny",
+          "npx wrangler deploy*": "deny",
+          "railway up*": "deny",
+          "fly deploy*": "deny",
+          "docker push*": "deny",
+          "gh secret*": "deny",
+          "wrangler secret*": "deny"
+        }
+      }
+    }
+  }
+}
