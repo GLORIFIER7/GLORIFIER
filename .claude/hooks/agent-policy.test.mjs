@@ -17,16 +17,18 @@ test('allows absolute source paths when they remain inside the checkout', () => 
   }), null);
 });
 
-test('denies edits to workflows, secrets, release configuration, migrations and dependency locks', () => {
+test('denies edits to protected paths for every supported file-edit tool name', () => {
   for (const file of [
     '.github/workflows/ci.yml', '.env.production', '.dev.vars',
     'wrangler.jsonc', 'database/migrations/001.sql', 'package-lock.json',
     'uv.lock', 'keys/deploy.pem',
   ]) {
-    const decision = decidePreToolUse({
-      tool_name: 'Edit', tool_input: { file_path: file }, cwd,
-    });
-    assert.equal(decision?.hookSpecificOutput?.permissionDecision, 'deny', file);
+    for (const tool_name of ['Edit', 'MultilineEdit', 'MultiEdit', 'NotebookEdit']) {
+      const decision = decidePreToolUse({
+        tool_name, tool_input: { file_path: file }, cwd,
+      });
+      assert.equal(decision?.hookSpecificOutput?.permissionDecision, 'deny', tool_name + ': ' + file);
+    }
   }
 });
 
@@ -41,12 +43,24 @@ test('denies destructive, privileged or production-side-effect shell commands', 
   for (const command of [
     'git push origin main --force', 'git push --force-with-lease',
     'git reset --hard HEAD', 'git clean -fd', 'gh pr merge 123',
-    'gh secret set API_KEY', 'wrangler deploy', 'npm publish',
-    'terraform apply -auto-approve', 'railway up',
+    'gh secret set API_KEY', 'gh secret delete API_KEY', 'gh variable remove PROVIDER_KEY',
+    'wrangler deploy', 'npm publish', 'terraform apply -auto-approve', 'railway up',
   ]) {
     const decision = decidePreToolUse({
       tool_name: 'Bash', tool_input: { command }, cwd,
     });
+    assert.equal(decision?.hookSpecificOutput?.permissionDecision, 'deny', command);
+  }
+});
+
+test('denies unsafe git operations when shell substitutions or pipelines obscure arguments', () => {
+  for (const command of [
+    'git reset $(printf x | sed s/x/--hard/) HEAD',
+    'git clean $(printf x | sed s/x/-fd/)',
+    'git push $(printf x | sed s/x/origin/) --force',
+    'git push origin $(printf x | sed s/x/--force/)',
+  ]) {
+    const decision = decidePreToolUse({ tool_name: 'Bash', tool_input: { command }, cwd });
     assert.equal(decision?.hookSpecificOutput?.permissionDecision, 'deny', command);
   }
 });
@@ -58,7 +72,7 @@ test('allows read-only inspection and ordinary focused validation commands', () 
   ]) {
     assert.equal(decidePreToolUse({
       tool_name: 'Bash', tool_input: { command }, cwd,
-    }), null, command);
+    }), null);
   }
 });
 
