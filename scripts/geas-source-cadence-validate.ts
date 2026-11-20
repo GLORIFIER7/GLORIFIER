@@ -166,7 +166,7 @@ for (const requiredStatement of [
   'does not acquire the PostgreSQL lease',
   'does not coordinate with the application daemon',
   'one active scanner process at a time',
-  'application daemon must remain disabled during the artifact-only workflow',
+  'Keep the application daemon disabled during the artifact-only workflow',
 ]) {
   if (!scanOperationsDoc.includes(requiredStatement)) {
     throw new Error(`GEAS scan operations documentation is missing: ${requiredStatement}`);
