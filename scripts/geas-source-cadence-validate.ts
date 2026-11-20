@@ -42,7 +42,7 @@ type ScanWorkflowContract = {
   persistence: string | null;
 };
 const parseScanWorkflowContract = (text: string): ScanWorkflowContract => {
-  const lines = text.split('\\n').map(line => line.endsWith('\\r') ? line.slice(0, -1) : line);
+  const lines = text.split('\n').map(line => line.endsWith('\r') ? line.slice(0, -1) : line);
   const cronLine = lines.find(line => line.startsWith('    - cron: '));
   const concurrencyIndex = lines.indexOf('concurrency:');
   const groupLine = concurrencyIndex >= 0 ? lines[concurrencyIndex + 1] ?? '' : '';
@@ -73,10 +73,10 @@ const validArtifactOnlyWorkflowFixture = [
   '      - name: Execute authoritative architecture scan',
   '        env:',
   "          GEAS_SCAN_PERSIST: 'false'",
-].join('\\n');
+].join('\n');
 const scanWorkflowContractFixtures = [
   { name: 'valid artifact-only schedule', text: validArtifactOnlyWorkflowFixture, expected: true },
-  { name: 'missing concurrency guard', text: validArtifactOnlyWorkflowFixture.replace('concurrency:\\n  group: geas-architecture-scan\\n  cancel-in-progress: false\\n', ''), expected: false },
+  { name: 'missing concurrency guard', text: validArtifactOnlyWorkflowFixture.replace('concurrency:\n  group: geas-architecture-scan\n  cancel-in-progress: false\n', ''), expected: false },
   { name: 'cancel in-progress scan', text: validArtifactOnlyWorkflowFixture.replace('cancel-in-progress: false', 'cancel-in-progress: true'), expected: false },
   { name: 'persistence enabled', text: validArtifactOnlyWorkflowFixture.replace("GEAS_SCAN_PERSIST: 'false'", "GEAS_SCAN_PERSIST: 'true'"), expected: false },
   { name: 'unexpected scan cadence', text: validArtifactOnlyWorkflowFixture.replace('17 */6 * * *', '17 */3 * * *'), expected: false },
