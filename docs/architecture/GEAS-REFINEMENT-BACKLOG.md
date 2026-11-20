@@ -559,3 +559,27 @@ A comment-only Amazon Q review on PR #882 identified that the new `isMatchingSou
   - **Regression test:** A page with no literal `<main>` or `<article>`, a non-semantic main container, and a known page-chrome marker must yield an excerpt beginning at the exact NIST phrase, retain the substantive delegation sentence, and exclude the chrome marker.
   - **Implementation commits:** `268e409ce633f44c6aea47b94a871e0aab2ce0c8` (extractor); `516253d5eadf6939c4a63342b5646b972f4a414d` (regression test).
 - **Verification:** Exact-head CI and a fresh GEAS scan are pending. The NIST source remains `source-available` / NOT VERIFIED until a subsequent exact-SHA artifact records a substantive excerpt. No source claim is promoted to VERIFIED by this change.
+
+
+## 2026-11-20 — NIST cache migration and exact scan-workflow contract
+
+- **Auto-approved finding — stale NIST evidence cache (LOW):** The source-specific NIST extractor can change while a persistent cache row remains `source-available` with a null excerpt. A conditional request can then return 304 and preserve the old empty excerpt without invoking the new extractor. The scanner now forces one unconditional body fetch only for `nist-agent-identity-design-tenets` when its cached row is successful, `source-available`, and has no non-empty excerpt. The stale row is not passed to 304 reuse; all other sources and substantive NIST cache rows retain normal ETag/Last-Modified behavior.
+  - **Evidence:** PR #943 review thread `PRRT_kwDOUhb7Jc650tar`; exact source cache/revalidation path in `createSourceFetchContext`, `fetchSource`, and `reuseNotModifiedSourceObservation`.
+  - **Rationale:** ensure the already-reviewed source-specific extractor can repair historical empty excerpts without invalidating the global cache or weakening conditional-fetch identity checks.
+  - **Risk:** LOW; one-source, one-time read-only refresh condition with regression coverage. No database schema, source URL, trust admission, production setting, credential, or claim-verification state changed.
+  - **Affected files:** `src/lib/governance/geas-architecture-scientist.ts`, `src/lib/governance/geas-architecture-scientist.test.ts`.
+  - **Regression coverage:** stale NIST source-available cache forces no validators; a 304 cannot reuse that stale row; unrelated sources remain unchanged; substantive NIST cache evidence retains ETag revalidation.
+  - **Implementation commits:** `4b35e35017059920bf4aa1a5fe1935cbcead33e1` (scanner); `a15cc542cdd6ca7a2fb2246238673833e495a2c2` and `dd6f42d78334ac06830a5fc0fff6777e72c75785` (regression test and syntax correction).
+
+- **Auto-approved finding — exact scan schedule and persistence-step binding (LOW):** The prior validator accepted the first cron only and could accept `GEAS_SCAN_PERSIST=false` placed on an unrelated workflow step. It now requires exactly one schedule section with exactly one `17 */6 * * *` cron, exactly one concurrency section with the expected group and cancellation policy, exactly one authoritative scan step, and exactly one `GEAS_SCAN_PERSIST=false` entry inside that step's own `env` block.
+  - **Evidence:** PR #943 review threads `PRRT_kwDOUhb7Jc650tao`, `PRRT_kwDOUhb7Jc650t2_`, `PRRT_kwDOUhb7Jc650t3E`, and CodeAnt duplicate `PRRT_kwDOUhb7Jc650x8Y`.
+  - **Rationale:** prevent extra schedules and prevent a moved or unrelated environment variable from falsely satisfying the artifact-only persistence contract.
+  - **Risk:** LOW; deterministic workflow-contract validation and documentation only. No schedule, concurrency setting, runtime behavior, database state, or production configuration was changed.
+  - **Affected files:** `scripts/geas-source-cadence-validate.ts`, `docs/architecture/geas-scan-operations.md`.
+  - **Regression coverage:** extra cron, duplicate schedule section, missing concurrency guard, cancellation enabled, persistence enabled, persistence set only on an unrelated step, and missing authoritative scan step are rejected.
+  - **Operational precondition:** persistence-disabled scanning requires one active scanner process at a time. GitHub Actions concurrency does not coordinate with the application daemon; keep the daemon disabled during the artifact-only workflow unless a shared cross-process lock is independently established.
+  - **Implementation commits:** `d15f14f3adf54798965a4d470dfd14a5bfe84b93` and `4c77afb16ac9a6cb57590542844f60301dbc6d0b` (validator); `d0d5e0f320021824ed027323cd217d39571e928d` (operations contract).
+
+- **Review disposition — non-semantic `role="main"` fixture (no code change):** The existing source-specific full-page fallback anchors the excerpt at the exact curated NIST phrase after the semantic `<main>` candidate is absent. The PR #943 exact-head GEAS run #44667514198 passed the scientist tests with the non-semantic main fixture. The CodeAnt suggestion is therefore not a reproducible failure on that tested head; retain the narrow exact-phrase fallback and do not add broader generic HTML matching.
+- **Verification state:** Follow-up commits are on the existing PR #943 branch. New exact-head CI and GEAS scan results must be observed before treating these refinements as verified or resolving review threads.
+- **Safety:** No provider readiness, inference, external model traffic, paid request, production deployment, configuration write, database mutation, migration, restart, publication, secret readout, or blockchain operation was performed.
