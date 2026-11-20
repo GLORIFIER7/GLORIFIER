@@ -76,6 +76,7 @@ Technical verification does **not** establish market liquidity or value. During 
 | Date (UTC) | Change | Evidence |
 |---|---|---|
 | 2026-10-09 | Replaced the stale all-NOT-VERIFIED draft labels with evidence-linked technical statuses after live explorer-page rechecks and reconciliation reports supplied for all three networks. | Ethereum Actions run #37222502787 and Etherscan; BscScan contract and deployment transaction; Solscan token page and finalized Solana mint transaction; supplied Solana Run #87 reconciliation report. |
+| 2026-11-20 | Added fresh read-only Alchemy RPC observations for Ethereum, BNB Smart Chain and Solana, plus exact-version Cloudflare deployment/binding evidence; corrected the Ethereum runtime seed to retain PARTIALLY VERIFIED and added a regression guard. | Alchemy GLORIFIER app read-only RPC; Cloudflare Workers API GET; GitHub commit comparison; PR #947. |
 
 ---
 *Informational registry only. It does not promise a market price, liquidity, exchange listing, or return.*
