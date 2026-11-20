@@ -24,6 +24,11 @@ import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, 
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
 import { generateIntelligenceReport, getLatestIntelligenceReport } from './src/lib/intelligence';
+import {
+  ingestIntelligenceReportIntoBusinessIntelligence,
+  runBusinessIntelligenceHealthCheck,
+} from './src/lib/business-intelligence-scientist';
+import { buildGeasBusinessIntelligenceAdvisory } from './src/lib/business-intelligence-pipeline';
 import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask, requireAgentTaskUpdate, initializeAgentRuntimePersistence, getAgentRuntimePersistenceStatus, withAgentTaskHeartbeat, getAgentTaskRecoveryObservation, canAccessAgentTask, resolveAgentTaskRequester } from './src/lib/agent-runtime';
 import { getAutopilotOrchestrationStatus } from './src/lib/autopilot-orchestrator';
 import { initializeAutopilotMissionControl, getAutopilotMissionControlStatus, getAutopilotMissionStore, createAutopilotMission, listAutopilotMissions, getAutopilotMission, AutopilotMissionValidationError } from './src/lib/autopilot-mission-control';
@@ -2077,10 +2082,27 @@ let intelligenceRefreshPromise: Promise<any> | null = null;
 
 async function refreshIntelligenceReport() {
   if (!intelligenceRefreshPromise) {
-    intelligenceRefreshPromise = generateIntelligenceReport({
-      runModel: (provider, prompt, options) => runIntelligenceModel(provider, prompt, options),
-      windowHours: 24
-    }).finally(() => {
+    intelligenceRefreshPromise = (async () => {
+      const report = await generateIntelligenceReport({
+        runModel: (provider, prompt, options) => runIntelligenceModel(provider, prompt, options),
+        windowHours: 24
+      });
+      try {
+        const ingestion = await ingestIntelligenceReportIntoBusinessIntelligence(report);
+        console.info('[GBIS] Intelligence report ingested:', {
+          reportId: ingestion.reportId,
+          status: ingestion.status,
+          observationsUpserted: ingestion.observationsUpserted,
+          signalsUpserted: ingestion.signalsUpserted,
+          rejectedEvidenceCount: ingestion.rejectedEvidenceCount,
+        });
+      } catch (error) {
+        // Keep the source-backed intelligence report available, but never claim GBIS
+        // ingestion succeeded when the separate business-intelligence store is unavailable.
+        console.error('[GBIS] Report generated but BI ingestion failed:', error);
+      }
+      return report;
+    })().finally(() => {
       intelligenceRefreshPromise = null;
     });
   }
@@ -3167,9 +3189,41 @@ app.get('/api/reports/summary', async (_req: Request, res: Response) => {
 // turn catalog metadata, estimates, or public signals into verified revenue.
 // ============================================================================
 
+app.get('/api/business-intelligence/status', async (_req: Request, res: Response) => {
+  try {
+    const status = await runBusinessIntelligenceHealthCheck();
+    return res.json({ ok: true, ...status });
+  } catch (error) {
+    return apiError(res,503,'Business intelligence runtime status unavailable',error);
+  }
+});
+
+app.get('/api/business-intelligence/advisory', async (_req: Request, res: Response) => {
+  try {
+    const [report, scan, businessIntelligence] = await Promise.all([
+      getLatestIntelligenceReport(),
+      getLatestGeasArchitectureScan(),
+      runBusinessIntelligenceHealthCheck(),
+    ]);
+    const advisory = buildGeasBusinessIntelligenceAdvisory({ report, scan });
+    return res.json({
+      ok: true,
+      advisory,
+      businessIntelligence: {
+        status: businessIntelligence.status,
+        pipeline: businessIntelligence.pipeline,
+        counts: businessIntelligence.snapshot.counts,
+        latestIngestion: businessIntelligence.snapshot.latestIngestion,
+      },
+    });
+  } catch (error) {
+    return apiError(res,503,'GEAS business intelligence advisory unavailable',error);
+  }
+});
+
 app.get('/api/business-intelligence/report', async (_req: Request, res: Response) => {
   try {
-    const report = await getLatestIntelligenceReport() || await generateIntelligenceReport({ runModel: runIntelligenceModel, windowHours: 24 });
+    const report = await getLatestIntelligenceReport() || await refreshIntelligenceReport();
     const insights = [
       { id:'web_mentions', title:'Public web intelligence', status: report ? 'live' : 'connector', summary: report ? 'Evidence collected from configured public intelligence sources.' : 'Public-source intelligence connector is ready.', metrics:[{label:'Sources',value:String(report?.sourceCount ?? 0)},{label:'Evidence',value:String(report?.evidenceCount ?? 0)}], actions:['Review source-backed signals before acting.'] },
       { id:'github', title:'Engineering activity', status:'connector', summary:'GitHub activity is available through authenticated repository and public-source connectors.', metrics:[{label:'State',value:'Connector-backed'},{label:'Truth',value:'Evidence required'}], actions:['Review repository evidence and CI outcomes.'] },
