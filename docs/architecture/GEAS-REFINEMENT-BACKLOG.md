@@ -534,3 +534,16 @@ A comment-only Amazon Q review on PR #882 identified that the new `isMatchingSou
 - **Branch:** `fix/geas-evidence-and-scan-mode-contract-20261120`.
 - **Evidence baseline:** GEAS scan run #44610696530; artifact SHA-256 `0f0f6942504d416469063019d1707c0bdcaa75de74005e519206404b767673d7` (downloaded artifact independently checked; GitHub artifact metadata is authoritative for digest).
 - **Governance:** engineering findings auto-approved under the LOW-risk policy; this is not a GitHub review approval, merge authorization, deployment authorization, or production change.
+
+
+## 2026-11-20 — NIST agent-identity extraction follow-up
+
+- **Observed:** PR scan #44665326678 tested merge SHA `198bbefcd07c51d04357fbe2508123d3a6642685` from source head `de8e541a0252b3ff644b51d765afc4557c31e3be`. Its verified artifact SHA-256 was `fd7ae631a1f9f7ac0db1e98b90f687d9d90be0b2b884d43001506027edc2bcc5`. The NIST Agent Identity Design Tenets source remained HTTP 200 / `source-available` with no excerpt. The first keyword-only selector refinement therefore did **not** resolve live extraction.
+- **Analysis:** The shared semantic-region extractor prefers `<article>` candidates before `<main>`. The NIST page can expose an unrelated article candidate while its substantive design-tenet prose is in the main region. The existing generic article-first behavior is retained because other tests intentionally protect article content from comments; the fix is a NIST-only fallback when the preferred article candidate yields no substantive evidence.
+- **Auto-approved finding — NIST main-region fallback (LOW):** Add the substantive first-section identity sentence to the source-specific selector; if the normal article-first extraction returns no evidence, inspect the curated page's main candidate and start the excerpt at the exact matched phrase to avoid page chrome.
+  - **Rationale:** address the observed live source failure without weakening generic page-chrome rejection or changing other source extraction behavior.
+  - **Risk:** LOW; source-specific evidence extraction and regression tests only. No claims are promoted to VERIFIED.
+  - **Affected files:** `src/lib/governance/geas-architecture-scientist.ts`, `src/lib/governance/geas-architecture-scientist.test.ts`.
+  - **Tests:** unrelated article plus substantive main-region fixture, exact phrase match, page-chrome rejection, analysis-only pattern admission, and source-availability-only rejection.
+  - **Implementation commits:** `4b75da81602414876ca15d7e5a5cb0823d2cd37d`, `6aea35772da14ab5b56f547a32084aa8ed986bc9`.
+- **Verification state:** The new fallback is regression-tested in source; a fresh exact-SHA GEAS scan is still required to establish whether the live NIST source becomes content-matched. Until then it remains NOT VERIFIED.
