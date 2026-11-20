@@ -711,6 +711,103 @@ const run = async (): Promise<void> => {
         assert.equal(unsupportedMcpBody.id, 90);
         assert.equal(unsupportedMcpBody.error.code, -32601);
 
+        // Invalid JSON-RPC and modern transport requests must fail before
+        // reserving quota for an upstream GitHub read.
+        capturedRequest = null;
+        const rateLimitKeysBeforeInvalidRequests = [...mcpRateLimitKeys];
+        const invalidJsonRpcVersion = await worker.fetch(
+          mcpPost({
+            jsonrpc: '1.0',
+            id: 'invalid-jsonrpc-version',
+            method: 'tools/call',
+            params: { name: 'github_get_repository', arguments: {} },
+          }, '203.0.113.41'),
+          env,
+        );
+        const invalidJsonRpcVersionBody = await invalidJsonRpcVersion.json() as {
+          error: { code: number };
+        };
+        assert.equal(invalidJsonRpcVersionBody.error.code, -32600);
+        assert.deepEqual(mcpRateLimitKeys, rateLimitKeysBeforeInvalidRequests,
+          'invalid JSON-RPC envelopes must not consume the upstream tool-call quota');
+        assert.equal(capturedRequest, null);
+
+        const mismatchedModernToolHeaders = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: {
+              ...modernMcpHeaders,
+              'Mcp-Method': 'tools/list',
+              'Mcp-Name': 'github_get_repository',
+            },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'mismatched-tool-routing-header',
+              method: 'tools/call',
+              params: {
+                _meta: modernMetadata,
+                name: 'github_get_repository',
+                arguments: {},
+              },
+            }),
+          }),
+          env,
+        );
+        const mismatchedModernToolHeadersBody = await mismatchedModernToolHeaders.json() as {
+          error: { code: number };
+        };
+        assert.equal(mismatchedModernToolHeadersBody.error.code, -32020);
+        assert.deepEqual(mcpRateLimitKeys, rateLimitKeysBeforeInvalidRequests,
+          'modern routing-header mismatches must not consume the upstream tool-call quota');
+        assert.equal(capturedRequest, null);
+
+        const missingModernClientCapabilitiesToolCall = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: {
+              ...modernMcpHeaders,
+              'Mcp-Method': 'tools/call',
+              'Mcp-Name': 'github_get_repository',
+            },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'missing-modern-client-capabilities',
+              method: 'tools/call',
+              params: {
+                _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28' },
+                name: 'github_get_repository',
+                arguments: {},
+              },
+            }),
+          }),
+          env,
+        );
+        const missingModernClientCapabilitiesBody = await missingModernClientCapabilitiesToolCall.json() as {
+          error: { code: number };
+        };
+        assert.equal(missingModernClientCapabilitiesBody.error.code, -32602);
+        assert.deepEqual(mcpRateLimitKeys, rateLimitKeysBeforeInvalidRequests,
+          'invalid modern request metadata must not consume the upstream tool-call quota');
+        assert.equal(capturedRequest, null);
+
+        const invalidJsonRpcId = await worker.fetch(
+          mcpPost({
+            jsonrpc: '2.0',
+            id: true,
+            method: 'tools/call',
+            params: { name: 'github_get_repository', arguments: {} },
+          }, '203.0.113.41'),
+          env,
+        );
+        const invalidJsonRpcIdBody = await invalidJsonRpcId.json() as {
+          error: { code: number };
+        };
+        assert.equal(invalidJsonRpcIdBody.error.code, -32600,
+          'non-string, non-number, non-null JSON-RPC IDs must be rejected');
+        assert.deepEqual(mcpRateLimitKeys, rateLimitKeysBeforeInvalidRequests,
+          'invalid JSON-RPC IDs must not consume the upstream tool-call quota');
+        assert.equal(capturedRequest, null);
+
         const previousMcpUpstreamResponse = upstreamResponse;
         upstreamResponse = new Response(JSON.stringify({ full_name: 'GLORIFIER7/GLORIFIER', visibility: 'public' }), {
           status: 200,
