@@ -154,11 +154,8 @@ jobs:
     timeout-minutes: 40
     permissions:
       contents: read
-      pull-requests: read
-      actions: read
     env:
       MCP_CONFORMANCE_URL: http://127.0.0.1:8787/mcp
-      GITHUB_MCP_READ_TOKEN: ${{ github.token }}
     steps:
       - name: Checkout GLORIFIER source
         uses: actions/checkout@v4
@@ -171,6 +168,8 @@ jobs:
           cache: npm
       - name: Install locked GLORIFIER dependencies
         run: npm ci --no-audit --no-fund --ignore-scripts
+      - name: Test MCP local conformance harness contracts
+        run: node --test scripts/mcp-local-conformance-server.test.mjs
       - name: Checkout pinned official MCP conformance runner
         uses: actions/checkout@v4
         with:
@@ -279,17 +278,28 @@ jobs:
           # HTTP header validation. The full requirements pack also runs
           # prompts/resources/completion/tasks/multimedia/elicitation fixtures
           # that this server deliberately does not advertise.
+          failures=()
           for scenario in tools-list tools-call-error dns-rebinding-protection http-header-validation; do
             echo "::group::Official MCP scenario: $scenario"
-            node dist/index.js server \
+            if node dist/index.js server \
               --url "$MCP_CONFORMANCE_URL" \
               --scenario "$scenario" \
               --spec-version 2026-07-28 \
               --timeout 30000 \
               --output-dir "$GITHUB_WORKSPACE/mcp-local-conformance-results" \
-              --verbose
+              --verbose; then
+              echo "PASS: $scenario"
+            else
+              status=$?
+              echo "::error::Official MCP scenario '$scenario' failed with exit code $status."
+              failures+=("$scenario")
+            fi
             echo "::endgroup::"
           done
+          if ((${#failures[@]} > 0)); then
+            printf 'MCP conformance scenarios failed: %s\\n' "${failures[*]}" >&2
+            exit 1
+          fi
       - name: Capture local MCP harness diagnostics
         if: always()
         shell: bash
