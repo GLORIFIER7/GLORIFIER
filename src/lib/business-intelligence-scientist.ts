@@ -379,7 +379,7 @@ export async function runBusinessIntelligenceHealthCheck() {
     } : null,
   });
   return {
-    status:latest ? 'partial' : 'awaiting-evidence',
+    status:pipeline.status,
     storageStatus:'available',
     version:GLORIFIER_BI_SCIENTIST_VERSION,
     continuousOperation:{configured:true,runtimeVerified:false},
