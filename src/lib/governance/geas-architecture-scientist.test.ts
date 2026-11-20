@@ -134,23 +134,29 @@ if (!nistIdentityTenetKeywords.includes(nistDelegationPhrase)
     || nistIdentityTenetMatch !== nistIdentityTenetText.indexOf(nistDelegationPhrase)) {
   throw new Error('NIST secondary-source matching must select substantive delegation guidance rather than an early heading or generic page chrome');
 }
+const nistIdentityPhrase = 'Agentic infrastructure enables the unique, cryptographically verifiable identification of agents distinguishable from other identities.';
 const nistIdentityTenetHtml = [
   '<!doctype html><html><body>',
   '<header>Skip to main content Official websites use .gov A .gov website belongs to an official government organization in the United States. Secure .gov websites use HTTPS</header>',
+  '<article><p>Related content card: general NIST cybersecurity information without the agent identity design tenets.</p></article>',
   '<main><h1>Design Tenets for Agent Identity Management Systems</h1>',
   '<h3>01 Distinct Agent Identification</h3>',
-  '<p>Agentic infrastructure enables the unique, cryptographically verifiable identification of agents distinguishable from other identities.</p>',
+  `<p>${nistIdentityPhrase}</p>`,
   '<h3>02 Agent Linking, Delegation &amp; Attenuation</h3>',
   `<p>${nistDelegationPhrase}</p>`,
   '<h3>03 Least &amp; Zero Standing Privilege</h3>',
   '<p>Agents operate with zero standing privilege, holding no persistent rights when idle.</p>',
   '</main></body></html>',
 ].join('');
+if (stripHtmlForEvidence(nistIdentityTenetHtml).includes(nistIdentityPhrase)) {
+  throw new Error('generic article-first extraction fixture must demonstrate the unrelated article candidate');
+}
 const nistIdentityTenetExcerpt = extractSourceEvidenceExcerpt('nist-agent-identity-design-tenets', nistIdentityTenetHtml);
 if (!nistIdentityTenetExcerpt
+    || !nistIdentityTenetExcerpt.startsWith(nistIdentityPhrase)
     || !nistIdentityTenetExcerpt.includes('scopes attenuate')
     || /Skip to main content|Official websites use \.gov|Secure \.gov websites/.test(nistIdentityTenetExcerpt)) {
-  throw new Error('NIST agent identity extraction must retain substantive article text without page chrome');
+  throw new Error('NIST source-specific fallback must extract substantive main-region text without page chrome');
 }
 const nistIdentityTenetObservation: SourceObservation = {
   sourceId: 'nist-agent-identity-design-tenets',
