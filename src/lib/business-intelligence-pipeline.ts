@@ -21,6 +21,7 @@ export type IntelligenceReportInput = {
   generatedAt?: string;
   sourceCount?: number;
   evidenceCount?: number;
+  sourceStatuses?: string[];
   evidence?: IntelligenceEvidenceInput[];
   themes?: IntelligenceThemeInput[];
 };
