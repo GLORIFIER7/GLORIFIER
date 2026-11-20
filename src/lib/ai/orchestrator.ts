@@ -72,6 +72,18 @@ function executiveProfile(providers: AIProvider[]) {
   };
 }
 
+export function assertAIProviderResponseAttribution(
+  provider: Pick<AIProvider, 'id' | 'models'>,
+  response: Pick<AIResponse, 'provider' | 'model'>,
+): void {
+  if (response.provider !== provider.id) {
+    throw new Error(`${provider.id} returned mismatched provider attribution.`);
+  }
+  if (!provider.models().includes(response.model)) {
+    throw new Error(`${provider.id} returned unregistered model attribution.`);
+  }
+}
+
 export class AIOrchestrator {
   private providerCooldownUntil = new Map<AIProviderId, number>();
   private readonly quotaCooldownMs = 15 * 60_000;
@@ -115,6 +127,7 @@ export class AIOrchestrator {
       if (!response || typeof response !== 'object' || typeof response.provider !== 'string' || typeof response.model !== 'string') {
         throw new Error(`${provider.id} returned an invalid/empty AI response.`);
       }
+      assertAIProviderResponseAttribution(provider, response);
       const latencyMs = Date.now() - started;
       response.latencyMs = latencyMs;
       response.evaluation = evaluateResponse(response);
