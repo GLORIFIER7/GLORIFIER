@@ -3,7 +3,7 @@ import { readFile } from 'node:fs/promises';
 import test from 'node:test';
 
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
-const [guardian, systemHealth, infrastructureHealth, geminiReview, bootstrap, ci, dockerImage, solanaReconcile, globalCollaboration, mediatorExpansion, globalResolution] = await Promise.all([
+const [guardian, systemHealth, infrastructureHealth, geminiReview, bootstrap, ci, dockerImage, solanaReconcile, globalCollaboration, mediatorExpansion, globalResolution, codeql] = await Promise.all([
   read('../.github/workflows/glorifier-code-guardian.yml'),
   read('../.github/workflows/system-health-guardian.yml'),
   read('../.github/workflows/infrastructure-health.yml'),
@@ -15,6 +15,7 @@ const [guardian, systemHealth, infrastructureHealth, geminiReview, bootstrap, ci
   read('../.github/workflows/global-collaboration.yml'),
   read('../.github/workflows/mediator-expansion.yml'),
   read('../.github/workflows/global-resolution.yml'),
+  read('../.github/workflows/codeql.yml'),
 ]);
 function sliceBetweenMarkers(source, startMarker, endMarker) {
   const start = source.indexOf(startMarker);
@@ -126,6 +127,18 @@ test('GitHub Actions governance tests are required by GLORIFIER CI', () => {
   assert.match(ci, /node --test scripts\/github-actions-governance\.test\.mjs/);
 });
 
+
+test('CodeQL PR checkout pins same-repository head SHA without changing fork analysis', () => {
+  const checkout = codeql.split('      - name: Checkout\n')[1]?.split('      - name: Initialize CodeQL')[0] ?? '';
+  assert.match(checkout, /persist-credentials:\s*false/);
+  assert.ok(checkout.includes("ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.sha || github.sha }}"));
+});
+
+test('CodeQL PR SARIF is attributed to the reviewed stable PR head', () => {
+  const analyze = codeql.split('      - name: Analyze\n')[1] ?? '';
+  assert.ok(analyze.includes("ref: ${{ github.event_name == 'pull_request' && format('refs/pull/{0}/head', github.event.pull_request.number) || github.ref }}"));
+  assert.ok(analyze.includes("sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"));
+});
 
 test('live PostgreSQL maintenance workflows explicitly enable verified production TLS', () => {
   const cases = [
