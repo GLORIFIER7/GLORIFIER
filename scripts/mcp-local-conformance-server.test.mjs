@@ -79,5 +79,6 @@ test('GitHub MCP tool arguments have one shared validation boundary', async () =
   const toolSection = source.slice(toolStart, validatorStart);
   assert.ok(toolStart >= 0 && validatorStart > toolStart);
   assert.doesNotMatch(toolSection, /isValidPerPage|state !==|per_page must be|path is required|ref must be a string/);
-  assert.match(source, /const input = toolArguments\(args\);\s*const validationError = getToolArgumentError\(name, input\);/);
+  assert.match(source, /const callTool =[\s\S]*?validateToolArguments\(name, args\)/);
+  assert.match(source, /const getRateLimitableMcpToolCall =[\s\S]*?validateToolArguments\(params\.name, params\.arguments\)/);
 });
