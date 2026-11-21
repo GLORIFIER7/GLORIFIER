@@ -27,6 +27,15 @@
   "hooks": {
     "PreToolUse": [
       {
+        "matcher": "Read",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/agent-policy.mjs"
+          }
+        ]
+      },
+      {
         "matcher": "Write|Edit|MultilineEdit|MultiEdit|NotebookEdit",
         "hooks": [
           {
