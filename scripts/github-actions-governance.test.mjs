@@ -250,3 +250,12 @@ test('CodeQL analysis identity report is small, read-only and retrievable as an 
   assert.match(artifact, /if-no-files-found: error/);
   assert.match(artifact, /retention-days: 2/);
 });
+
+test('CodeQL identity inventory pages over historical baseline configurations without changing scan policy', () => {
+  const diagnostics = codeql.split('      - name: Inspect CodeQL analysis identities (read-only)')[1] ?? '';
+  assert.match(diagnostics, /for page in \$\(seq 1 15\)/);
+  assert.match(diagnostics, /&page=\$\{page\}/);
+  assert.match(diagnostics, /count=\$\(jq 'length'/);
+  assert.match(diagnostics, /if \(\( count < 100 \)\); then/);
+  assert.doesNotMatch(diagnostics, /curl[^\n]*\s-X\s+(?:POST|PUT|DELETE|PATCH)/);
+});
