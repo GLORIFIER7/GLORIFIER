@@ -235,3 +235,15 @@ test('CodeQL diagnostic compares authenticated read-only main and PR analysis id
   assert.doesNotMatch(diagnostic, /curl[^\n]*\s-X\s+(?:POST|PUT|DELETE|PATCH)/);
   assert.match(diagnostic, /existing scan enforcement is unchanged/);
 });
+
+test('CodeQL analysis identity report is small, read-only and retrievable as an artifact', () => {
+  const diagnosis = codeql.split('      - name: Inspect CodeQL analysis identities (read-only)')[1]?.split('      - name: Upload read-only CodeQL identity report')[0] ?? '';
+  const artifact = codeql.split('      - name: Upload read-only CodeQL identity report')[1] ?? '';
+  assert.match(diagnosis, /codeql-analysis-identities\.tsv/);
+  assert.match(diagnosis, /tee -a "\$report"/);
+  assert.match(diagnosis, /QUERY_FAILED/);
+  assert.match(artifact, /actions\/upload-artifact@v7/);
+  assert.match(artifact, /codeql-analysis-identities/);
+  assert.match(artifact, /if-no-files-found: error/);
+  assert.match(artifact, /retention-days: 2/);
+});

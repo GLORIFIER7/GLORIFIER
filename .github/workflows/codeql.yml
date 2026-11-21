@@ -98,6 +98,8 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
+          report="$RUNNER_TEMP/codeql-analysis-identities.tsv"
+          printf 'analysis_key\tcategory\tref\tcommit_sha\tenvironment\tcreated_at\n' > "$report"
           for ref in "refs/heads/main" "refs/pull/${PR_NUMBER}/head"; do
             echo "CodeQL analysis identities for ${ref} (newest 40 of up to 100):"
             url="${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/code-scanning/analyses?ref=${ref}&per_page=100"
@@ -110,8 +112,18 @@ jobs:
                   [(.analysis_key // "N/A"), (.category // "N/A"), (.ref // "N/A"),
                    (.commit_sha // "N/A"), (.environment // "N/A"), (.created_at // "N/A")]] |
                 .[:40] | .[] | @tsv
-              ' <<< "${response}"
+              ' <<< "${response}" | tee -a "$report"
             else
+              printf 'QUERY_FAILED\tN/A\t%s\tN/A\tN/A\tN/A\n' "$ref" >> "$report"
               echo "::warning::Unable to read CodeQL analysis metadata for ${ref}; existing scan enforcement is unchanged."
             fi
           done
+
+      - name: Upload read-only CodeQL identity report
+        if: ${{ matrix.language == 'javascript-typescript' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: codeql-analysis-identities
+          path: ${{ runner.temp }}/codeql-analysis-identities.tsv
+          if-no-files-found: error
+          retention-days: 2
