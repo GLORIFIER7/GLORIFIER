@@ -1497,3 +1497,15 @@ test('HTML sanitization preserves visible text inside hyphenated custom elements
   assert.equal(stripHtml('<script>alert(1)</script>Safe evidence'), 'Safe evidence');
   assert.equal(stripHtml('<style>.hidden{display:none}</style>Safe evidence'), 'Safe evidence');
 });
+
+test('GEAS latest-scan advisory reader refreshes durable state instead of reusing a stale cache', () => {
+  const source = readFileSync(new URL('./geas-architecture-scientist.ts', import.meta.url), 'utf8');
+  const getter = source.split('export const getLatestGeasArchitectureScan = async () => {')[1]?.split('\n};')[0];
+  assert.ok(getter, 'the latest-scan reader must exist');
+  assert.match(getter, /SELECT result FROM geas_architecture_scans ORDER BY started_at DESC LIMIT 1/);
+  assert.doesNotMatch(
+    getter,
+    /if\s*\(\s*memory\.last\s*\)\s*return\s+memory\.last/,
+    'an earlier advisory read must never prevent later persisted scans from being observed',
+  );
+});
