@@ -205,3 +205,18 @@ test('main branch protection has one always-present aggregate CI check', () => {
   assert.ok(requiredCi.includes('[[ "$AGENT_STATE_POSTGRES_RESULT" == "success" ]]'));
   assert.ok(requiredCi.includes('[[ "$SUPABASE_DEFAULT_PRIVILEGES_RESULT" == "success" ]]'));
 });
+
+test('CodeQL retains the legacy main scan configuration with genuine analyzed SARIF', () => {
+  const generate = sliceBetweenMarkers(codeql, '      - name: Rebuild legacy CodeQL category from analyzed SARIF', '      - name: Upload legacy CodeQL configuration');
+  assert.match(generate, /matrix\.language == 'javascript-typescript'/);
+  assert.match(generate, /test -s "\$source"/);
+  assert.match(generate, /jq --arg category '\.github\/workflows\/codeql\.yml:analyze'/);
+  assert.match(generate, /\.automationDetails = \(\(\.automationDetails \/\/ \{\}\) \+ \{id: \$category\}\)/);
+  const upload = codeql.split('      - name: Upload legacy CodeQL configuration')[1] ?? '';
+  assert.match(upload, /github\/codeql-action\/upload-sarif@/);
+  assert.match(upload, /sarif_file: \$\{\{ runner\.temp \}\}\/codeql-legacy\/legacy\.sarif/);
+  assert.match(upload, /category: "\.github\/workflows\/codeql\.yml:analyze"/);
+  assert.match(upload, /matrix: '\{\}'/);
+  assert.match(upload, /ref: \$\{\{ github\.event_name == 'pull_request'/);
+  assert.match(upload, /sha: \$\{\{ github\.event_name == 'pull_request'/);
+});
