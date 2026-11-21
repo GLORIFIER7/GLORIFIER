@@ -17,6 +17,19 @@ const PROTECTED_PATHS = [
   /\.(?:pem|key|p12|pfx)$/i,
 ];
 
+const SENSITIVE_READ_PATHS = [
+  /(^|\\/)\\.env(?:\\.[^/]*)?$/i,
+  /(^|\\/)\\.dev\\.vars$/i,
+  /(^|\\/)\\.(?:npmrc|pypirc|netrc)$/i,
+  /(^|\\/)\\.(?:ssh|aws)(?:\\/|$)/i,
+  /(^|\\/)(?:secrets?|credentials?)(?:\\/|$)/i,
+  /(^|\\/)(?:id_rsa|id_ed25519|id_ecdsa)(?:\\.pub)?$/i,
+  /(^|\\/).*(?:credential|private[-_]?key|service[-_]?account)(?:\\.[^/]*)?$/i,
+  /\\.(?:pem|key|p12|pfx)$/i,
+];
+
+// Read tools need a separate content boundary; a prompt instruction is not
+// sufficient to keep secrets out of model context.
 const BLOCKED_COMMANDS = [
   { matches: /\bgit\b[\s\S]*\bpush\b/i, requiresForceFlag: true, reason: 'Force-push is prohibited because it can overwrite remote branch history.' },
   { matches: /\bgit\b[\s\S]*\breset\b/i, reason: 'Git reset is prohibited because it can discard or rewrite work.' },
@@ -94,6 +107,15 @@ export function decidePreToolUse(event) {
   const toolName = event.tool_name;
   const toolInput = event.tool_input && typeof event.tool_input === 'object' ? event.tool_input : {};
   const cwd = typeof event.cwd === 'string' && event.cwd.trim() ? event.cwd : process.cwd();
+
+  if (toolName === 'Read') {
+    const target = normalizeTarget(toolInput.file_path ?? toolInput.path, cwd);
+    if (target.error) return deny(target.error);
+    if (SENSITIVE_READ_PATHS.some((pattern) => pattern.test(target.relative))) {
+      return deny('Direct reads of credential and secret files are prohibited: ' + target.relative);
+    }
+    return null;
+  }
 
   if (toolName === 'Write' || toolName === 'Edit' || toolName === 'MultilineEdit' || toolName === 'MultiEdit' || toolName === 'NotebookEdit') {
     const target = normalizeTarget(toolInput.file_path ?? toolInput.path, cwd);
