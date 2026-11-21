@@ -63,6 +63,20 @@ test('normalizes public intelligence into idempotent GBIS observations and evide
   assert.equal(first.signals[0].evidenceRefs.length, 2);
 });
 
+test('theme signal IDs preserve canonical code-unit ordering across evidence permutations', () => {
+  const evidence = ['é', 'a', 'Z'].map((id) => ({ ...report.evidence[0], id }));
+  for (const evidenceIds of [['é', 'a', 'Z'], ['Z', 'é', 'a']]) {
+    const { signals } = normalizeIntelligenceReportToBiRecords({
+      ...report,
+      evidence,
+      themes: [{ ...report.themes[0], evidenceIds }],
+    });
+    // Existing signal hash for the canonical references Z,a,é.
+    assert.equal(signals[0].id, 'bi-signal-71db4fbdf9cd18573432a16e3864890f');
+    assert.deepEqual(signals[0].evidenceRefs, evidenceIds);
+  }
+});
+
 test('rejects malformed or untrusted evidence URLs and refuses unreferenced themes', () => {
   const result = normalizeIntelligenceReportToBiRecords({
     ...report,

@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { compareCodeUnits } from './deterministic-string-order';
 
 export type IntelligenceEvidenceInput = {
   id?: string;
@@ -190,7 +191,7 @@ export function normalizeIntelligenceReportToBiRecords(
     if (!title || evidenceRefs.length === 0 || seenThemes.has(key)) continue;
     seenThemes.add(key);
     signals.push({
-      id: stableId('bi-signal', `${reportId}:theme:${key}:${evidenceRefs.slice().sort().join(',')}`),
+      id: stableId('bi-signal', `${reportId}:theme:${key}:${evidenceRefs.slice().sort(compareCodeUnits).join(',')}`),
       domain: 'technology-intelligence',
       signalType: 'intelligence-theme',
       title: title.slice(0, 300),
