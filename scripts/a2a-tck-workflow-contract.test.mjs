@@ -17,7 +17,7 @@ test('A2A TCK pins the signed upstream runner revision and tests only the advert
   assert.match(workflow, /a2aproject\/a2a-tck/);
   assert.match(workflow, /104a7b4ae0d83f65c075e3793e322953a830eaba/);
   assert.match(workflow, /python-version: ['"]?3\.15/);
-  assert.match(workflow, /astral-sh\/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2/);
+  assert.match(workflow, /astral-sh\/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d/);
   assert.match(workflow, /--transport jsonrpc/);
   assert.match(workflow, /run_tck\.py/);
 });
