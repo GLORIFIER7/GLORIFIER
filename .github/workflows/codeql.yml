@@ -43,9 +43,39 @@ jobs:
           build-mode: ${{ matrix.build-mode }}
 
       - name: Analyze
+        id: codeql_analysis
         uses: github/codeql-action/analyze@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
         with:
           category: "/language:${{ matrix.language }}"
           # Attribute SARIF to the reviewed PR head SHA to satisfy code scanning rules.
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && format('refs/pull/{0}/head', github.event.pull_request.number) || github.ref }}
+          sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.sha || github.sha }}
+
+      # GitHub still has a pre-matrix CodeQL analysis configuration on main.
+      # Publish real JavaScript SARIF under that same identity until its
+      # historical baseline has been safely reconciled, without changing
+      # the separately required per-language CodeQL checks.
+      - name: Rebuild legacy CodeQL category from analyzed SARIF
+        if: ${{ matrix.language == 'javascript-typescript' }}
+        shell: bash
+        env:
+          SARIF_DIR: ${{ steps.codeql_analysis.outputs.sarif-output }}
+        run: |
+          set -euo pipefail
+          source="$SARIF_DIR/javascript-typescript.sarif"
+          test -s "$source"
+          mkdir -p "$RUNNER_TEMP/codeql-legacy"
+          jq --arg category '.github/workflows/codeql.yml:analyze' \
+            '.runs |= map(.automationDetails = ((.automationDetails // {}) + {id: $category}))' \
+            "$source" > "$RUNNER_TEMP/codeql-legacy/legacy.sarif"
+          jq -e '.runs | map(select(.tool.driver.name == "CodeQL" and .automationDetails.id == ".github/workflows/codeql.yml:analyze")) | length == 1' "$RUNNER_TEMP/codeql-legacy/legacy.sarif" > /dev/null
+
+      - name: Upload legacy CodeQL configuration
+        if: ${{ matrix.language == 'javascript-typescript' }}
+        uses: github/codeql-action/upload-sarif@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
+        with:
+          sarif_file: ${{ runner.temp }}/codeql-legacy/legacy.sarif
+          category: ".github/workflows/codeql.yml:analyze"
+          matrix: '{}'
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && format('refs/pull/{0}/head', github.event.pull_request.number) || github.ref }}
           sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.sha || github.sha }}
