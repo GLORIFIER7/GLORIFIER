@@ -39,7 +39,8 @@ function sortNewest(a, b) {
 
 export function buildRepairIntake({ repository, observedAt, runs, pulls }) {
   if (repository !== REPOSITORY) throw new Error('repository is not authorized for this intake');
-  if (typeof observedAt !== 'string' || !Number.isFinite(Date.parse(observedAt))) {
+  if (typeof observedAt !== 'string' || !Number.isFinite(Date.parse(observedAt))
+    || new Date(observedAt).toISOString() !== observedAt) {
     throw new Error('observation time is missing or invalid');
   }
   if (!Array.isArray(runs)) throw new Error('runs snapshot must be an array');
@@ -108,6 +109,33 @@ export function buildRepairIntake({ repository, observedAt, runs, pulls }) {
     return rank(b) - rank(a) || Number(b.reference) - Number(a.reference);
   });
 
+  const candidates = [...ciCandidates, ...prCandidates].slice(0, MAX_CANDIDATES);
+  // Proposal shape matches AutopilotObservation, but is NOT persisted or executed.
+  // Require an immutable PR head to prevent idempotency collisions from an
+  // incomplete GraphQL snapshot. Refuse to quote untrusted PR titles or logs.
+  const autopilotObservationProposals = candidates.flatMap(candidate => {
+    if (candidate.kind === 'ci-failure') {
+      return [{
+        source: 'ci',
+        sourceEventId: `actions-run:${candidate.reference}`,
+        severity: 'high',
+        summary: `Main-branch ${candidate.workflow} run ${candidate.reference} failed; investigate root cause with current evidence.`,
+        observedAt,
+        evidenceRefs: [candidate.url],
+      }];
+    }
+    if (candidate.draft || !candidate.headSha || !(candidate.mergeState === 'BLOCKED'
+      || candidate.failingChecks.length || candidate.neutralChecks.length)) return [];
+    return [{
+      source: 'ci',
+      sourceEventId: `pull-request:${candidate.reference}:${candidate.headSha}`,
+      severity: candidate.failingChecks.length ? 'high' : 'medium',
+      summary: `PR ${candidate.reference} requires verified check and protection review; merge state ${candidate.mergeState}; ${candidate.failingChecks.length} failed checks.`,
+      observedAt,
+      evidenceRefs: [candidate.url],
+    }];
+  });
+
   return {
     schemaVersion: 'glorifier-repair-intake/v1',
     repository: REPOSITORY,
@@ -115,6 +143,7 @@ export function buildRepairIntake({ repository, observedAt, runs, pulls }) {
     observedCounts: { workflowRuns: selectedRuns.length, failedMainRuns: failures.length, pullRequests: selectedPulls.length },
     controls: {
       evidenceOnly: true,
+      autopilotMissionCreated: false,
       aiCeoInvoked: false,
       modelInferenceInvoked: false,
       specialistCouncilInvoked: false,
@@ -132,7 +161,8 @@ export function buildRepairIntake({ repository, observedAt, runs, pulls }) {
       'External code-scanning and CI provider status may require independent verification.',
       'A green check or CLEAN merge state does not establish approval or merge authorization.',
     ],
-    candidates: [...ciCandidates, ...prCandidates].slice(0, MAX_CANDIDATES),
+    candidates,
+    autopilotObservationProposals,
   };
 }
 
@@ -146,6 +176,7 @@ export function renderRepairIntakeMarkdown(report) {
     `- Open PR metadata examined: **${report.observedCounts.pullRequests}**`,
     '- AI CEO and Specialist Council: **NOT INVOKED** (only deterministic triage)',
     '- GEAS execution authorization: **NOT GRANTED**',
+    `- Autopilot observation proposals: **${report.autopilotObservationProposals.length}**, not submitted or executed`,
     '- Human review is required before any merge, deployment, inference, secret change or paid action.',
     '',
     '## Proposed investigation queue (no changes executed)',
