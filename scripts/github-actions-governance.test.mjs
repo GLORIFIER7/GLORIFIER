@@ -220,3 +220,18 @@ test('CodeQL retains the legacy main scan configuration with genuine analyzed SA
   assert.match(upload, /ref: \$\{\{ github\.event_name == 'pull_request'/);
   assert.match(upload, /sha: \$\{\{ github\.event_name == 'pull_request'/);
 });
+
+test('CodeQL diagnostic compares authenticated read-only main and PR analysis identities', () => {
+  const diagnostic = codeql.split('      - name: Inspect CodeQL analysis identities (read-only)')[1] ?? '';
+  assert.ok(diagnostic.length > 0, 'missing read-only scan configuration diagnostic');
+  assert.match(diagnostic, /github\.event_name == 'pull_request'/);
+  assert.match(diagnostic, /matrix\.language == 'javascript-typescript'/);
+  assert.match(diagnostic, /refs\/heads\/main/);
+  assert.match(diagnostic, /refs\/pull\/\$\{PR_NUMBER\}\/head/);
+  assert.match(diagnostic, /code-scanning\/analyses/);
+  assert.match(diagnostic, /\.analysis_key/);
+  assert.match(diagnostic, /\.category/);
+  assert.match(diagnostic, /github\.token/);
+  assert.doesNotMatch(diagnostic, /curl[^\n]*\s-X\s+(?:POST|PUT|DELETE|PATCH)/);
+  assert.match(diagnostic, /existing scan enforcement is unchanged/);
+});

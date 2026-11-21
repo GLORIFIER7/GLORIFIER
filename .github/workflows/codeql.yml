@@ -87,3 +87,31 @@ jobs:
           matrix: '{}'
           ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && format('refs/pull/{0}/head', github.event.pull_request.number) || github.ref }}
           sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.sha || github.sha }}
+
+      # Read-only inspection. GitHub's code-scanning gate is authoritative;
+      # a successful SARIF upload does not prove a configuration was recognized.
+      - name: Inspect CodeQL analysis identities (read-only)
+        if: ${{ matrix.language == 'javascript-typescript' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: |
+          set -euo pipefail
+          for ref in "refs/heads/main" "refs/pull/${PR_NUMBER}/head"; do
+            echo "CodeQL analysis identities for ${ref} (newest 40 of up to 100):"
+            url="${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/code-scanning/analyses?ref=${ref}&per_page=100"
+            if response=$(curl --silent --show-error --fail --retry 1 --max-time 30 \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H 'Accept: application/vnd.github+json' \
+              "${url}"); then
+              jq -r '
+                [.[] | select(.tool.name == "CodeQL") |
+                  [(.analysis_key // "N/A"), (.category // "N/A"), (.ref // "N/A"),
+                   (.commit_sha // "N/A"), (.environment // "N/A"), (.created_at // "N/A")]] |
+                .[:40] | .[] | @tsv
+              ' <<< "${response}"
+            else
+              echo "::warning::Unable to read CodeQL analysis metadata for ${ref}; existing scan enforcement is unchanged."
+            fi
+          done
