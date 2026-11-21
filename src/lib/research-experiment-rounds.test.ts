@@ -127,3 +127,34 @@ test('does not promote results when the authenticating verifier throws', () => {
   assert.deepEqual(result.selected, []);
   assert.equal(result.notSelected[0].reason, 'review-not-authenticated');
 });
+
+test('accepts uppercase and mixed-case SHA-256 digest encodings', () => {
+  const candidate = observation('uppercase');
+  candidate.inputSha256 = SHA_A.toUpperCase();
+  candidate.outputSha256 = SHA_B.toUpperCase();
+  candidate.review!.outputSha256 = SHA_B;
+  const selected = selectNextResearchRound([candidate], { authenticateReview: trustedVerifier });
+  assert.deepEqual(selected.selected.map((item) => item.id), ['uppercase']);
+});
+
+test('rejects sparse source-reference arrays without a real provenance value', () => {
+  const empty = observation('sparse-empty');
+  empty.sourceRefs = new Array<string>(1);
+  const partial = observation('sparse-partial');
+  partial.sourceRefs = ['https://example.org/one', , 'https://example.org/three'];
+  const selected = selectNextResearchRound([empty, partial], { authenticateReview: trustedVerifier });
+  assert.deepEqual(selected.selected, []);
+  assert.deepEqual(selected.notSelected.map((item) => item.reason), [
+    'insufficient-provenance', 'insufficient-provenance',
+  ]);
+});
+
+test('consumes rejected verifier promises while rejecting asynchronous review', async () => {
+  const result = selectNextResearchRound([observation('rejecting-verifier')], {
+    authenticateReview: (() => Promise.reject(new Error('asynchronous verifier failed'))) as unknown as () => boolean,
+  });
+  assert.deepEqual(result.selected, []);
+  assert.equal(result.notSelected[0].reason, 'review-not-authenticated');
+  // Node's test runner fails this test when the rejected promise becomes unhandled.
+  await new Promise<void>((resolve) => setImmediate(resolve));
+});
