@@ -259,3 +259,17 @@ test('CodeQL identity inventory pages over historical baseline configurations wi
   assert.match(diagnostics, /if \(\( count < 100 \)\); then/);
   assert.doesNotMatch(diagnostics, /curl[^\n]*\s-X\s+(?:POST|PUT|DELETE|PATCH)/);
 });
+
+test('legacy CodeQL SARIF ID parses to the exact protected main category', () => {
+  const category = '.github/workflows/codeql.yml:analyze';
+  const sarifAutomationId = category + '/';
+  // GitHub SARIF parsing uses everything before the final slash as category.
+  const parsedCategory = sarifAutomationId.slice(0, sarifAutomationId.lastIndexOf('/'));
+  assert.equal(parsedCategory, category);
+  const generate = sliceBetweenMarkers(codeql,
+    '      - name: Rebuild legacy CodeQL category from analyzed SARIF',
+    '      - name: Upload legacy CodeQL configuration');
+  assert.match(generate, /\.github\/workflows\/codeql\.yml:analyze\//);
+  const upload = codeql.split('      - name: Upload legacy CodeQL configuration')[1] ?? '';
+  assert.match(upload, /category: "\.github\/workflows\/codeql\.yml:analyze\/"/);
+});
