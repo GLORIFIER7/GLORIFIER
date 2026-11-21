@@ -24,6 +24,7 @@ export type IntelligenceReport = {
   windowHours: number;
   sourceCount: number;
   evidenceCount: number;
+  sourceStatuses: string[];
   analyses: IntelligenceAnalysis[];
   executiveSummary: string;
   themes: Array<{ theme: string; evidenceIds: string[]; summary: string }>;
@@ -68,6 +69,8 @@ const ensureSchema = async () => {
       status TEXT NOT NULL,
       output TEXT NOT NULL
     );
+    ALTER TABLE intelligence_reports
+      ADD COLUMN IF NOT EXISTS source_statuses JSONB NOT NULL DEFAULT '[]'::jsonb;
     CREATE INDEX IF NOT EXISTS intelligence_evidence_report_idx ON intelligence_evidence(report_id);
     CREATE INDEX IF NOT EXISTS intelligence_evidence_published_idx ON intelligence_evidence(published_at DESC);
   `);
@@ -210,6 +213,50 @@ async function collectSources(windowHours: number) {
   return { evidence: deduped.slice(0, 50), sourceStatus };
 }
 
+export type NormalizedIntelligenceSynthesis = {
+  executiveSummary: string;
+  themes: IntelligenceReport['themes'];
+  disagreements: string[];
+};
+
+/** Treat model output as untrusted data and admit only themes linked to report evidence. */
+export function normalizeIntelligenceSynthesis(
+  value: unknown,
+  validEvidenceIds: ReadonlySet<string>,
+): NormalizedIntelligenceSynthesis {
+  const record = value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  const themes = (Array.isArray(record.themes) ? record.themes : [])
+    .slice(0, 24)
+    .flatMap((item) => {
+      if (!item || typeof item !== 'object' || Array.isArray(item)) return [];
+      const candidate = item as Record<string, unknown>;
+      const theme = typeof candidate.theme === 'string' ? candidate.theme.trim().slice(0, 300) : '';
+      const evidenceIds = [...new Set(
+        (Array.isArray(candidate.evidenceIds) ? candidate.evidenceIds : [])
+          .filter((id): id is string => typeof id === 'string' && validEvidenceIds.has(id)),
+      )];
+      if (!theme || evidenceIds.length === 0) return [];
+      return [{
+        theme,
+        evidenceIds,
+        summary: typeof candidate.summary === 'string' ? candidate.summary.trim().slice(0, 1500) : '',
+      }];
+    });
+  const disagreements = (Array.isArray(record.disagreements) ? record.disagreements : [])
+    .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    .map((item) => item.trim().slice(0, 1000))
+    .slice(0, 10);
+  return {
+    executiveSummary: typeof record.executiveSummary === 'string'
+      ? record.executiveSummary.trim().slice(0, 3000)
+      : '',
+    themes,
+    disagreements,
+  };
+}
+
 export function parseJson<T>(text: string, fallback: T): T {
   const raw = text.trim();
   try {
@@ -229,6 +276,14 @@ export function parseJson<T>(text: string, fallback: T): T {
   }
 
   return fallback;
+}
+
+/** Persist only evidence-validated structured analysis, never raw model text. */
+export function sanitizeIntelligenceAnalysisOutput(
+  modelText: string,
+  validEvidenceIds: ReadonlySet<string>,
+): string {
+  return JSON.stringify(normalizeIntelligenceSynthesis(parseJson<unknown>(modelText, {}), validEvidenceIds));
 }
 
 export async function generateIntelligenceReport(deps: {
@@ -260,22 +315,23 @@ Evidence:
 ${JSON.stringify(evidencePacket)}`;
 
   const [gpt, gemini] = await Promise.all([
-    deps.runModel('openai', prompt, { jsonMode: true }),
-    deps.runModel('gemini', prompt, { jsonMode: true })
+    deps.runModel('openai', prompt, { jsonMode: true }).catch(() => null),
+    deps.runModel('gemini', prompt, { jsonMode: true }).catch(() => null)
   ]);
 
+  const validEvidenceIds = new Set(evidence.map(item => item.id));
   const analyses: IntelligenceAnalysis[] = [
-    gpt ? { provider: 'OpenAI', model: gpt.model, output: gpt.text, status: 'completed' } : { provider: 'OpenAI', model: 'unavailable', output: 'OpenAI key/model unavailable.', status: 'unavailable' },
-    gemini ? { provider: 'Google Gemini', model: gemini.model, output: gemini.text, status: 'completed' } : { provider: 'Google Gemini', model: 'unavailable', output: 'Gemini key/model unavailable.', status: 'unavailable' }
+    gpt ? { provider: 'OpenAI', model: gpt.model, output: sanitizeIntelligenceAnalysisOutput(gpt.text, validEvidenceIds), status: 'completed' } : { provider: 'OpenAI', model: 'unavailable', output: 'OpenAI key/model unavailable.', status: 'unavailable' },
+    gemini ? { provider: 'Google Gemini', model: gemini.model, output: sanitizeIntelligenceAnalysisOutput(gemini.text, validEvidenceIds), status: 'completed' } : { provider: 'Google Gemini', model: 'unavailable', output: 'Gemini key/model unavailable.', status: 'unavailable' }
   ];
-
-  const parsed = analyses.filter(a => a.status === 'completed').map(a => parseJson<{ executiveSummary?: string; themes?: IntelligenceReport['themes']; disagreements?: string[] }>(a.output, {}));
-  const first = parsed[0] || {};
-  const second = parsed[1] || {};
-  const mergedThemes = [...(first.themes || []), ...(second.themes || [])];
+  const parsed = analyses
+    .filter(a => a.status === 'completed')
+    .map(a => normalizeIntelligenceSynthesis(parseJson<unknown>(a.output, {}), validEvidenceIds));
+  const mergedThemes = parsed.flatMap(item => item.themes);
   const themes = [...new Map(mergedThemes.map(theme => [theme.theme.toLowerCase(), theme])).values()].slice(0, 12);
-  const disagreements = [...new Set([...(first.disagreements || []), ...(second.disagreements || [])])].slice(0, 10);
-  const executiveSummary = first.executiveSummary || second.executiveSummary || `Collected ${evidence.length} evidence items from ${new Set(evidence.map(e => e.source)).size} public sources. Cross-model synthesis was unavailable or returned no structured summary.`;
+  const disagreements = [...new Set(parsed.flatMap(item => item.disagreements))].slice(0, 10);
+  const executiveSummary = parsed.find(item => item.executiveSummary)?.executiveSummary
+    || `Collected ${evidence.length} evidence items from ${new Set(evidence.map(e => e.source)).size} public sources. Cross-model synthesis was unavailable or returned no structured summary.`;
 
   const report: IntelligenceReport = {
     id: `intel-${Date.now()}`,
@@ -283,6 +339,7 @@ ${JSON.stringify(evidencePacket)}`;
     windowHours,
     sourceCount: new Set(evidence.map(e => e.source)).size,
     evidenceCount: evidence.length,
+    sourceStatuses: [...sourceStatus],
     analyses,
     executiveSummary,
     themes,
@@ -295,8 +352,8 @@ ${JSON.stringify(evidencePacket)}`;
   const db = getPool();
   if (db) {
     await db.query(
-      'INSERT INTO intelligence_reports (id, generated_at, window_hours, source_count, evidence_count, executive_summary, themes, disagreements) VALUES ($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT (id) DO NOTHING',
-      [report.id, report.generatedAt, report.windowHours, report.sourceCount, report.evidenceCount, report.executiveSummary, JSON.stringify(report.themes), JSON.stringify(report.disagreements)]
+      'INSERT INTO intelligence_reports (id, generated_at, window_hours, source_count, evidence_count, executive_summary, themes, disagreements, source_statuses) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9) ON CONFLICT (id) DO NOTHING',
+      [report.id, report.generatedAt, report.windowHours, report.sourceCount, report.evidenceCount, report.executiveSummary, JSON.stringify(report.themes), JSON.stringify(report.disagreements), JSON.stringify(report.sourceStatuses)]
     );
     for (const item of report.evidence) {
       await db.query(
@@ -331,6 +388,7 @@ export async function getLatestIntelligenceReport() {
     windowHours: row.window_hours,
     sourceCount: row.source_count,
     evidenceCount: row.evidence_count,
+    sourceStatuses: row.source_statuses || [],
     executiveSummary: row.executive_summary,
     themes: row.themes || [],
     disagreements: row.disagreements || [],
