@@ -134,6 +134,16 @@ test('CodeQL pull-request analyses are bound to the exact stable PR head SHA', (
 });
 
 
+test('CodeQL same-repository PR checkout matches the uploaded PR head', () => {
+  const checkout = codeql.split('      - name: Checkout\n')[1]?.split('      - name: Initialize CodeQL')[0] ?? '';
+  assert.match(checkout, /persist-credentials:\s*false/);
+  assert.ok(
+    checkout.includes("ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.sha || github.sha }}"),
+    'the same-repository PR checkout must use the head SHA, and fork PRs must retain the native merge SHA',
+  );
+});
+
+
 test('live PostgreSQL maintenance workflows explicitly enable verified production TLS', () => {
   const cases = [
     ['global collaboration', globalCollaboration, 'Run global collaboration and resolution cycle'],
