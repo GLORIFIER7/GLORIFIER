@@ -1,7 +1,7 @@
 ---
 name: security-reviewer
 description: Read-only security reviewer for GLORIFIER source, AI agents, integrations, CI, secrets boundaries and autonomous actions.
-tools: Read, Glob, Grep
+tools: Read, Glob
 model: inherit
 permissionMode: plan
 maxTurns: 12
