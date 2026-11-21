@@ -1,5 +1,6 @@
 import { getPostgresPool } from './db/postgres';
 import crypto from 'node:crypto';
+import type { Pool, PoolClient } from 'pg';
 import {
   classifyBusinessIntelligenceIngestionStatus,
   getBusinessIntelligencePipelineProgress,
@@ -151,15 +152,45 @@ export async function registerBusinessIntelligenceWatch(input:{
   return r.rows[0];
 }
 
+/** Keep observations, signals and the ingestion receipt atomic. */
+export async function runBusinessIntelligenceTransaction<T>(
+  db: Pool,
+  operation: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await db.connect();
+  let transactionOpen = false;
+  let discardConnection = false;
+  try {
+    await client.query('BEGIN');
+    transactionOpen = true;
+    const result = await operation(client);
+    await client.query('COMMIT');
+    transactionOpen = false;
+    return result;
+  } catch (error) {
+    if (transactionOpen) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        discardConnection = true;
+      }
+    }
+    throw error;
+  } finally {
+    client.release(discardConnection);
+  }
+}
+
 export async function ingestIntelligenceReportIntoBusinessIntelligence(report: IntelligenceReportInput) {
   await initializeBusinessIntelligenceScientist();
   const db = getPostgresPool();
   const normalized = normalizeIntelligenceReportToBiRecords(report);
+  return runBusinessIntelligenceTransaction(db, async (client) => {
   let observationsUpserted = 0;
   let signalsUpserted = 0;
 
   for (const item of normalized.observations) {
-    const result = await db.query(`
+    const result = await client.query(`
       INSERT INTO glorifier_bi_observations(
         id,domain,source,source_ref,subject,metric,value,unit,observed_at,evidence_status,confidence,metadata
       ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
@@ -176,7 +207,7 @@ export async function ingestIntelligenceReportIntoBusinessIntelligence(report: I
   }
 
   for (const item of normalized.signals) {
-    const result = await db.query(`
+    const result = await client.query(`
       INSERT INTO glorifier_bi_signals(
         id,domain,signal_type,title,description,evidence_refs,confidence,impact_estimate,status,metadata
       ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
@@ -195,7 +226,7 @@ export async function ingestIntelligenceReportIntoBusinessIntelligence(report: I
   const reportId = typeof report.id === 'string' && report.id.trim() ? report.id.trim() : 'unidentified-report';
   const generatedAt = report.generatedAt || new Date(0).toISOString();
   const status = classifyBusinessIntelligenceIngestionStatus(observationsUpserted, normalized.rejectedEvidenceCount);
-  await db.query(`
+  await client.query(`
     INSERT INTO glorifier_bi_ingestion_runs(
       report_id,generated_at,source_count,evidence_count,observations_upserted,
       signals_upserted,rejected_evidence_count,status
@@ -219,6 +250,7 @@ export async function ingestIntelligenceReportIntoBusinessIntelligence(report: I
     signalsUpserted,
     rejectedEvidenceCount:normalized.rejectedEvidenceCount,
   };
+  });
 }
 
 export async function getBusinessIntelligenceSnapshot() {
