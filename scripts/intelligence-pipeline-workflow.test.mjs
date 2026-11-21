@@ -51,11 +51,11 @@ assert.match(
 );
 
 const refreshStep = workflow.match(/- name: Refresh configured intelligence report([\s\S]*?)(?=\n      - name:|\s*$)/)?.[1] ?? '';
-assert.equal(
-  (refreshStep.match(/-X POST/g) || []).length,
-  2,
-  'both configured-key and no-key scheduled paths must invoke the refresh POST endpoint',
-);
+const keyedBranch = refreshStep.match(/if \[ -n "\$\{INTELLIGENCE_KEY\}" \]; then([\s\S]*?)\n\s*else\s*\n/)?.[1];
+const unkeyedBranch = refreshStep.match(/\n\s*else\s*\n([\s\S]*?)\n\s*fi(?:\s|$)/)?.[1];
+assert.ok(keyedBranch && unkeyedBranch, 'the refresh script must retain separate keyed and unkeyed branches');
+assert.match(keyedBranch, /\bcurl\b[^\n]*-X POST\b/, 'the authenticated refresh must use POST');
+assert.match(unkeyedBranch, /\bcurl\b[^\n]*-X POST\b/, 'the no-key refresh must also use POST');
 
 console.log('Intelligence pipeline PR concurrency regression tests passed');
 });
