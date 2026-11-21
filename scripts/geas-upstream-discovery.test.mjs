@@ -71,8 +71,8 @@ test('discovers every page, deduplicates, and preserves archive metadata', async
   const urls = [];
   const fetchImpl = async (url) => {
     urls.push(url);
-    return response(url.includes('page=1') ? [entry('z'), entry('a')] :
-      url.includes('page=2') ? [entry('a'), entry('b', {archived: true})] : []);
+    return response(new URL(url).searchParams.get('page') === '1' ? [entry('z'), entry('a')] :
+      new URL(url).searchParams.get('page') === '2' ? [entry('a'), entry('b', {archived: true})] : []);
   };
   const inventory = await discoverOrganization('openai', {fetchImpl, perPage: 2, maxPages: 3, token: ''});
   assert.equal(inventory.complete, true);
