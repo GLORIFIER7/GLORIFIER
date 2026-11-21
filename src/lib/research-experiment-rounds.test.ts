@@ -141,7 +141,10 @@ test('rejects sparse source-reference arrays without a real provenance value', (
   const empty = observation('sparse-empty');
   empty.sourceRefs = new Array<string>(1);
   const partial = observation('sparse-partial');
-  partial.sourceRefs = ['https://example.org/one', , 'https://example.org/three'];
+  const sparseRefs = new Array<string>(3);
+  sparseRefs[0] = 'https://example.org/one';
+  sparseRefs[2] = 'https://example.org/three';
+  partial.sourceRefs = sparseRefs;
   const selected = selectNextResearchRound([empty, partial], { authenticateReview: trustedVerifier });
   assert.deepEqual(selected.selected, []);
   assert.deepEqual(selected.notSelected.map((item) => item.reason), [
