@@ -278,6 +278,14 @@ export function parseJson<T>(text: string, fallback: T): T {
   return fallback;
 }
 
+/** Persist only evidence-validated structured analysis, never raw model text. */
+export function sanitizeIntelligenceAnalysisOutput(
+  modelText: string,
+  validEvidenceIds: ReadonlySet<string>,
+): string {
+  return JSON.stringify(normalizeIntelligenceSynthesis(parseJson<unknown>(modelText, {}), validEvidenceIds));
+}
+
 export async function generateIntelligenceReport(deps: {
   runModel: (provider: 'openai' | 'gemini', prompt: string, options?: { jsonMode?: boolean; systemInstruction?: string }) => Promise<{ text: string; model: string } | null>;
   windowHours?: number;
@@ -311,12 +319,11 @@ ${JSON.stringify(evidencePacket)}`;
     deps.runModel('gemini', prompt, { jsonMode: true }).catch(() => null)
   ]);
 
-  const analyses: IntelligenceAnalysis[] = [
-    gpt ? { provider: 'OpenAI', model: gpt.model, output: gpt.text, status: 'completed' } : { provider: 'OpenAI', model: 'unavailable', output: 'OpenAI key/model unavailable.', status: 'unavailable' },
-    gemini ? { provider: 'Google Gemini', model: gemini.model, output: gemini.text, status: 'completed' } : { provider: 'Google Gemini', model: 'unavailable', output: 'Gemini key/model unavailable.', status: 'unavailable' }
-  ];
-
   const validEvidenceIds = new Set(evidence.map(item => item.id));
+  const analyses: IntelligenceAnalysis[] = [
+    gpt ? { provider: 'OpenAI', model: gpt.model, output: sanitizeIntelligenceAnalysisOutput(gpt.text, validEvidenceIds), status: 'completed' } : { provider: 'OpenAI', model: 'unavailable', output: 'OpenAI key/model unavailable.', status: 'unavailable' },
+    gemini ? { provider: 'Google Gemini', model: gemini.model, output: sanitizeIntelligenceAnalysisOutput(gemini.text, validEvidenceIds), status: 'completed' } : { provider: 'Google Gemini', model: 'unavailable', output: 'Gemini key/model unavailable.', status: 'unavailable' }
+  ];
   const parsed = analyses
     .filter(a => a.status === 'completed')
     .map(a => normalizeIntelligenceSynthesis(parseJson<unknown>(a.output, {}), validEvidenceIds));
