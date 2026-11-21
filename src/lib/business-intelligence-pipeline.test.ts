@@ -1,4 +1,6 @@
 import assert from 'node:assert/strict';
+import type { Pool } from 'pg';
+import { runBusinessIntelligenceTransaction } from './business-intelligence-scientist.js';
 import { test } from 'node:test';
 import {
   buildGeasBusinessIntelligenceAdvisory,
@@ -221,4 +223,42 @@ test('GEAS advisory excludes whitespace-only report and scan evidence identities
   assert.deepEqual(advisory.evidenceRefs, []);
   assert.equal(advisory.status, 'partial', 'a recorded scan alone cannot establish a supported report');
   assert.match(advisory.limitations.join(' '), /No valid public intelligence report evidence/);
+});
+
+
+test('BI ingestion transaction commits all writes on one client', async () => {
+  const steps: string[] = [];
+  const db = {
+    connect: async () => ({
+      query: async (sql: string) => { steps.push(sql); return { rows: [], rowCount: 1 }; },
+      release: () => { steps.push('RELEASE'); },
+    }),
+  } as unknown as Pool;
+  const count = await runBusinessIntelligenceTransaction(db, async (client) => {
+    await client.query('INSERT observation');
+    await client.query('INSERT signal');
+    await client.query('INSERT run receipt');
+    return 3;
+  });
+  assert.equal(count, 3);
+  assert.deepEqual(steps, ['BEGIN', 'INSERT observation', 'INSERT signal', 'INSERT run receipt', 'COMMIT', 'RELEASE']);
+});
+
+test('BI ingestion transaction rolls back partial writes on failure', async () => {
+  const steps: string[] = [];
+  const db = {
+    connect: async () => ({
+      query: async (sql: string) => {
+        steps.push(sql);
+        if (sql === 'INSERT signal') throw new Error('simulated database failure');
+        return { rows: [], rowCount: 1 };
+      },
+      release: () => { steps.push('RELEASE'); },
+    }),
+  } as unknown as Pool;
+  await assert.rejects(runBusinessIntelligenceTransaction(db, async (client) => {
+    await client.query('INSERT observation');
+    await client.query('INSERT signal');
+  }), /simulated database failure/);
+  assert.deepEqual(steps, ['BEGIN', 'INSERT observation', 'INSERT signal', 'ROLLBACK', 'RELEASE']);
 });
