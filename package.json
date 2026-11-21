@@ -150,7 +150,7 @@
     "test:intelligence-report-json": "node --import tsx/esm --test src/lib/intelligence.test.ts"
   },
   "dependencies": {
-    "@capacitor/android": "^8.6.0",
+    "@capacitor/android": "^8.6.2",
     "@capacitor/core": "^8.6.0",
     "@google/genai": "^3.1.0",
     "@tailwindcss/vite": "^4.3.5",
