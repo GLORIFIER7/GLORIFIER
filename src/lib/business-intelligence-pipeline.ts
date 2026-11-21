@@ -405,3 +405,20 @@ export function buildGeasBusinessIntelligenceAdvisory(input: {
     economicTruth: 'Estimated opportunity value is NOT VERIFIED REVENUE.',
   };
 }
+
+/**
+ * Count only search-query collectors already present in the intelligence pipeline.
+ * Other evidence (arXiv, GitHub commits, Hugging Face) must not make search
+ * signals look observed.
+ */
+const SEARCH_SOURCE_IDS = new Set(['google-news-ai', 'google-news-glorifier', 'hacker-news-ai']);
+
+export function summarizeSearchSourceEvidence(
+  evidence: readonly ({ source?: unknown } | null | undefined)[] | null | undefined,
+): { status: 'observed' | 'not-available'; evidenceCount: number } {
+  const evidenceCount = Array.isArray(evidence)
+    ? evidence.filter((item) => typeof item?.source === 'string'
+      && SEARCH_SOURCE_IDS.has(item.source.trim().toLowerCase())).length
+    : 0;
+  return { status: evidenceCount > 0 ? 'observed' : 'not-available', evidenceCount };
+}

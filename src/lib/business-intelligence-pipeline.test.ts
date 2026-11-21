@@ -7,6 +7,7 @@ import {
   classifyBusinessIntelligenceIngestionStatus,
   getBusinessIntelligencePipelineProgress,
   normalizeIntelligenceReportToBiRecords,
+  summarizeSearchSourceEvidence,
 } from './business-intelligence-pipeline.js';
 
 const report = {
@@ -261,4 +262,23 @@ test('BI ingestion transaction rolls back partial writes on failure', async () =
     await client.query('INSERT signal');
   }), /simulated database failure/);
   assert.deepEqual(steps, ['BEGIN', 'INSERT observation', 'INSERT signal', 'ROLLBACK', 'RELEASE']);
+});
+
+test('Search signals require evidence from a configured query-based source', () => {
+  const unrelated = summarizeSearchSourceEvidence([
+    { source: 'arxiv-ai' },
+    { source: 'github-glorifier' },
+    { source: 'hugging-face-models' },
+  ]);
+  assert.deepEqual(unrelated, { status: 'not-available', evidenceCount: 0 });
+  assert.deepEqual(summarizeSearchSourceEvidence(null), { status: 'not-available', evidenceCount: 0 });
+
+  const queryEvidence = summarizeSearchSourceEvidence([
+    { source: 'arxiv-ai' },
+    { source: 'google-news-glorifier' },
+    { source: 'hacker-news-ai' },
+    { source: 'unknown-search' },
+    null,
+  ]);
+  assert.deepEqual(queryEvidence, { status: 'observed', evidenceCount: 2 });
 });
