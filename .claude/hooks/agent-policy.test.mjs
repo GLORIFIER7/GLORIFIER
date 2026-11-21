@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
 import { decidePreToolUse } from './agent-policy.mjs';
 
 const cwd = path.resolve('/workspace/repository');
@@ -140,4 +141,36 @@ test('allows read-only inspection and ordinary focused validation commands', () 
 test('fails closed when a write tool has no target path', () => {
   const decision = decidePreToolUse({ tool_name: 'Write', tool_input: {}, cwd });
   assert.equal(decision?.hookSpecificOutput?.permissionDecision, 'deny');
+});
+
+test('Claude security reviewer has no unrestricted grep access and refuses direct secret reads', () => {
+  const reviewer = readFileSync(new URL('../agents/security-reviewer.md', import.meta.url), 'utf8');
+  const settings = readFileSync(new URL('../settings.json', import.meta.url), 'utf8');
+  assert.match(reviewer, /^tools: Read, Glob$/m);
+  assert.match(settings, /"matcher": "Read"/);
+  for (const file of ['.env', '.env.production', '.dev.vars', '.npmrc', '.ssh/id_rsa', 'private/api.pem', 'credentials/provider.json']) {
+    const decision = decidePreToolUse({ tool_name: 'Read', tool_input: { file_path: file }, cwd });
+    assert.equal(decision?.hookSpecificOutput?.permissionDecision, 'deny', file);
+  }
+  assert.equal(decidePreToolUse({ tool_name: 'Read', tool_input: { file_path: 'src/server.ts' }, cwd }), null);
+});
+
+test('OpenCode denies destructive Git operations and Wrangler secret writes', () => {
+  const opencode = JSON.parse(readFileSync(new URL('../../opencode.json', import.meta.url), 'utf8'));
+  const rules = opencode.agent.build.permission.bash;
+  for (const rule of ['git checkout*', 'git branch -D*', 'git branch -d*', 'git stash drop*', 'git stash clear*', 'npx wrangler secret*', 'npx -y wrangler secret*']) {
+    assert.equal(rules[rule], 'deny', rule);
+  }
+});
+
+test('agent issue-repair skill requires separate permission to publish remote pull requests', () => {
+  const skill = readFileSync(new URL('../skills/issue-repair/SKILL.md', import.meta.url), 'utf8');
+  assert.match(skill, /ask for separate user authorization before pushing or opening a draft PR/i);
+});
+
+test('obfuscated dangerous shell commands fail closed without a parser bypass', () => {
+  for (const command of ['git cl""ean -fd', 'npx wrangler secret put API_KEY', 'git checkout -- src/work.ts', 'git branch -D feature/test']) {
+    const decision = decidePreToolUse({ tool_name: 'Bash', tool_input: { command }, cwd });
+    assert.equal(decision?.hookSpecificOutput?.permissionDecision, 'deny', command);
+  }
 });
