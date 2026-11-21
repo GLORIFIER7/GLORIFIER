@@ -22,6 +22,11 @@ jobs:
     timeout-minutes: 45
     environment: a2a-tck-staging
     steps:
+      - name: Checkout GLORIFIER for the pinned TCK lockfile
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+
       - name: Validate staging origin, bearer credential, and A2A Agent Card
         id: target
         env:
@@ -37,7 +42,11 @@ jobs:
           import re
           from urllib.error import HTTPError, URLError
           from urllib.parse import urlsplit
-          from urllib.request import Request, urlopen
+          from urllib.request import HTTPRedirectHandler, Request, build_opener
+
+          class RejectRedirects(HTTPRedirectHandler):
+              def redirect_request(self, request, fp, code, msg, headers, newurl):
+                  return None
 
           sut_host = os.environ.get("SUT_HOST", "").strip()
           allowed_host = os.environ.get("ALLOWED_HOST", "").strip()
@@ -93,36 +102,53 @@ jobs:
               method="GET",
           )
           try:
-              with urlopen(request, timeout=20) as response:
+              with build_opener(RejectRedirects()).open(request, timeout=20) as response:
                   if response.status != 200:
                       raise SystemExit(f"A2A Agent Card returned HTTP {response.status}.")
-                  card = json.loads(response.read().decode("utf-8"))
+                  max_card_bytes = 256 * 1024
+                  payload = response.read(max_card_bytes + 1)
+                  if len(payload) > max_card_bytes:
+                      raise SystemExit("A2A Agent Card exceeds 256 KiB.")
+                  card = json.loads(payload.decode("utf-8"))
           except (HTTPError, URLError, TimeoutError, ValueError) as error:
               raise SystemExit(f"Staging A2A Agent Card preflight failed: {type(error).__name__}.") from None
 
+          if not isinstance(card, dict):
+              raise SystemExit("A2A Agent Card must be a JSON object.")
           interfaces = card.get("supportedInterfaces")
+          if not isinstance(interfaces, list):
+              raise SystemExit("A2A Agent Card supportedInterfaces must be an array.")
           jsonrpc = [
-              item for item in interfaces or []
+              item for item in interfaces
               if isinstance(item, dict)
               and item.get("protocolBinding") == "JSONRPC"
               and item.get("protocolVersion") == "1.0"
           ]
           if not jsonrpc:
               raise SystemExit("Agent Card does not advertise the A2A 1.0 JSONRPC interface.")
-          endpoint = urlsplit(jsonrpc[0].get("url", ""))
-          if (
-              endpoint.scheme != "https"
-              or not endpoint.hostname
-              or endpoint.hostname.lower() != parsed.hostname.lower()
-              or endpoint.username is not None
-              or endpoint.password is not None
-              or endpoint.port not in (None, 443)
-              or endpoint.query
-              or endpoint.fragment
-          ):
-              raise SystemExit("A2A JSONRPC interface must remain on the exact allowlisted HTTPS staging host.")
-          if "bearer" not in (card.get("securitySchemes") or {}):
-              raise SystemExit("Agent Card does not declare the expected bearer security scheme.")
+          for interface in jsonrpc:
+              url = interface.get("url")
+              if not isinstance(url, str):
+                  raise SystemExit("A2A JSONRPC interface URL must be a string.")
+              try:
+                  endpoint = urlsplit(url)
+                  invalid_endpoint = (
+                      endpoint.scheme != "https"
+                      or not endpoint.hostname
+                      or endpoint.hostname.lower() != parsed.hostname.lower()
+                      or endpoint.username is not None
+                      or endpoint.password is not None
+                      or endpoint.port not in (None, 443)
+                      or endpoint.query
+                      or endpoint.fragment
+                  )
+              except ValueError:
+                  invalid_endpoint = True
+              if invalid_endpoint:
+                  raise SystemExit("A2A JSONRPC interface must remain on the exact allowlisted HTTPS staging host.")
+          security_schemes = card.get("securitySchemes")
+          if not isinstance(security_schemes, dict) or "bearer" not in security_schemes:
+              raise SystemExit("A2A Agent Card does not declare the expected bearer security scheme.")
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
               output.write("sut_host=" + origin + "\n")
           print("A2A staging origin and public Agent Card contract verified; bearer credential was not displayed.")
