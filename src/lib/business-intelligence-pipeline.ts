@@ -311,14 +311,14 @@ export function buildGeasBusinessIntelligenceAdvisory(input: {
   const scan = input.scan || null;
   const normalized = report ? normalizeIntelligenceReportToBiRecords(report) : null;
   const evidence = (report?.evidence || []).filter((item) =>
-    typeof item.id === 'string'
-    && typeof item.source === 'string'
-    && typeof item.title === 'string'
+    typeof item.id === 'string' && item.id.trim().length > 0
+    && typeof item.source === 'string' && item.source.trim().length > 0
+    && typeof item.title === 'string' && item.title.trim().length > 0
     && validHttpUrl(item.url),
   );
   const reportEvidenceRefs = evidence.map((item) => item.id as string);
   const geasEvidence = (scan?.evidence || []).filter((item) =>
-    typeof item.id === 'string' && validHttpUrl(item.sourceUrl),
+    typeof item.id === 'string' && item.id.trim().length > 0 && validHttpUrl(item.sourceUrl),
   );
   const geasEvidenceRefs = geasEvidence.map((item) => item.id as string);
   const drift = (scan?.drift || [])
