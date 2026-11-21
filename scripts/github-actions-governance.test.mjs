@@ -128,16 +128,18 @@ test('GitHub Actions governance tests are required by GLORIFIER CI', () => {
 });
 
 
-test('CodeQL PR checkout pins same-repository head SHA without changing fork analysis', () => {
+test('CodeQL PR checkout uses the native test-merge commit without retaining credentials', () => {
   const checkout = codeql.split('      - name: Checkout\n')[1]?.split('      - name: Initialize CodeQL')[0] ?? '';
   assert.match(checkout, /persist-credentials:\s*false/);
-  assert.ok(checkout.includes("ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.sha || github.sha }}"));
+  assert.doesNotMatch(checkout, /^\s*ref:/m, 'a PR head override skips the test merge');
 });
 
-test('CodeQL PR SARIF is attributed to the reviewed stable PR head', () => {
-  const analyze = codeql.split('      - name: Analyze\n')[1] ?? '';
-  assert.ok(analyze.includes("ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && format('refs/pull/{0}/head', github.event.pull_request.number) || github.ref }}"));
-  assert.ok(analyze.includes("sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.sha || github.sha }}"));
+test('CodeQL analysis and legacy SARIF upload share the native tested merge identity', () => {
+  const analyze = codeql.split('      - name: Analyze\n')[1]?.split('      # GitHub still has a pre-matrix')[0] ?? '';
+  assert.doesNotMatch(analyze, /^\s*(ref|sha):/m, 'the CodeQL action should use the native GitHub ref and SHA');
+  const upload = codeql.split('      - name: Upload legacy CodeQL configuration')[1]?.split('      # Read-only inspection.')[0] ?? '';
+  assert.match(upload, /ref: \$\{\{ github\.ref \}\}/);
+  assert.match(upload, /sha: \$\{\{ github\.sha \}\}/);
 });
 
 test('live PostgreSQL maintenance workflows explicitly enable verified production TLS', () => {
@@ -217,8 +219,8 @@ test('CodeQL retains the legacy main scan configuration with genuine analyzed SA
   assert.match(upload, /sarif_file: \$\{\{ runner\.temp \}\}\/codeql-legacy\/legacy\.sarif/);
   assert.match(upload, /category: "\.github\/workflows\/codeql\.yml:analyze"/);
   assert.match(upload, /matrix: '\{\}'/);
-  assert.match(upload, /ref: \$\{\{ github\.event_name == 'pull_request'/);
-  assert.match(upload, /sha: \$\{\{ github\.event_name == 'pull_request'/);
+  assert.match(upload, /ref: \$\{\{ github\.ref \}\}/);
+  assert.match(upload, /sha: \$\{\{ github\.sha \}\}/);
 });
 
 test('CodeQL diagnostic compares authenticated read-only main and PR analysis identities', () => {
@@ -228,6 +230,7 @@ test('CodeQL diagnostic compares authenticated read-only main and PR analysis id
   assert.match(diagnostic, /matrix\.language == 'javascript-typescript'/);
   assert.match(diagnostic, /refs\/heads\/main/);
   assert.match(diagnostic, /refs\/pull\/\$\{PR_NUMBER\}\/head/);
+  assert.match(diagnostic, /refs\/pull\/\$\{PR_NUMBER\}\/merge/);
   assert.match(diagnostic, /code-scanning\/analyses/);
   assert.match(diagnostic, /\.analysis_key/);
   assert.match(diagnostic, /\.category/);
