@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { normalizeIntelligenceSynthesis, parseJson } from './intelligence';
+import { normalizeIntelligenceSynthesis, parseJson, sanitizeIntelligenceAnalysisOutput } from './intelligence';
 
 test('valid raw JSON preserves triple-backtick values inside report fields', () => {
   const expected = {
@@ -74,4 +74,27 @@ test('cross-model synthesis returns a safe empty structure for non-object model 
     themes: [],
     disagreements: [],
   });
+});
+
+
+test('persisted AI analysis omits invented evidence identifiers and unparsed provider text', () => {
+  const output = [
+    'Model preface must not reach the persisted report.',
+    '```json',
+    JSON.stringify({
+      executiveSummary: 'Supported interpretation',
+      themes: [
+        { theme: 'Supported', evidenceIds: ['known-evidence', 'invented-evidence'], summary: 'Source-backed theme' },
+        { theme: 'Unsupported', evidenceIds: ['invented-evidence'], summary: 'Unverifiable claim' },
+      ],
+      disagreements: [],
+    }),
+    '```',
+  ].join('\n');
+  const sanitized = sanitizeIntelligenceAnalysisOutput(output, new Set(['known-evidence']));
+  const parsed = JSON.parse(sanitized);
+  assert.deepEqual(parsed.themes, [
+    { theme: 'Supported', evidenceIds: ['known-evidence'], summary: 'Source-backed theme' },
+  ]);
+  assert.doesNotMatch(sanitized, /invented-evidence|Unverifiable claim|Model preface/);
 });
