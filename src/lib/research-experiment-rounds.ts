@@ -48,7 +48,7 @@ export type ResearchRoundOptions = {
 };
 
 const MAX_GRAPH_NODES = 6;
-const SHA256 = /^[a-f0-9]{64}$/;
+const SHA256 = /^[a-f0-9]{64}$/i;
 
 function nonemptyRef(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0 && value.length <= 512;
@@ -65,7 +65,7 @@ function rejectionReason(
   if (!SHA256.test(candidate.inputSha256) || !SHA256.test(candidate.outputSha256) ||
       !nonemptyRef(candidate.methodRef) ||
       !Array.isArray(candidate.sourceRefs) || candidate.sourceRefs.length < 1 ||
-      candidate.sourceRefs.length > 20 || !candidate.sourceRefs.every(nonemptyRef)) {
+      candidate.sourceRefs.length > 20 || !Array.from(candidate.sourceRefs).every(nonemptyRef)) {
     return 'insufficient-provenance';
   }
 
@@ -74,12 +74,20 @@ function rejectionReason(
       !nonemptyRef(candidate.producerId) || candidate.producerId === candidate.review.reviewerId) {
     return 'review-not-independent';
   }
-  if (candidate.review.outputSha256 !== candidate.outputSha256) {
+  if (!SHA256.test(candidate.review.outputSha256) ||
+      candidate.review.outputSha256.toLowerCase() !== candidate.outputSha256.toLowerCase()) {
     return 'review-not-bound-to-output';
   }
   // Fail closed: a missing, throwing, or async verifier is not authentication.
   try {
-    if (authenticateReview?.(candidate) !== true) return 'review-not-authenticated';
+    const verdict: unknown = authenticateReview?.(candidate);
+    if (verdict && (typeof verdict === 'object' || typeof verdict === 'function') &&
+        typeof (verdict as PromiseLike<unknown>).then === 'function') {
+      // A callback that violates this synchronous contract must not leave a
+      // rejected Promise unhandled. Ignore its result and fail closed.
+      void Promise.resolve(verdict).catch(() => undefined);
+    }
+    if (verdict !== true) return 'review-not-authenticated';
   } catch {
     return 'review-not-authenticated';
   }
