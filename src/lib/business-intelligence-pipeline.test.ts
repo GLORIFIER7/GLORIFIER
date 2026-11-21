@@ -196,3 +196,29 @@ test('does not interpret a missing GEAS scan as zero risk or a complete advisory
   assert.equal(advisory.governance.humanApprovalRequired, true);
   assert.match(advisory.limitations.join(' '), /GEAS (?:architecture )?scan/i);
 });
+
+test('GEAS advisory excludes whitespace-only report and scan evidence identities', () => {
+  const invalidReport = {
+    ...report,
+    evidence: [
+      { id: '   ', source: 'arxiv-ai', title: 'Source', url: 'https://example.com/one' },
+      { id: 'valid-id', source: '   ', title: 'Source', url: 'https://example.com/two' },
+      { id: 'valid-id-2', source: 'arxiv-ai', title: '\t ', url: 'https://example.com/three' },
+    ],
+    themes: [],
+  };
+  const scan = {
+    scanId: 'scan-whitespace-check',
+    completedAt: '2026-11-20T08:05:00.000Z',
+    evidence: [{ id: '  ', sourceUrl: 'https://www.nist.gov/example', evidenceClass: 'claim-supported' }],
+  };
+
+  const advisory = buildGeasBusinessIntelligenceAdvisory({ report: invalidReport, scan });
+  assert.equal(advisory.intelligence.evidenceCount, 0);
+  assert.deepEqual(advisory.intelligence.evidence, []);
+  assert.equal(advisory.geas.evidenceCount, 0);
+  assert.equal(advisory.geas.claimSupportedEvidenceCount, 0);
+  assert.deepEqual(advisory.evidenceRefs, []);
+  assert.equal(advisory.status, 'partial', 'a recorded scan alone cannot establish a supported report');
+  assert.match(advisory.limitations.join(' '), /No valid public intelligence report evidence/);
+});
