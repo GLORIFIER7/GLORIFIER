@@ -11,5 +11,5 @@ description: Repair one repository issue using a reproducible root cause, regres
 4. Reproduce behavior with a failing regression test before fixing code.
 5. Implement the smallest complete repair on a task-specific branch; do not overlap another agent's worktree.
 6. Run the focused test, then the repository's type-check/build and relevant security or contract checks.
-7. Review the full diff, verify no secret or protected-path changes, and open a draft PR for human review.
+7. Review the full diff, verify no secret or protected-path changes, and ask for separate user authorization before pushing or opening a draft PR; if not authorized, deliver a local patch for review.
 8. Never merge, deploy, publish, weaken controls or claim unrun tests passed.
