@@ -34,11 +34,11 @@ Keep the service principal at minimum privilege. This initial check only needs t
 
 ### Recover a failed `invalid_grant` / `TOKEN_INVALID` exchange
 
-The earlier workflow run (ID `39205843548`) passed configuration validation and CLI installation, but failed at `databricks current-user me` during the GitHub OIDC token exchange. PR #922 (merged November 17, 2026) updated the workflow to request the Databricks account ID as audience. **That commit is not proof that the Databricks account-side policy was updated or that authentication now works.**
+Workflow run [`44879304935`](https://github.com/GLORIFIER7/GLORIFIER/actions/runs/44879304935/job/136770864580) on **November 21, 2026 at 07:14 UTC** confirms this persists **after** PR #922 (merged November 17, 2026). The configuration and CLI setup steps passed, but `databricks current-user me` failed with `invalid_grant` / `TOKEN_INVALID`: `Ensure a valid federation policy has been configured`. The error reports the exact issuer, immutable subject, and account-ID audience shown below. The older workflow run `39205843548` failed similarly. **Passing GitHub configuration checks does not prove account-side federation is configured.**
 
 A **Databricks account admin** must inspect the federation policy attached to the service principal whose application ID equals the GitHub environment's `DATABRICKS_CLIENT_ID`:
 
-1. Open the relevant Databricks **account console** (not the workspace console), then **User management → Service principals**. Select the matching service principal and open **Credentials & secrets → Federation policies**.
+1. Open the relevant [Databricks account console](https://accounts.cloud.databricks.com) (not the workspace console), then **User management → Service principals**. Select the service principal with application ID `1a453e07-0288-4734-98ca-7e7792c94016` (observed in the failed job), verify the intended account ID is `11bcb30d-f5e8-42dc-a186-dcd824e4c045`, and open **Credentials & secrets → Federation policies**. Note that the application ID is **not** the numeric service principal ID used in the account CLI commands.
 2. Confirm that one narrowly scoped GitHub Actions OIDC policy matches all these claims exactly:
 
    | Claim / setting | Required value |
@@ -49,6 +49,29 @@ A **Databricks account admin** must inspect the federation policy attached to th
    | Audience (`aud`) | `11bcb30d-f5e8-42dc-a186-dcd824e4c045` |
 
 3. If the policy differs, correct the existing policy or create a matching **service-principal** federation policy following the Databricks documentation. Do **not** create an account-wide GitHub federation policy or widen the audience/subject to bypass validation. Confirm that the account ID and application ID are the intended ones before modifying anything.
+
+   For an account administrator using a **locally authenticated Databricks CLI**, first discover the numeric ID for that application ID, then **inspect existing policies before creating or updating** (the numeric ID is deliberately not guessed):
+
+   ```bash
+   databricks auth login --host https://accounts.cloud.databricks.com --account-id 11bcb30d-f5e8-42dc-a186-dcd824e4c045
+   databricks account service-principals list --filter 'applicationId eq "1a453e07-0288-4734-98ca-7e7792c94016"'
+   # Substitute the numeric service principal ID from the preceding result:
+   databricks account service-principal-federation-policy list SERVICE_PRINCIPAL_NUMERIC_ID
+   ```
+
+   If **no matching policy exists**, the account admin can create a narrowly scoped one after confirming the numeric ID, using the official Databricks CLI syntax:
+
+   ```bash
+   databricks account service-principal-federation-policy create SERVICE_PRINCIPAL_NUMERIC_ID --json '{
+     "oidc_policy": {
+       "issuer": "https://token.actions.githubusercontent.com",
+       "audiences": ["11bcb30d-f5e8-42dc-a186-dcd824e4c045"],
+       "subject": "repo:GLORIFIER7@32674233/GLORIFIER@1377237797:environment:databricks-readonly"
+     }
+   }'
+   ```
+
+   Run these commands only with appropriate Databricks account administrator authorization. Review an existing incorrect policy rather than making unnecessary duplicates. Keep the policy scoped to this service principal.
 4. Confirm GitHub environment `databricks-readonly` has the correct non-secret `DATABRICKS_HOST` and `DATABRICKS_CLIENT_ID` variables, and restrict environment deployment to `main`.
 5. Manually dispatch **Databricks API Verification** on `main`. Only a passing `Verify authenticated Databricks identity` step confirms the API authentication repair. If it still fails, collect the sanitized error code and step name; never post OIDC JWTs, access tokens, or full authentication debug logs.
 
