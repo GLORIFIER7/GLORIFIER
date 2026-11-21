@@ -8,6 +8,8 @@ The evidence parser uses fixed GitHub repository references and sanitized check 
 
 This is the **observation and deterministic triage** stage of the intended Autopilot → AI CEO → Specialist Council → GEAS → governed-execution loop. It is not proof that those execution components were invoked. The recommended specialist is routing advice only. An authorized Autopilot mission can later consume the bounded artifact after independently validating its provenance and freshness; it must still use capability authorization, GEAS checks, paid-inference controls, signed/verified execution evidence, and human approval for code merges. Artifact creation alone never starts a mission.
 
+The JSON report also contains `autopilotObservationProposals` in the existing `AutopilotObservation` shape (`source: ci`, a stable source event ID, bounded severity and summary, canonical UTC observation time, and the corresponding GitHub evidence URL). These are **proposals only**, not durable mission records: no backend mission store is called. A PR without a validated immutable head SHA does not produce a mission proposal.
+
 The existing `.github/workflows/ai-coding-fleet.yml` remains the owner-authorized optional AI patch generator. Its paid-provider guard and isolated draft PR publisher are unchanged. The intake workflow provides useful failure evidence even when that generator is disabled under the zero-budget default.
 
 ## Limitations and follow-up
