@@ -22,11 +22,6 @@ jobs:
     timeout-minutes: 45
     environment: a2a-tck-staging
     steps:
-      - name: Checkout GLORIFIER for the pinned TCK lockfile
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-
       - name: Validate staging origin, bearer credential, and A2A Agent Card
         id: target
         env:
@@ -46,7 +41,7 @@ jobs:
 
           class RejectRedirects(HTTPRedirectHandler):
               def redirect_request(self, request, fp, code, msg, headers, newurl):
-                  return None
+                  raise HTTPError(request.full_url, code, "Agent Card redirect rejected", headers, fp)
 
           sut_host = os.environ.get("SUT_HOST", "").strip()
           allowed_host = os.environ.get("ALLOWED_HOST", "").strip()
@@ -147,12 +142,23 @@ jobs:
               if invalid_endpoint:
                   raise SystemExit("A2A JSONRPC interface must remain on the exact allowlisted HTTPS staging host.")
           security_schemes = card.get("securitySchemes")
-          if not isinstance(security_schemes, dict) or "bearer" not in security_schemes:
+          bearer = security_schemes.get("bearer") if isinstance(security_schemes, dict) else None
+          http_auth = bearer.get("httpAuthSecurityScheme") if isinstance(bearer, dict) else None
+          scheme = http_auth.get("scheme") if isinstance(http_auth, dict) else None
+          if not isinstance(scheme, str) or scheme.lower() != "bearer":
               raise SystemExit("A2A Agent Card does not declare the expected bearer security scheme.")
           with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
               output.write("sut_host=" + origin + "\n")
           print("A2A staging origin and public Agent Card contract verified; bearer credential was not displayed.")
           PY
+
+      - name: Checkout GLORIFIER's reviewed dependency lock
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: scripts/lockfiles/a2a-tck-uv.lock
+          sparse-checkout-cone-mode: false
 
       - name: Checkout official A2A TCK at pinned upstream revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
