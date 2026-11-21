@@ -136,8 +136,8 @@ test('CodeQL PR checkout pins same-repository head SHA without changing fork ana
 
 test('CodeQL PR SARIF is attributed to the reviewed stable PR head', () => {
   const analyze = codeql.split('      - name: Analyze\n')[1] ?? '';
-  assert.ok(analyze.includes("ref: ${{ github.event_name == 'pull_request' && format('refs/pull/{0}/head', github.event.pull_request.number) || github.ref }}"));
-  assert.ok(analyze.includes("sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}"));
+  assert.ok(analyze.includes("ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && format('refs/pull/{0}/head', github.event.pull_request.number) || github.ref }}"));
+  assert.ok(analyze.includes("sha: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.sha || github.sha }}"));
 });
 
 test('live PostgreSQL maintenance workflows explicitly enable verified production TLS', () => {
