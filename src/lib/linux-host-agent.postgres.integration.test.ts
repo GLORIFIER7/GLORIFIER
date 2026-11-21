@@ -6,6 +6,13 @@ import {
   createLinuxHostAgentTask, enrollLinuxHostAgent, recordLinuxHostAgentHeartbeat, revokeLinuxHostAgent,
 } from './linux-host-agent';
 
+async function claimExpectedTask(runtimeId: string, taskId: string) {
+  const claim = await claimLinuxHostAgentTask(runtimeId);
+  assert.ok(claim, 'expected an approved task to be claimable');
+  assert.equal(claim.taskId, taskId);
+  return claim;
+}
+
 test('Linux host task lifecycle in PostgreSQL', async (t) => {
   const url = process.env.LINUX_HOST_TEST_DATABASE_URL;
   assert.ok(url && url !== process.env.DATABASE_URL, 'a separate LINUX_HOST_TEST_DATABASE_URL is required');
@@ -32,16 +39,14 @@ test('Linux host task lifecycle in PostgreSQL', async (t) => {
         "UPDATE linux_agent_tasks SET expires_at = NOW() + INTERVAL '20 seconds' WHERE id = $1 RETURNING expires_at",
         [taskId],
       );
-      const claim = await claimLinuxHostAgentTask(runtimeId);
-      assert.equal(claim?.taskId, taskId);
+      const claim = await claimExpectedTask(runtimeId, taskId);
       assert.equal(claim.leaseUntil, rows[0].expires_at.toISOString());
       assert.equal((await completeLinuxHostAgentTask(runtimeId, taskId, claim.leaseToken, receipt)).status, 'succeeded');
     });
 
     await t.test('an expired task with an older outstanding lease rejects receipts and expires on polling', async () => {
       const { taskId } = await createLinuxHostAgentTask(runtimeId, 'host.info', actor);
-      const claim = await claimLinuxHostAgentTask(runtimeId);
-      assert.equal(claim?.taskId, taskId);
+      const claim = await claimExpectedTask(runtimeId, taskId);
       await pool.query("UPDATE linux_agent_tasks SET expires_at = NOW() - INTERVAL '1 second' WHERE id = $1", [taskId]);
       await assert.rejects(completeLinuxHostAgentTask(runtimeId, taskId, claim.leaseToken, receipt), /lease has expired/);
       assert.equal(await claimLinuxHostAgentTask(runtimeId), null);
@@ -51,11 +56,9 @@ test('Linux host task lifecycle in PostgreSQL', async (t) => {
 
     await t.test('reclaim rotates the lease and revocation invalidates the new claim and credential', async () => {
       const { taskId } = await createLinuxHostAgentTask(runtimeId, 'host.info', actor);
-      const first = await claimLinuxHostAgentTask(runtimeId);
-      assert.equal(first?.taskId, taskId);
+      const first = await claimExpectedTask(runtimeId, taskId);
       await pool.query("UPDATE linux_agent_tasks SET lease_until = NOW() - INTERVAL '1 second' WHERE id = $1", [taskId]);
-      const second = await claimLinuxHostAgentTask(runtimeId);
-      assert.equal(second?.taskId, taskId);
+      const second = await claimExpectedTask(runtimeId, taskId);
       assert.notEqual(second.leaseToken, first.leaseToken);
       await assert.rejects(completeLinuxHostAgentTask(runtimeId, taskId, first.leaseToken, receipt), /lease has expired/);
       assert.equal(await revokeLinuxHostAgent(runtimeId, actor), true);
