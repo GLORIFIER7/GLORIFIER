@@ -1166,25 +1166,25 @@ const run = async (): Promise<void> => {
         }> = [
           {
             name: 'github_get_repository',
-            arguments: { host: 'attacker.example', url: 'https://attacker.example/api' },
+            arguments: {},
             pathname: '/repos/GLORIFIER7/GLORIFIER',
             body: { full_name: 'GLORIFIER7/GLORIFIER' },
           },
           {
             name: 'github_list_open_pull_requests',
-            arguments: { state: 'open', per_page: 1, host: 'attacker.example', url: 'https://attacker.example/api' },
+            arguments: { state: 'open', per_page: 1 },
             pathname: '/repos/GLORIFIER7/GLORIFIER/pulls',
             body: [],
           },
           {
             name: 'github_list_workflow_runs',
-            arguments: { per_page: 1, host: 'attacker.example', url: 'https://attacker.example/api' },
+            arguments: { per_page: 1 },
             pathname: '/repos/GLORIFIER7/GLORIFIER/actions/runs',
             body: { workflow_runs: [] },
           },
           {
             name: 'github_read_file',
-            arguments: { path: 'README.md', ref: 'main', host: 'attacker.example', url: 'https://attacker.example/api' },
+            arguments: { path: 'README.md', ref: 'main' },
             pathname: '/repos/GLORIFIER7/GLORIFIER/contents/README.md',
             body: { content: 'b2s=', encoding: 'base64' },
           },
@@ -1196,6 +1196,17 @@ const run = async (): Promise<void> => {
             headers: { 'Content-Type': 'application/json' },
           });
           capturedRequest = null;
+          const invalidToolCall = await worker.fetch(
+            mcpPost({
+              jsonrpc: '2.0',
+              id: `github-unknown-argument-${index}`,
+              method: 'tools/call',
+              params: { name: toolCase.name, arguments: { ...toolCase.arguments, host: 'example.org' } },
+            }),
+            tokenEnabledEnv,
+          );
+          assert.equal((await invalidToolCall.json() as { result: { isError?: boolean } }).result.isError, true);
+          assert.equal(capturedRequest, null, 'undeclared arguments must be rejected before using the read token');
           const tokenBackedToolCall = await worker.fetch(
             mcpPost({
               jsonrpc: '2.0',

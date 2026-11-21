@@ -4,7 +4,7 @@ import { githubMcpRoute } from '../src/lib/github-mcp.ts';
 
 // Offline contract tests for the real MCP route. Unlike a live anonymous
 // api.github.com call, these do not depend on shared GitHub API rate limits.
-const createToolRequest = () => new Request('http://127.0.0.1:8787/mcp', {
+const createToolRequest = (name = 'github_get_repository', args) => new Request('http://127.0.0.1:8787/mcp', {
   method: 'POST',
   headers: {
     'content-type': 'application/json',
@@ -12,15 +12,15 @@ const createToolRequest = () => new Request('http://127.0.0.1:8787/mcp', {
     origin: 'http://127.0.0.1:8787',
     'MCP-Protocol-Version': '2026-07-28',
     'Mcp-Method': 'tools/call',
-    'Mcp-Name': 'github_get_repository',
+    'Mcp-Name': name,
   },
   body: JSON.stringify({
     jsonrpc: '2.0',
     id: 'ci-read-only-repository',
     method: 'tools/call',
     params: {
-      name: 'github_get_repository',
-      arguments: {},
+      name,
+      arguments: args,
       _meta: {
         'io.modelcontextprotocol/protocolVersion': '2026-07-28',
         'io.modelcontextprotocol/clientCapabilities': {},
@@ -85,4 +85,28 @@ test('GitHub HTTP 403 is explicitly reported as an MCP tool error, not a success
     assert.doesNotMatch(text, /API rate limit exceeded/,
       'Do not expose upstream response bodies as evidence or tool errors');
   });
+});
+
+test('arguments outside the advertised tool schemas are rejected before upstream quota', async (t) => {
+  const limit = t.mock.fn(async () => ({ success: false }));
+  const fetch = t.mock.method(globalThis, 'fetch', async () => {
+    throw new Error('Unexpected upstream request');
+  });
+  for (const [name, args] of [
+    ['github_get_repository', null],
+    ['github_get_repository', []],
+    ['github_list_workflow_runs', 'ten'],
+    ['github_get_repository', { extra: true }],
+    ['github_list_open_pull_requests', { state: 'open', unknown: 1 }],
+    ['github_list_workflow_runs', { per_page: 1, other: true }],
+    ['github_read_file', { path: 'README.md', other: true }],
+  ]) {
+    const response = await githubMcpRoute(createToolRequest(name, args), { limit });
+    assert.equal(response.status, 200);
+    const payload = await response.json();
+    assert.equal(payload.id, 'ci-read-only-repository');
+    assert.equal(payload.result?.isError, true);
+  }
+  assert.equal(limit.mock.callCount(), 0);
+  assert.equal(fetch.mock.callCount(), 0);
 });

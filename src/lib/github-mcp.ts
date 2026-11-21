@@ -40,7 +40,7 @@ type McpMessage = {
 type ToolDefinition = {
   name: string;
   description: string;
-  inputSchema: JsonRecord;
+  inputSchema: { type: 'object'; properties: JsonRecord; required?: string[]; additionalProperties: false };
   annotations: {
     readOnlyHint: true;
     destructiveHint: false;
@@ -386,8 +386,6 @@ const readGithubFile = async (path: string, ref: string, readToken?: string): Pr
   return { path, ref, content: decodeGithubTextFile(data) };
 };
 
-const toolArguments = (args: unknown): JsonRecord => isRecord(args) ? args : {};
-
 const getRepositoryTool = (readToken?: string): Promise<unknown> =>
   readGithubJson(`/repos/${OWNER}/${REPOSITORY}`, undefined, readToken);
 
@@ -453,10 +451,20 @@ const getToolArgumentError = (name: string, input: JsonRecord): string | null =>
   }
 };
 
+const validateToolArguments = (name: string, args: unknown = {}): { input: JsonRecord } | { error: string } => {
+  if (!isRecord(args)) return { error: 'Tool arguments must be an object.' };
+  const tool = tools.find((candidate) => candidate.name === name);
+  if (tool && Object.keys(args).some((key) => !Object.hasOwn(tool.inputSchema.properties, key))) {
+    return { error: 'Tool arguments contain an unsupported property.' };
+  }
+  const error = getToolArgumentError(name, args);
+  return error ? { error } : { input: args };
+};
+
 const callTool = (name: string, args: unknown, readToken?: string): Promise<unknown> => {
-  const input = toolArguments(args);
-  const validationError = getToolArgumentError(name, input);
-  if (validationError) throw new Error(validationError);
+  const validated = validateToolArguments(name, args);
+  if ('error' in validated) throw new Error(validated.error);
+  const { input } = validated;
   switch (name) {
     case 'github_get_repository':
       return getRepositoryTool(readToken);
@@ -882,7 +890,7 @@ const getRateLimitableMcpToolCall = (
   // Unknown tools and invalid arguments are rejected locally without quota.
   if (typeof params.name !== 'string' ||
       !AUTOPILOT_READ_TOOL_NAMES.has(params.name as GithubReadToolName)) return null;
-  if (getToolArgumentError(params.name, toolArguments(params.arguments)) !== null) return null;
+  if ('error' in validateToolArguments(params.name, params.arguments)) return null;
 
   return { id, name: params.name as GithubReadToolName };
 };
