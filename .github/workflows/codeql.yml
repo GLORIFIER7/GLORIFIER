@@ -97,22 +97,31 @@ jobs:
           report="$RUNNER_TEMP/codeql-analysis-identities.tsv"
           printf 'analysis_key\tcategory\tref\tcommit_sha\tenvironment\tcreated_at\n' > "$report"
           for ref in "refs/heads/main" "refs/pull/${PR_NUMBER}/head" "refs/pull/${PR_NUMBER}/merge"; do
-            echo "CodeQL analysis identities for ${ref} (newest 40 of up to 100):"
-            url="${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/code-scanning/analyses?ref=${ref}&per_page=100"
-            if response=$(curl --silent --show-error --fail --retry 1 --max-time 30 \
-              -H "Authorization: Bearer ${GH_TOKEN}" \
-              -H 'Accept: application/vnd.github+json' \
-              "${url}"); then
-              jq -r '
-                [.[] | select(.tool.name == "CodeQL") |
+            echo "CodeQL analysis identities for ${ref} (paginated, max 1500 entries):"
+            for page in $(seq 1 15); do
+              url="${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/code-scanning/analyses?ref=${ref}&per_page=100&page=${page}"
+              if response=$(curl --silent --show-error --fail --retry 1 --max-time 30 \
+                -H "Authorization: Bearer ${GH_TOKEN}" \
+                -H 'Accept: application/vnd.github+json' \
+                "${url}"); then
+                count=$(jq 'length' <<< "${response}")
+                jq -r '
+                  .[] | select(.tool.name == "CodeQL") |
                   [(.analysis_key // "N/A"), (.category // "N/A"), (.ref // "N/A"),
-                   (.commit_sha // "N/A"), (.environment // "N/A"), (.created_at // "N/A")]] |
-                .[:40] | .[] | @tsv
-              ' <<< "${response}" | tee -a "$report"
-            else
-              printf 'QUERY_FAILED\tN/A\t%s\tN/A\tN/A\tN/A\n' "$ref" >> "$report"
-              echo "::warning::Unable to read CodeQL analysis metadata for ${ref}; existing scan enforcement is unchanged."
-            fi
+                   (.commit_sha // "N/A"), (.environment // "N/A"), (.created_at // "N/A")] | @tsv
+                ' <<< "${response}" | tee -a "$report"
+                if (( count < 100 )); then
+                  break
+                fi
+                if (( page == 15 )); then
+                  echo "::warning::CodeQL inventory page cap reached; report may be incomplete. Scan enforcement is unchanged."
+                fi
+              else
+                printf 'QUERY_FAILED\tN/A\t%s\tN/A\tN/A\tN/A\n' "$ref" >> "$report"
+                echo "::warning::Unable to read CodeQL analysis metadata for ${ref}; existing scan enforcement is unchanged."
+                break
+              fi
+            done
           done
 
       - name: Upload read-only CodeQL identity report
