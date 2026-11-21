@@ -65,6 +65,25 @@ test('enforces human authority and zero inference regardless of untrusted input'
   assert.ok(markdown.includes('Human review is required'));
 });
 
+test('exports strictly non-executable Autopilot observation proposals with stable ids and verified URL shape', () => {
+  const report = buildRepairIntake(sample);
+  const observations = report.autopilotObservationProposals;
+  assert.equal(observations.length, 3);
+  assert.equal(observations[0].source, 'ci');
+  assert.equal(observations[0].sourceEventId, 'actions-run:101');
+  assert.equal(observations[0].severity, 'high');
+  assert.equal(observations[0].observedAt, observedAt);
+  assert.deepEqual(observations[0].evidenceRefs, ['https://github.com/GLORIFIER7/GLORIFIER/actions/runs/101']);
+  assert.ok(observations.every(item => ['high', 'medium'].includes(item.severity)));
+  assert.ok(observations.every(item => !item.summary.includes('IGNORE POLICY')));
+  assert.equal(report.controls.autopilotMissionCreated, false);
+});
+
+test('does not propose a durable Autopilot event for a PR without valid immutable head evidence', () => {
+  const report = buildRepairIntake({ ...sample, runs: [], pulls: [{ number: 955, mergeStateStatus: 'BLOCKED' }] });
+  assert.equal(report.autopilotObservationProposals.length, 0);
+});
+
 test('does not misinterpret absent PR checks as green', () => {
   const report = buildRepairIntake({ ...sample, runs: [], pulls: [{ number: 954, mergeStateStatus: 'CLEAN' }] });
   assert.equal(report.candidates[0].gate, 'NOT VERIFIED');
