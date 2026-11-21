@@ -32,6 +32,9 @@ jobs:
         uses: actions/checkout@v7
         with:
           persist-credentials: false
+          # Analyze the actual PR head when SARIF is attributed to that SHA.
+          # Fork PRs retain the GitHub merge checkout and native attribution.
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.sha || github.sha }}
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@33d7b85da1a04171e211befe2c739303b9a4c066 # v4
