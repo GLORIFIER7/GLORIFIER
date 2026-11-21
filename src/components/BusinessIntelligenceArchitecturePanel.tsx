@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { BrainCircuit, Globe2, Activity, Database, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { getIdToken } from '../lib/firebase';
+import { createLatestRequestGate } from '../lib/latest-request-gate';
 
 type RuntimeStatus = {
   status?: string;
@@ -65,7 +66,9 @@ export const BusinessIntelligenceArchitecturePanel: React.FC = () => {
 
   useEffect(()=>{
     let cancelled=false;
+    const latestRequest = createLatestRequestGate();
     const load=async()=>{
+      const requestId = latestRequest.begin();
       const requests = await Promise.allSettled([
         fetch('/api/business-intelligence/architecture').then(async r=>{const p=await r.json();if(!r.ok||!p.ok)throw new Error(p.error||'BI architecture unavailable');return p.architecture;}),
         fetch('/api/business-intelligence/status').then(async r=>{const p=await r.json();if(!r.ok||!p.ok)throw new Error(p.error||'BI runtime status unavailable');return p;}),
@@ -77,7 +80,7 @@ export const BusinessIntelligenceArchitecturePanel: React.FC = () => {
           return p.advisory;
         })
       ]);
-      if(cancelled) return;
+      if(cancelled || !latestRequest.isCurrent(requestId)) return;
       if(requests[0].status==='fulfilled'){setData(requests[0].value);setError(null);}
       else setError(requests[0].reason?.message||'BI architecture unavailable');
       if(requests[1].status==='fulfilled'){setRuntime(requests[1].value);setRuntimeError(null);}

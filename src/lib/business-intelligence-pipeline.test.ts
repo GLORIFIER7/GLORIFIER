@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import type { Pool } from 'pg';
 import { runBusinessIntelligenceTransaction } from './business-intelligence-scientist.js';
+import { createLatestRequestGate } from './latest-request-gate.js';
 import { test } from 'node:test';
 import {
   buildGeasBusinessIntelligenceAdvisory,
@@ -281,4 +282,27 @@ test('Search signals require evidence from a configured query-based source', () 
     null,
   ]);
   assert.deepEqual(queryEvidence, { status: 'observed', evidenceCount: 2 });
+});
+
+test('stale BI refresh cannot replace a newer result when responses finish out of order', async () => {
+  const latest = createLatestRequestGate();
+  let resolveOld!: (value: string) => void;
+  let resolveNew!: (value: string) => void;
+  const older = new Promise<string>((resolve) => { resolveOld = resolve; });
+  const newer = new Promise<string>((resolve) => { resolveNew = resolve; });
+  let visibleState = 'initial';
+
+  const apply = async (value: Promise<string>, requestId: number) => {
+    const resolved = await value;
+    if (latest.isCurrent(requestId)) visibleState = resolved;
+  };
+
+  const first = apply(older, latest.begin());
+  const second = apply(newer, latest.begin());
+  resolveNew('newest');
+  await second;
+  resolveOld('stale');
+  await first;
+
+  assert.equal(visibleState, 'newest');
 });
