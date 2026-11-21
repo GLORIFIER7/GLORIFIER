@@ -18,14 +18,14 @@ const PROTECTED_PATHS = [
 ];
 
 const SENSITIVE_READ_PATHS = [
-  /(^|\\/)\\.env(?:\\.[^/]*)?$/i,
-  /(^|\\/)\\.dev\\.vars$/i,
-  /(^|\\/)\\.(?:npmrc|pypirc|netrc)$/i,
-  /(^|\\/)\\.(?:ssh|aws)(?:\\/|$)/i,
-  /(^|\\/)(?:secrets?|credentials?)(?:\\/|$)/i,
-  /(^|\\/)(?:id_rsa|id_ed25519|id_ecdsa)(?:\\.pub)?$/i,
-  /(^|\\/).*(?:credential|private[-_]?key|service[-_]?account)(?:\\.[^/]*)?$/i,
-  /\\.(?:pem|key|p12|pfx)$/i,
+  /(^|\/)\.env(?:\.[^/]*)?$/i,
+  /(^|\/)\.dev\.vars$/i,
+  /(^|\/)\.(?:npmrc|pypirc|netrc)$/i,
+  /(^|\/)\.(?:ssh|aws)(?:\/|$)/i,
+  /(^|\/)(?:secrets?|credentials?)(?:\/|$)/i,
+  /(^|\/)(?:id_rsa|id_ed25519|id_ecdsa)(?:\.pub)?$/i,
+  /(^|\/).*(?:credential|private[-_]?key|service[-_]?account)(?:\.[^/]*)?$/i,
+  /\.(?:pem|key|p12|pfx)$/i,
 ];
 
 // Read tools need a separate content boundary; a prompt instruction is not
