@@ -52,11 +52,14 @@ A **Databricks account admin** must inspect the federation policy attached to th
 
    For an account administrator using a **locally authenticated Databricks CLI**, first discover the numeric ID for that application ID, then **inspect existing policies before creating or updating** (the numeric ID is deliberately not guessed):
 
+   Use the same named CLI profile for login and **every** subsequent operation, so an unrelated `DEFAULT` workspace or account profile cannot silently redirect the commands. Before proceeding, verify that `databricks auth describe` shows the intended account host and account ID. The commands below are intended for the current Databricks CLI on the administrator's own machine, not the Databricks workspace web terminal.
+
    ```bash
-   databricks auth login --host https://accounts.cloud.databricks.com --account-id 11bcb30d-f5e8-42dc-a186-dcd824e4c045
-   databricks account service-principals list --filter 'applicationId eq "1a453e07-0288-4734-98ca-7e7792c94016"'
+   databricks auth login --host https://accounts.cloud.databricks.com --account-id 11bcb30d-f5e8-42dc-a186-dcd824e4c045 --profile GLORIFIER-DATABRICKS-ADMIN
+   databricks auth describe --profile GLORIFIER-DATABRICKS-ADMIN
+   databricks account service-principals list --filter 'applicationId eq "1a453e07-0288-4734-98ca-7e7792c94016"' --profile GLORIFIER-DATABRICKS-ADMIN
    # Substitute the numeric service principal ID from the preceding result:
-   databricks account service-principal-federation-policy list SERVICE_PRINCIPAL_NUMERIC_ID
+   databricks account service-principal-federation-policy list SERVICE_PRINCIPAL_NUMERIC_ID --profile GLORIFIER-DATABRICKS-ADMIN
    ```
 
    If **no matching policy exists**, the account admin can create a narrowly scoped one after confirming the numeric ID, using the official Databricks CLI syntax:
@@ -68,7 +71,7 @@ A **Databricks account admin** must inspect the federation policy attached to th
        "audiences": ["11bcb30d-f5e8-42dc-a186-dcd824e4c045"],
        "subject": "repo:GLORIFIER7@32674233/GLORIFIER@1377237797:environment:databricks-readonly"
      }
-   }'
+   }' --profile GLORIFIER-DATABRICKS-ADMIN
    ```
 
    Run these commands only with appropriate Databricks account administrator authorization. Review an existing incorrect policy rather than making unnecessary duplicates. Keep the policy scoped to this service principal.
