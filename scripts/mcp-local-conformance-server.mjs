@@ -9,8 +9,11 @@ const MAX_HARNESS_BODY_BYTES = 1_048_576;
 export const toLoopbackRequestUrl = (requestTarget) => {
   // This ephemeral CI harness binds only to 127.0.0.1; HTTP is confined to loopback.
   const loopbackOrigin = 'http://' + HOST + ':' + PORT; // NOSONAR -- intentional loopback-only transport; the server binds to 127.0.0.1.
-  const parsedTarget = new URL(requestTarget || '/', loopbackOrigin);
-  return new URL(parsedTarget.pathname + parsedTarget.search, loopbackOrigin);
+  const url = new URL(loopbackOrigin);
+  const parsedTarget = new URL(requestTarget || '/', url);
+  url.pathname = parsedTarget.pathname;
+  url.search = parsedTarget.search;
+  return url;
 };
 
 export const isFetchUnsupportedMethod = (method) =>
