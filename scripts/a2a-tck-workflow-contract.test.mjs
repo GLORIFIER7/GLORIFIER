@@ -68,7 +68,19 @@ test('A2A TCK gives distinct staging configuration errors and rejects reserved p
 
 test('A2A TCK installs only from the lockfile tied to the pinned upstream revision', () => {
   const lockfile = readFileSync(new URL('../scripts/lockfiles/a2a-tck-uv.lock', import.meta.url), 'utf8');
-  assert.ok(workflow.includes('scripts/lockfiles/a2a-tck-uv.lock'));
+  const steps = workflow.split(/^      - name: /m).slice(1);
+  const project = steps.findIndex(step => step.includes('uses: actions/checkout@') && !step.includes('repository:'));
+  const upstream = steps.findIndex(step => step.includes('repository: a2aproject/a2a-tck'));
+  const install = steps.findIndex(step => step.includes('uv sync --locked'));
+  assert.ok(project >= 0 && project < upstream && upstream < install, 'check out GLORIFIER and then the upstream runner before installing');
+  assert.match(steps[project], /ref: \$\{\{ github\.sha \}\}/);
+  assert.match(steps[project], /sparse-checkout: scripts\/lockfiles\/a2a-tck-uv\.lock/);
+  assert.match(steps[project], /sparse-checkout-cone-mode: false/);
+  assert.match(steps[project], /persist-credentials: false/);
+  assert.doesNotMatch(steps[project], /^ +path:/m, 'the lockfile checkout must be at the workspace root');
+  assert.match(steps[upstream], /path: \.a2a-tck/);
+  assert.match(steps[install], /working-directory: \.a2a-tck/);
+  assert.match(steps[install], /cp "\$GITHUB_WORKSPACE\/scripts\/lockfiles\/a2a-tck-uv\.lock" uv\.lock[\s\S]*uv sync --locked/);
   assert.ok(workflow.includes('uv sync --locked --no-dev --no-install-project --no-build'));
   assert.ok(workflow.includes('--no-build'));
   assert.equal(workflow.includes('uv pip install'), false);
