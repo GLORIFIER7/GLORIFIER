@@ -1,0 +1,483 @@
+{
+  "schema": "glorifier.anthropic.upstream-catalog.v1",
+  "source": "GitHub organization repository search: org:anthropics",
+  "observed_date": "2026-11-21",
+  "repository_count": 118,
+  "scope": "Observed repository names and archive flags only; not a source-code, security, ownership, licensing, or production compatibility audit.",
+  "source_copied": false,
+  "licensing_note": "Individual licenses and terms must be checked in each repository and material; no automatic license approval.",
+  "repositories": [
+    {
+      "repository": "anthropics/agent-sdk-workshop",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/amulet2",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/anthropic-bedrock-python",
+      "archived": true
+    },
+    {
+      "repository": "anthropics/anthropic-bedrock-typescript",
+      "archived": true
+    },
+    {
+      "repository": "anthropics/anthropic-cli",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/anthropic-retrieval-demo",
+      "archived": true
+    },
+    {
+      "repository": "anthropics/anthropic-sdk-csharp",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/anthropic-sdk-go",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/anthropic-sdk-java",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/anthropic-sdk-php",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/anthropic-sdk-python",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/anthropic-sdk-ruby",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/anthropic-sdk-typescript",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/anthropic-tokenizer-typescript",
+      "archived": true
+    },
+    {
+      "repository": "anthropics/anthropic-tools",
+      "archived": true
+    },
+    {
+      "repository": "anthropics/apitools",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/argo-cd",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/art-paper-data",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/attribution-graphs-frontend",
+      "archived": true
+    },
+    {
+      "repository": "anthropics/axt-verify",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/beam",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/blobfile",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/buffa",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/cargo-nix-plugin",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/cfaulthandler",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/claude-agent-sdk-demos",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/claude-agent-sdk-python",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/claude-agent-sdk-typescript",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/claude-ai-mcp",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/claude-code",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/claude-code-action",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/claude-code-base-action",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/claude-code-monitoring-guide",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/claude-code-playground",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/claude-code-security-review",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/claude-constitution",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/claude-cookbooks",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/claude-desktop-buddy",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/claude-for-financial-advisors",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/claude-for-legal",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/claude-plugins-community",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/claude-plugins-official",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/claude-quickstarts",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/claude-tag-plugins",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/claude-tag-wif-gateway-sample",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/ClaudeForFoundationModels",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/claudes-c-compiler",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/code-migration-kit-with-claude-code",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/commerce-agents",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/ConstitutionalHarmlessnessPaper",
+      "archived": true
+    },
+    {
+      "repository": "anthropics/courses",
+      "archived": true
+    },
+    {
+      "repository": "anthropics/cryptography-research-demo",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/cwc-long-running-agents",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/cwc-workshops",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/DecompositionFaithfulnessPaper",
+      "archived": true
+    },
+    {
+      "repository": "anthropics/defending-code-reference-harness",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/devcontainer-features",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/evals",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/fermats-last-theorem",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/financial-services",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/FlashProve",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/formal-math",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/github-mcp-server",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/headvis",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/healthcare",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/hh-rlhf",
+      "archived": true
+    },
+    {
+      "repository": "anthropics/homebrew-claude",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/homebrew-tap",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/html-effectiveness",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/httpcore",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/hypercorn",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/jacobian-lens",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/k12-teacher-skills",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/knowledge-work-plugins",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/launch-your-agent",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/leptos-chartistry",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/life-sciences",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/maestro",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/mockturtle",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/model-cards",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/mythos-5-incident-transcript",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/nix-eval-jobs",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/oncall-kit",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/OpenROAD-flow-scripts",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/original_performance_takehome",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/orjson",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/oss-scanner",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/political-neutrality-eval",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/prompt-eng-interactive-tutorial",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/PySvelte",
+      "archived": true
+    },
+    {
+      "repository": "anthropics/python-tblib",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/raft-rs",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/rayon",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/rclone",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/redis-py",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/riegeli-rs",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/riv2025-long-horizon-coding-agent-demo",
+      "archived": true
+    },
+    {
+      "repository": "anthropics/rogue-deploy-eval",
+      "archived": true
+    },
+    {
+      "repository": "anthropics/s5cmd",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/sandbox-runtime",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/scone-bench",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/serde-saphyr",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/single-agent-loop-kit",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/skills",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/sleeper-agents-paper",
+      "archived": true
+    },
+    {
+      "repository": "anthropics/snix",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/sse-starlette",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/swift-markdown",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/swift-markdown-ui",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/sycophancy-to-subterfuge-paper",
+      "archived": true
+    },
+    {
+      "repository": "anthropics/tailscale-hint-extension",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/terragrunt",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/tokio",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/torchtyping",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/toy-models-of-superposition",
+      "archived": true
+    },
+    {
+      "repository": "anthropics/triton",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/uplifting-biomolecular-modeling",
+      "archived": false
+    },
+    {
+      "repository": "anthropics/xls",
+      "archived": false
+    }
+  ]
+}
