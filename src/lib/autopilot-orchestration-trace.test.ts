@@ -1,0 +1,213 @@
+import { strict as assert } from 'node:assert';
+import { test } from 'node:test';
+import {
+  createAutopilotMission,
+  claimNextAutopilotMission,
+  recordAutopilotMissionPlan,
+  type AutopilotMission,
+  type AutopilotMissionStore,
+} from './autopilot-mission-control.ts';
+
+class MemoryMissionStore implements AutopilotMissionStore {
+  readonly records = new Map<string, AutopilotMission>();
+
+  async initialize() {}
+  async create(mission: AutopilotMission) {
+    this.records.set(mission.id, structuredClone(mission));
+    return structuredClone(mission);
+  }
+  async get(id: string) {
+    const mission = this.records.get(id);
+    return mission ? structuredClone(mission) : null;
+  }
+  async list(requester: string | undefined, limit: number, allowAll = false) {
+    return [...this.records.values()]
+      .filter((mission) => allowAll || mission.requester === requester)
+      .slice(0, limit)
+      .map((mission) => structuredClone(mission));
+  }
+  async save(mission: AutopilotMission, expectedVersion: number) {
+    const current = this.records.get(mission.id);
+    if (!current || current.version !== expectedVersion) return null;
+    const saved = { ...structuredClone(mission), version: expectedVersion + 1 };
+    this.records.set(saved.id, saved);
+    return structuredClone(saved);
+  }
+  async claimNext(workerId: string, leaseMs: number, now: string) {
+    const nowMs = Date.parse(now);
+    const candidate = [...this.records.values()].find((mission) =>
+      mission.status === 'queued' &&
+      (!mission.nextRunAt || Date.parse(mission.nextRunAt) <= nowMs) &&
+      (!mission.leaseExpiresAt || Date.parse(mission.leaseExpiresAt) <= nowMs)
+    );
+    if (!candidate) return null;
+    const claimed = {
+      ...candidate,
+      status: 'planning' as const,
+      leaseOwner: workerId,
+      leaseExpiresAt: new Date(Date.parse(now) + leaseMs).toISOString(),
+      version: candidate.version + 1,
+      updatedAt: now,
+    };
+    this.records.set(claimed.id, claimed);
+    return structuredClone(claimed);
+  }
+  async renewLease(id: string, workerId: string, leaseMs: number, now: string) {
+    const current = this.records.get(id);
+    if (!current || current.leaseOwner !== workerId) return null;
+    const renewed = {
+      ...current,
+      leaseExpiresAt: new Date(Date.parse(now) + leaseMs).toISOString(),
+      version: current.version + 1,
+      updatedAt: now,
+    };
+    this.records.set(id, renewed);
+    return structuredClone(renewed);
+  }
+  async recoverExpired(now: string) {
+    const nowMs = Date.parse(now);
+    let recovered = 0;
+    for (const mission of this.records.values()) {
+      if (!['planning', 'executing'].includes(mission.status) ||
+          !mission.leaseExpiresAt ||
+          Date.parse(mission.leaseExpiresAt) > nowMs) continue;
+      const next: AutopilotMission = {
+        ...mission,
+        status: 'reconciliation-required',
+        version: mission.version + 1,
+        leaseOwner: undefined,
+        leaseExpiresAt: undefined,
+        updatedAt: now,
+        lastError: 'Expired execution lease; external side effects must be reconciled before any retry.',
+        steps: mission.steps.map(step => step.status === 'running'
+          ? { ...step, status: 'reconciliation-required' as const }
+          : step),
+      };
+      this.records.set(next.id, structuredClone(next));
+      recovered += 1;
+    }
+    return recovered;
+  }
+}
+
+const buildTrace = () => ({
+  schemaVersion: 1 as const,
+  plannedAt: '2026-11-20T05:00:00.000Z',
+  aiCeo: { provider: 'gemini', model: 'gemini-2.5-flash' },
+  specialists: [{
+    roleId: 'software-architect',
+    provider: 'anthropic',
+    model: 'claude-test-model',
+    findingSha256: 'a'.repeat(64),
+  }],
+  stepAuthorizations: [{
+    stepId: 'inspect',
+    capability: 'github.get_repository',
+    capabilityPolicyId: 'github.get_repository',
+    risk: 'low' as const,
+    capabilityDecision: 'allow' as const,
+    geasPolicyVersion: 'GEAS-3.0',
+    geasDecision: 'allow' as const,
+    evaluatedAt: '2026-11-20T05:00:00.000Z',
+    geasReasons: ['policy requirements satisfied'],
+  }],
+});
+
+const buildTraceWithDecision = (geasDecision: 'allow' | 'deny' | 'escalate') => ({
+  ...buildTrace(),
+  stepAuthorizations: [{
+    ...buildTrace().stepAuthorizations[0],
+    geasDecision,
+  }],
+});
+
+const buildDeniedTrace = () => buildTraceWithDecision('deny') as unknown as ReturnType<typeof buildTrace>;
+
+test('Autopilot persists AI CEO, specialist provenance and GEAS authorization with the mission plan', async () => {
+  const store = new MemoryMissionStore();
+  const created = await createAutopilotMission(store, {
+    requester: 'owner',
+    idempotencyKey: 'governance-trace-001',
+    objective: 'Inspect the configured repository identity.',
+    now: '2026-11-20T05:00:00.000Z',
+  });
+  const claimed = await claimNextAutopilotMission(store, 'worker-1', 120_000, '2026-11-20T05:01:00.000Z');
+  assert.ok(claimed);
+
+  const planned = await recordAutopilotMissionPlan(
+    store,
+    created.id,
+    claimed!.version,
+    'worker-1',
+    [{ id: 'inspect', capability: 'github.get_repository', objective: 'Inspect repository metadata.', effect: 'read-only' }],
+    '2026-11-20T05:02:00.000Z',
+    buildTrace(),
+  );
+
+  assert.deepEqual(planned.executionTrace, buildTrace());
+  assert.equal((await store.get(created.id))?.executionTrace?.aiCeo.provider, 'gemini');
+});
+
+test('Autopilot refuses to persist a mission plan with a non-allow GEAS decision', async () => {
+  const store = new MemoryMissionStore();
+  const created = await createAutopilotMission(store, {
+    requester: 'owner',
+    idempotencyKey: 'governance-trace-deny-001',
+    objective: 'Inspect the configured repository identity.',
+    now: '2026-11-20T05:00:00.000Z',
+  });
+  const claimed = await claimNextAutopilotMission(store, 'worker-1', 120_000, '2026-11-20T05:01:00.000Z');
+  assert.ok(claimed);
+
+  await assert.rejects(
+    () => recordAutopilotMissionPlan(
+      store,
+      created.id,
+      claimed!.version,
+      'worker-1',
+      [{ id: 'inspect', capability: 'github.get_repository', objective: 'Inspect repository metadata.', effect: 'read-only' }],
+      '2026-11-20T05:02:00.000Z',
+      buildDeniedTrace(),
+    ),
+    /only allowed capability and GEAS decisions can be persisted/,
+  );
+  assert.equal((await store.get(created.id))?.steps?.length, 0);
+});
+
+test('Autopilot expired execution leases require reconciliation before any retry', async () => {
+  const store = new MemoryMissionStore();
+  const created = await createAutopilotMission(store, {
+    requester: 'owner',
+    idempotencyKey: 'governance-trace-expired-lease-001',
+    objective: 'Inspect the configured repository identity.',
+    now: '2026-11-20T05:00:00.000Z',
+  });
+  const claimed = await claimNextAutopilotMission(store, 'worker-1', 120_000, '2026-11-20T05:01:00.000Z');
+  assert.ok(claimed);
+
+  const executing = await store.save({
+    ...claimed!,
+    status: 'executing',
+    steps: [{
+      id: 'inspect',
+      capability: 'github.get_repository',
+      objective: 'Inspect repository metadata.',
+      effect: 'read-only',
+      status: 'running',
+      idempotencyKey: 'governance-trace-expired-step-001',
+      evidenceRefs: [],
+      attemptCount: 1,
+    }],
+  }, claimed!.version);
+  assert.ok(executing);
+
+  const recovered = await store.recoverExpired('2026-11-20T05:04:00.000Z');
+  assert.equal(recovered, 1);
+
+  const stored = await store.get(created.id);
+  assert.equal(stored?.status, 'reconciliation-required');
+  assert.equal(stored?.leaseOwner, undefined);
+  assert.equal(stored?.leaseExpiresAt, undefined);
+  assert.equal(stored?.steps[0]?.status, 'reconciliation-required');
+  assert.equal(await store.claimNext('worker-2', 120_000, '2026-11-20T05:05:00.000Z'), null);
+});
