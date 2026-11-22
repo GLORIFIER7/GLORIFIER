@@ -45,6 +45,8 @@ jobs:
 
       - name: AI coding fleet workflow security contract tests
         run: node --test scripts/ai-fleet-workflow-contract.test.mjs
+      - name: Claude and OpenCode agent-policy regression tests
+        run: node --test .claude/hooks/agent-policy.test.mjs
       - name: Governed repair intake security and freshness tests
         run: node --test scripts/governed-repair-intake.test.mjs
       - name: TokenEconomizer local installer contract tests
@@ -331,6 +333,12 @@ jobs:
 
       - name: GEAS architecture scientist evidence and cadence tests
         run: npm run test:geas-scientist
+
+      - name: Intelligence report synthesis evidence-provenance regression tests
+        run: npm run test:intelligence-report-json
+
+      - name: GBIS intelligence ingestion and GEAS advisory contract tests
+        run: npm run test:business-intelligence-pipeline
 
       - name: GEAS evidence-policy static guard
         run: ./node_modules/.bin/tsx scripts/geas-evidence-policy-validate.ts

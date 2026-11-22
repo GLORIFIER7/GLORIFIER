@@ -1,5 +1,12 @@
 import { getPostgresPool } from './db/postgres';
 import crypto from 'node:crypto';
+import type { Pool, PoolClient } from 'pg';
+import {
+  classifyBusinessIntelligenceIngestionStatus,
+  getBusinessIntelligencePipelineProgress,
+  normalizeIntelligenceReportToBiRecords,
+  type IntelligenceReportInput,
+} from './business-intelligence-pipeline.js';
 
 export const GLORIFIER_BI_SCIENTIST_VERSION = 'GBIS-2.0';
 
@@ -60,6 +67,14 @@ export async function initializeBusinessIntelligenceScientist() {
       access_policy JSONB NOT NULL DEFAULT '{}', monetization_ref TEXT,
       evidence_status TEXT NOT NULL DEFAULT 'not_verified', created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
+    CREATE TABLE IF NOT EXISTS glorifier_bi_ingestion_runs (
+      report_id TEXT PRIMARY KEY, generated_at TIMESTAMPTZ NOT NULL,
+      source_count INTEGER NOT NULL DEFAULT 0, evidence_count INTEGER NOT NULL DEFAULT 0,
+      observations_upserted INTEGER NOT NULL DEFAULT 0, signals_upserted INTEGER NOT NULL DEFAULT 0,
+      rejected_evidence_count INTEGER NOT NULL DEFAULT 0,
+      status TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    );
+    CREATE INDEX IF NOT EXISTS idx_gbis_ingestion_time ON glorifier_bi_ingestion_runs(generated_at DESC);
   `);
 }
 
@@ -83,11 +98,12 @@ export function getBusinessIntelligenceScientistPolicy() {
       autonomousContracting:false, autonomousPaymentMovement:false
     },
     continuousOperation:{
-      enabled:true,
-      cadence:'continuous/event-driven plus scheduled watchlists',
-      autonomousObservation:true,
-      autonomousAnalysis:true,
-      autonomousRecommendation:true,
+      targetCadence:'event-driven ingestion plus scheduled watchlists',
+      runtimeVerified:false,
+      watchlistSchedulerImplemented:false,
+      autonomousObservationRuntimeVerified:false,
+      autonomousAnalysisRuntimeVerified:false,
+      autonomousRecommendationRuntimeVerified:false,
       autonomousIrreversibleAction:false,
       humanApprovalForConsequentialActions:true
     }
@@ -136,21 +152,144 @@ export async function registerBusinessIntelligenceWatch(input:{
   return r.rows[0];
 }
 
+/** Keep observations, signals and the ingestion receipt atomic. */
+export async function runBusinessIntelligenceTransaction<T>(
+  db: Pool,
+  operation: (client: PoolClient) => Promise<T>,
+): Promise<T> {
+  const client = await db.connect();
+  let transactionOpen = false;
+  let discardConnection = false;
+  try {
+    await client.query('BEGIN');
+    transactionOpen = true;
+    const result = await operation(client);
+    await client.query('COMMIT');
+    transactionOpen = false;
+    return result;
+  } catch (error) {
+    if (transactionOpen) {
+      try {
+        await client.query('ROLLBACK');
+      } catch {
+        discardConnection = true;
+      }
+    }
+    throw error;
+  } finally {
+    client.release(discardConnection);
+  }
+}
+
+export async function ingestIntelligenceReportIntoBusinessIntelligence(report: IntelligenceReportInput) {
+  await initializeBusinessIntelligenceScientist();
+  const db = getPostgresPool();
+  const normalized = normalizeIntelligenceReportToBiRecords(report);
+  return runBusinessIntelligenceTransaction(db, async (client) => {
+  let observationsUpserted = 0;
+  let signalsUpserted = 0;
+
+  for (const item of normalized.observations) {
+    const result = await client.query(`
+      INSERT INTO glorifier_bi_observations(
+        id,domain,source,source_ref,subject,metric,value,unit,observed_at,evidence_status,confidence,metadata
+      ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
+      ON CONFLICT(id) DO UPDATE SET
+        domain=EXCLUDED.domain, source=EXCLUDED.source, source_ref=EXCLUDED.source_ref,
+        subject=EXCLUDED.subject, metric=EXCLUDED.metric, observed_at=EXCLUDED.observed_at,
+        evidence_status=EXCLUDED.evidence_status, metadata=EXCLUDED.metadata
+      RETURNING id
+    `, [
+      item.id,item.domain,item.source,item.sourceRef,item.subject,item.metric,item.value,item.unit,
+      item.observedAt,item.evidenceStatus,item.confidence,JSON.stringify(item.metadata)
+    ]);
+    if ((result.rowCount ?? result.rows.length) > 0) observationsUpserted += 1;
+  }
+
+  for (const item of normalized.signals) {
+    const result = await client.query(`
+      INSERT INTO glorifier_bi_signals(
+        id,domain,signal_type,title,description,evidence_refs,confidence,impact_estimate,status,metadata
+      ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+      ON CONFLICT(id) DO UPDATE SET
+        domain=EXCLUDED.domain, signal_type=EXCLUDED.signal_type, title=EXCLUDED.title,
+        description=EXCLUDED.description, evidence_refs=EXCLUDED.evidence_refs,
+        status=EXCLUDED.status, metadata=EXCLUDED.metadata
+      RETURNING id
+    `, [
+      item.id,item.domain,item.signalType,item.title,item.description,JSON.stringify(item.evidenceRefs),
+      item.confidence,item.impactEstimate,item.status,JSON.stringify(item.metadata)
+    ]);
+    if ((result.rowCount ?? result.rows.length) > 0) signalsUpserted += 1;
+  }
+
+  const reportId = typeof report.id === 'string' && report.id.trim() ? report.id.trim() : 'unidentified-report';
+  const generatedAt = report.generatedAt || new Date(0).toISOString();
+  const status = classifyBusinessIntelligenceIngestionStatus(observationsUpserted, normalized.rejectedEvidenceCount);
+  await client.query(`
+    INSERT INTO glorifier_bi_ingestion_runs(
+      report_id,generated_at,source_count,evidence_count,observations_upserted,
+      signals_upserted,rejected_evidence_count,status
+    ) VALUES($1,$2,$3,$4,$5,$6,$7,$8)
+    ON CONFLICT(report_id) DO UPDATE SET
+      generated_at=EXCLUDED.generated_at, source_count=EXCLUDED.source_count,
+      evidence_count=EXCLUDED.evidence_count, observations_upserted=EXCLUDED.observations_upserted,
+      signals_upserted=EXCLUDED.signals_upserted, rejected_evidence_count=EXCLUDED.rejected_evidence_count,
+      status=EXCLUDED.status
+  `, [
+    reportId,generatedAt,normalized.sourceCount,normalized.observations.length,
+    observationsUpserted,signalsUpserted,normalized.rejectedEvidenceCount,status
+  ]);
+
+  return {
+    reportId,
+    status,
+    sourceCount:normalized.sourceCount,
+    evidenceCount:normalized.observations.length,
+    observationsUpserted,
+    signalsUpserted,
+    rejectedEvidenceCount:normalized.rejectedEvidenceCount,
+  };
+  });
+}
+
 export async function getBusinessIntelligenceSnapshot() {
   await initializeBusinessIntelligenceScientist();
   const db=getPostgresPool();
-  const [obs,signals,watches,entities,products,decisions]=await Promise.all([
+  const [obs,signals,watches,entities,products,decisions,freshness,latestIngestion]=await Promise.all([
     db.query('SELECT COUNT(*)::int count FROM glorifier_bi_observations'),
     db.query("SELECT signal_type,COUNT(*)::int count FROM glorifier_bi_signals WHERE status='observed' GROUP BY signal_type ORDER BY count DESC"),
     db.query('SELECT COUNT(*)::int count FROM glorifier_bi_watchlist WHERE enabled=true'),
     db.query('SELECT COUNT(*)::int count FROM glorifier_bi_entities'),
     db.query('SELECT COUNT(*)::int count FROM glorifier_bi_data_products'),
-    db.query("SELECT COUNT(*)::int count FROM glorifier_bi_decision_records WHERE status='prepared'")
+    db.query("SELECT COUNT(*)::int count FROM glorifier_bi_decision_records WHERE status='prepared'"),
+    db.query('SELECT COUNT(DISTINCT source)::int source_count, MAX(observed_at) latest_observed_at FROM glorifier_bi_observations'),
+    db.query('SELECT report_id,generated_at,source_count,evidence_count,observations_upserted,signals_upserted,rejected_evidence_count,status FROM glorifier_bi_ingestion_runs ORDER BY generated_at DESC LIMIT 1')
   ]);
+  const latest = latestIngestion.rows[0] || null;
   return {
     version:GLORIFIER_BI_SCIENTIST_VERSION,
     policy:getBusinessIntelligenceScientistPolicy(),
-    counts:{observations:Number(obs.rows[0].count),signals:Number(signals.rows.reduce((n:any,x:any)=>n+Number(x.count),0)),activeWatchlists:Number(watches.rows[0].count),entities:Number(entities.rows[0].count),dataProducts:Number(products.rows[0].count),preparedDecisions:Number(decisions.rows[0].count)},
+    counts:{
+      observations:Number(obs.rows[0].count),
+      signals:Number(signals.rows.reduce((n:any,x:any)=>n+Number(x.count),0)),
+      activeWatchlists:Number(watches.rows[0].count),
+      entities:Number(entities.rows[0].count),
+      dataProducts:Number(products.rows[0].count),
+      preparedDecisions:Number(decisions.rows[0].count),
+      sourceCount:Number(freshness.rows[0].source_count),
+    },
+    latestObservedAt:freshness.rows[0].latest_observed_at || null,
+    latestIngestion:latest ? {
+      reportId:latest.report_id,
+      generatedAt:latest.generated_at,
+      sourceCount:Number(latest.source_count),
+      evidenceCount:Number(latest.evidence_count),
+      observationsUpserted:Number(latest.observations_upserted),
+      signalsUpserted:Number(latest.signals_upserted),
+      rejectedEvidenceCount:Number(latest.rejected_evidence_count),
+      status:latest.status,
+    } : null,
     signalTypes:signals.rows
   };
 }
@@ -230,6 +369,27 @@ export async function defineBusinessIntelligenceMetric(input:{
 export async function getGlobalBusinessIntelligenceArchitecture() {
   return {
     version:GLORIFIER_BI_SCIENTIST_VERSION,
+    identity:'Continuous business intelligence operating system for evidence-backed decision support.',
+    layers:[
+      'source systems','ingestion and connectors','data foundation and lineage',
+      'semantic business layer','intelligence and analytics','AI orchestration and specialist scientists',
+      'opportunity and monetization evidence','governance, security and compliance',
+      'human decision and authorized execution','outcome verification and economic truth'
+    ],
+    principles:[
+      'provider-neutral orchestration','evidence provenance','semantic consistency',
+      'security and privacy by design','estimated value is not verified revenue',
+      'human authority for consequential actions','measurable verified outcomes'
+    ],
+    sourceOfTruth:{
+      revenue:'Neon/PostgreSQL canonical target; production route cutover pending verification',
+      verification:'Evidence-backed outcome records',
+      orchestration:'GLORIFIER provider-neutral AI layer'
+    },
+    runtimeEndpoints:{
+      status:'/api/business-intelligence/status',
+      advisory:'/api/business-intelligence/advisory'
+    },
     sourceFamilies:[...GLOBAL_BI_SOURCE_FAMILIES],
     sourceCatalog:GLOBAL_BI_SOURCE_CATALOG,
     pipeline:[...BI_INTELLIGENCE_PIPELINE],
@@ -241,9 +401,10 @@ export async function getGlobalBusinessIntelligenceArchitecture() {
       estimatesAreNotFacts:true
     },
     continuousOperation:{
-      enabled:true,
-      mode:'event-driven plus scheduled watchlists',
-      observationAnalysisRecommendationAutonomous:true,
+      targetMode:'event-driven ingestion plus scheduled watchlists',
+      runtimeVerified:false,
+      watchlistSchedulerImplemented:false,
+      autonomousObservationAnalysisRecommendationRuntimeVerified:false,
       irreversibleActionsAutonomous:false
     },
     governance:{
@@ -262,14 +423,28 @@ export async function getGlobalBusinessIntelligenceArchitecture() {
 
 export async function runBusinessIntelligenceHealthCheck() {
   const snapshot=await getBusinessIntelligenceSnapshot();
+  const latest=snapshot.latestIngestion;
+  const pipeline=getBusinessIntelligencePipelineProgress({
+    report:latest ? {sourceCount:latest.sourceCount,evidenceCount:latest.evidenceCount} : null,
+    ingestion:latest ? {
+      status:latest.status,
+      observationsUpserted:latest.observationsUpserted,
+      signalsUpserted:latest.signalsUpserted,
+      rejectedEvidenceCount:latest.rejectedEvidenceCount,
+    } : null,
+  });
   return {
-    status:'operational',
+    status:pipeline.status,
+    storageStatus:'available',
     version:GLORIFIER_BI_SCIENTIST_VERSION,
-    continuous:true,
+    continuousOperation:{
+      scheduledRefreshOwner:'GLORIFIER Intelligence Pipeline workflow; endpoint configuration is required',
+      runtimeVerified:false,
+      watchlistSchedulerImplemented:false,
+    },
     sourceFamilies:GLOBAL_BI_SOURCE_FAMILIES.length,
     domains:BI_DOMAINS.length,
-    pipelineStages:BI_INTELLIGENCE_PIPELINE.length,
+    pipeline,
     snapshot,
-    nextCycle:'continuous/event-driven plus scheduled watchlists'
   };
 }
