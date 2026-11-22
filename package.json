@@ -36,6 +36,7 @@
     "test:geas-controls": "node --import tsx/esm --test src/lib/governance/geas-architecture-controls.test.ts",
     "test:agent-control-plane": "node --import tsx/esm --test src/lib/governance/agent-control-plane.test.ts",
     "test:geas-scientist": "node --import tsx/esm --test src/lib/governance/geas-architecture-scientist.test.ts",
+    "test:business-intelligence-pipeline": "node --import tsx/esm --test src/lib/business-intelligence-pipeline.test.ts",
     "test:geas-focus-invoice-reconciliation": "node --import tsx/esm --test src/lib/governance/geas-focus-invoice-reconciliation.test.ts",
     "test:geas-claim-verification": "node --import tsx/esm --test src/lib/governance/geas-claim-verification.test.ts",
     "test:intelligence-pipeline-workflow": "node scripts/intelligence-pipeline-workflow.test.mjs",
@@ -123,7 +124,7 @@
     "test:brand-assets": "node --test scripts/brand-asset-integrity.test.mjs",
     "test:autopilot-observation-intake": "node --import tsx/esm --test src/lib/autopilot-observation-intake.test.ts",
     "test:autopilot-mission-control": "node --import tsx/esm --test src/lib/autopilot-mission-control.test.ts src/lib/autopilot-orchestration-trace.test.ts",
-    "test:autopilot-orchestrator": "node --import tsx/esm --test src/lib/autopilot-orchestrator.test.ts src/lib/autopilot-graph.test.ts",
+    "test:autopilot-orchestrator": "node --import tsx/esm --test src/lib/autopilot-orchestrator.test.ts src/lib/autopilot-graph.test.ts src/lib/research-experiment-rounds.test.ts",
     "test:autopilot-execution-fabric": "node --import tsx/esm --test src/lib/autopilot-execution-fabric.test.ts",
     "test:autopilot-evidence-verifier": "node --import tsx/esm --test src/lib/autopilot-evidence-verifier.test.ts",
     "test:autopilot-github-write": "node --import tsx/esm --test src/lib/autopilot-github-write.test.ts",
@@ -169,7 +170,7 @@
     "react-dom": "^19.3.0",
     "vite": "^8.3.8",
     "@capacitor/device": "^8.0.3",
-    "rimraf": "6.1.3"
+    "rimraf": "6.1.4"
   },
   "devDependencies": {
     "@types/express": "^5.0.6",

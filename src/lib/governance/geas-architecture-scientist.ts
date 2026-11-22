@@ -2329,7 +2329,6 @@ const memory: { last?: ArchitectureScanResult } = {};
 
 export const getLatestGeasArchitectureScan = async () => {
   try {
-    if (memory.last) return memory.last;
     await initializeGeasArchitectureScientist();
     const db = getPostgresPool();
     const result = await db.query('SELECT result FROM geas_architecture_scans ORDER BY started_at DESC LIMIT 1');
