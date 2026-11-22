@@ -50,5 +50,12 @@ assert.match(
   'the refresh request must remain gated on a configured endpoint',
 );
 
+const refreshStep = workflow.match(/- name: Refresh configured intelligence report([\s\S]*?)(?=\n      - name:|\s*$)/)?.[1] ?? '';
+const keyedBranch = refreshStep.match(/if \[ -n "\$\{INTELLIGENCE_KEY\}" \]; then([\s\S]*?)\n\s*else\s*\n/)?.[1];
+const unkeyedBranch = refreshStep.match(/\n\s*else\s*\n([\s\S]*?)\n\s*fi(?:\s|$)/)?.[1];
+assert.ok(keyedBranch && unkeyedBranch, 'the refresh script must retain separate keyed and unkeyed branches');
+assert.match(keyedBranch, /\bcurl\b[^\n]*-X POST\b/, 'the authenticated refresh must use POST');
+assert.match(unkeyedBranch, /\bcurl\b[^\n]*-X POST\b/, 'the no-key refresh must also use POST');
+
 console.log('Intelligence pipeline PR concurrency regression tests passed');
 });
