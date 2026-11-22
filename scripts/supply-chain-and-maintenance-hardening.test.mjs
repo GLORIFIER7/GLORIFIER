@@ -63,7 +63,7 @@ function assertPinnedAction(source, action, sha) {
 }
 
 test('Codex action is pinned to its reviewed immutable commit', () => {
-  assertPinnedAction(codexWorkflow, 'openai/codex-action', 'bdf19a4a223ec2549a3e2274a0cf61556bc07675');
+  assertPinnedAction(codexWorkflow, 'openai/codex-action', '306c6a196a99dcc6582530c396a19d2672d5e9ec');
 });
 
 test('Gemini collaborator uses the pinned Antigravity binary and exact Gemini model identity', () => {
