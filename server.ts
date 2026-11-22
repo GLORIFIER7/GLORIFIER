@@ -12,7 +12,7 @@ import { buildGLRAIServiceQuote, GLR_AI_SUMMARY_SERVICE } from './src/lib/glr-co
 import { verifyEthereumGLRTransfer } from './src/lib/glr-ethereum-verifier';
 import { verifyBnbGLRTransfer } from './src/lib/glr-bnb-verifier';
 import { verifySolanaGLRTransfer } from './src/lib/glr-solana-verifier';
-import { aiOrchestrator, runSpecialistCouncil, specialistRoles } from './src/lib/ai';
+import { aiOrchestrator, runSpecialistCouncil, specialistRoles, isStandingMissionRequestAuthorized, SpecialistCouncilInputError } from './src/lib/ai';
 import { initializeRepositoryProviderBudget } from './src/lib/ai/repository-provider-budget';
 import { executeThroughProviderRegistry } from './src/lib/ai/registry';
 import { DEFAULT_MODEL_COUNCIL_TIMEOUT_MS, resolveModelCouncilParticipants } from './src/lib/ai/model-council-routing.mjs';
@@ -2016,23 +2016,32 @@ app.get('/api/ai/specialists', (_req: Request, res: Response) => {
   });
 });
 
-app.post('/api/ai/specialist-council', async (req: Request, res: Response) => {
+app.post('/api/ai/specialist-council', aiCouncilRateLimit, async (req: Request, res: Response) => {
   try {
     const { objective, roles, providerIds, temperature, standingMission } = req.body || {};
     if (typeof objective !== 'string' || !objective.trim()) {
       return res.status(400).json({ error: 'objective is required' });
+    }
+    const standingMissionRequested = standingMission === true;
+    const authenticatedPrincipal = (req as any).auth;
+    const ownerOrInternalService = isInternalServiceRequest(req) || Boolean(authenticatedPrincipal && isOwner(authenticatedPrincipal));
+    if (!isStandingMissionRequestAuthorized(standingMissionRequested, ownerOrInternalService)) {
+      return res.status(403).json({ error: 'Standing mission requests require owner authorization.' });
     }
     const result = await runSpecialistCouncil({
       objective: objective.trim(),
       roles: Array.isArray(roles) ? roles : undefined,
       providerIds: Array.isArray(providerIds) ? providerIds : undefined,
       temperature: typeof temperature === 'number' ? temperature : undefined,
-      standingMission: standingMission === true
+      standingMission: standingMissionRequested
     });
     res.json(result);
   } catch (err: any) {
+    if (err instanceof SpecialistCouncilInputError) {
+      return res.status(400).json({ error: err.message });
+    }
     console.error('Specialist council execution error:', err);
-    res.status(500).json({
+    return res.status(500).json({
       error: err?.message || 'Failed to convene specialist council'
     });
   }
