@@ -100,12 +100,21 @@ jobs:
         run: |
           echo "::error::Claude CLI execution failed; the worktree was reset and no patch will be published."
           exit 1
-      - name: Report missing Claude key
+      - name: Explain Claude Free-tier CI limitation
         if: ${{ env.HAS_ANTHROPIC_API_KEY != 'true' }}
         shell: bash
         run: |
-          echo "::error::ANTHROPIC_API_KEY is unavailable; this owner-triggered Claude task did not run."
-          exit 1
+          set -euo pipefail
+          echo "::notice::Claude inference was skipped: no Anthropic API credential is configured. Claude Free app access does not authenticate a GitHub Actions runner."
+          {
+            echo "### Claude execution: skipped"
+            echo
+            echo "- No Anthropic API credential is configured for this workflow."
+            echo "- Claude Free app access cannot be used as a GitHub Actions API credential."
+            echo "- The local Claude runner contract tests ran; no model inference was requested."
+            echo "- No source patch, pull request, or Anthropic API charge was produced."
+            echo "- To run automated Claude inference, an eligible and explicitly approved API/OAuth credential is required."
+          } >> "$GITHUB_STEP_SUMMARY"
       - name: Prepare change patch
         id: patch
         if: ${{ env.HAS_ANTHROPIC_API_KEY == 'true' && steps.run.outcome == 'success' }}
