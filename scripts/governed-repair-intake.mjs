@@ -54,7 +54,7 @@ export function buildRepairIntake({ repository, observedAt, runs, pulls }) {
   const completedMainRuns = selectedRuns.filter(item => item && safeId(item.databaseId)
     && item.headBranch === 'main' && item.status?.toLowerCase() === 'completed'
     && ['success', 'failure'].includes(item.conclusion?.toLowerCase())
-    && ['push', 'workflow_dispatch', 'schedule'].includes(item.event)
+    && ['push', 'workflow_dispatch', 'schedule', 'workflow_run'].includes(item.event)
     && safeName(item.workflowName)).sort(sortNewest);
   const latestByWorkflow = new Map();
   for (const run of completedMainRuns) {
@@ -83,7 +83,7 @@ export function buildRepairIntake({ repository, observedAt, runs, pulls }) {
       if (!name) continue;
       const outcome = String(check?.conclusion ?? check?.state ?? '').toUpperCase();
       const status = String(check?.status ?? '').toUpperCase();
-      if (['FAILURE', 'ERROR', 'TIMED_OUT', 'ACTION_REQUIRED'].includes(outcome)) failingChecks.push(name);
+      if (['FAILURE', 'ERROR', 'TIMED_OUT', 'ACTION_REQUIRED', 'STARTUP_FAILURE'].includes(outcome)) failingChecks.push(name);
       else if (outcome === 'NEUTRAL') neutralChecks.push(name);
       else if ((!outcome || outcome === 'PENDING' || outcome === 'EXPECTED') && status !== 'COMPLETED') pendingChecks.push(name);
     }
