@@ -127,22 +127,20 @@ test('GitHub Actions governance tests are required by GLORIFIER CI', () => {
   assert.match(ci, /node --test scripts\/github-actions-governance\.test\.mjs/);
 });
 
-test('CodeQL pull-request analyses are bound to the exact stable PR head SHA', () => {
-  const analyzeStep = codeql.slice(codeql.indexOf('      - name: Analyze'));
-  assert.match(analyzeStep, /ref:\s*\$\{\{\s*github\.event_name == 'pull_request' && format\('refs\/pull\/\{0\}\/head', github\.event\.pull_request\.number\) \|\| github\.ref\s*\}\}/);
-  assert.match(analyzeStep, /sha:\s*\$\{\{\s*github\.event_name == 'pull_request' && github\.event\.pull_request\.head\.sha \|\| github\.sha\s*\}\}/);
-});
 
-
-test('CodeQL same-repository PR checkout matches the uploaded PR head', () => {
+test('CodeQL PR checkout uses the native test-merge commit without retaining credentials', () => {
   const checkout = codeql.split('      - name: Checkout\n')[1]?.split('      - name: Initialize CodeQL')[0] ?? '';
   assert.match(checkout, /persist-credentials:\s*false/);
-  assert.ok(
-    checkout.includes("ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.sha || github.sha }}"),
-    'the same-repository PR checkout must use the head SHA, and fork PRs must retain the native merge SHA',
-  );
+  assert.doesNotMatch(checkout, /^\s*ref:/m, 'a PR head override skips the test merge');
 });
 
+test('CodeQL analysis and legacy SARIF upload share the native tested merge identity', () => {
+  const analyze = codeql.split('      - name: Analyze\n')[1]?.split('      # GitHub still has a pre-matrix')[0] ?? '';
+  assert.doesNotMatch(analyze, /^\s*(ref|sha):/m, 'the CodeQL action should use the native GitHub ref and SHA');
+  const upload = codeql.split('      - name: Upload legacy CodeQL configuration')[1]?.split('      # Read-only inspection.')[0] ?? '';
+  assert.match(upload, /ref: \$\{\{ github\.ref \}\}/);
+  assert.match(upload, /sha: \$\{\{ github\.sha \}\}/);
+});
 
 test('live PostgreSQL maintenance workflows explicitly enable verified production TLS', () => {
   const cases = [
@@ -208,4 +206,70 @@ test('main branch protection has one always-present aggregate CI check', () => {
   assert.ok(requiredCi.includes('[[ "$BUILD_RESULT" == "success" ]]'));
   assert.ok(requiredCi.includes('[[ "$AGENT_STATE_POSTGRES_RESULT" == "success" ]]'));
   assert.ok(requiredCi.includes('[[ "$SUPABASE_DEFAULT_PRIVILEGES_RESULT" == "success" ]]'));
+});
+
+test('CodeQL retains the legacy main scan configuration with genuine analyzed SARIF', () => {
+  const generate = sliceBetweenMarkers(codeql, '      - name: Rebuild legacy CodeQL category from analyzed SARIF', '      - name: Upload legacy CodeQL configuration');
+  assert.match(generate, /matrix\.language == 'javascript-typescript'/);
+  assert.match(generate, /test -s "\$source"/);
+  assert.match(generate, /jq --arg category '\.github\/workflows\/codeql\.yml:analyze\/'/);
+  assert.match(generate, /\.automationDetails = \(\(\.automationDetails \/\/ \{\}\) \+ \{id: \$category\}\)/);
+  const upload = codeql.split('      - name: Upload legacy CodeQL configuration')[1] ?? '';
+  assert.match(upload, /github\/codeql-action\/upload-sarif@/);
+  assert.match(upload, /sarif_file: \$\{\{ runner\.temp \}\}\/codeql-legacy\/legacy\.sarif/);
+  assert.match(upload, /category: "\.github\/workflows\/codeql\.yml:analyze\/"/);
+  assert.match(upload, /matrix: '\{\}'/);
+  assert.match(upload, /ref: \$\{\{ github\.ref \}\}/);
+  assert.match(upload, /sha: \$\{\{ github\.sha \}\}/);
+});
+
+test('CodeQL diagnostic compares authenticated read-only main and PR analysis identities', () => {
+  const diagnostic = codeql.split('      - name: Inspect CodeQL analysis identities (read-only)')[1] ?? '';
+  assert.ok(diagnostic.length > 0, 'missing read-only scan configuration diagnostic');
+  assert.match(diagnostic, /github\.event_name == 'pull_request'/);
+  assert.match(diagnostic, /matrix\.language == 'javascript-typescript'/);
+  assert.match(diagnostic, /refs\/heads\/main/);
+  assert.match(diagnostic, /refs\/pull\/\$\{PR_NUMBER\}\/head/);
+  assert.match(diagnostic, /refs\/pull\/\$\{PR_NUMBER\}\/merge/);
+  assert.match(diagnostic, /code-scanning\/analyses/);
+  assert.match(diagnostic, /\.analysis_key/);
+  assert.match(diagnostic, /\.category/);
+  assert.match(diagnostic, /github\.token/);
+  assert.doesNotMatch(diagnostic, /curl[^\n]*\s-X\s+(?:POST|PUT|DELETE|PATCH)/);
+  assert.match(diagnostic, /existing scan enforcement is unchanged/);
+});
+
+test('CodeQL analysis identity report is small, read-only and retrievable as an artifact', () => {
+  const diagnosis = codeql.split('      - name: Inspect CodeQL analysis identities (read-only)')[1]?.split('      - name: Upload read-only CodeQL identity report')[0] ?? '';
+  const artifact = codeql.split('      - name: Upload read-only CodeQL identity report')[1] ?? '';
+  assert.match(diagnosis, /codeql-analysis-identities\.tsv/);
+  assert.match(diagnosis, /tee -a "\$report"/);
+  assert.match(diagnosis, /QUERY_FAILED/);
+  assert.match(artifact, /actions\/upload-artifact@v7/);
+  assert.match(artifact, /codeql-analysis-identities/);
+  assert.match(artifact, /if-no-files-found: error/);
+  assert.match(artifact, /retention-days: 2/);
+});
+
+test('CodeQL identity inventory pages over historical baseline configurations without changing scan policy', () => {
+  const diagnostics = codeql.split('      - name: Inspect CodeQL analysis identities (read-only)')[1] ?? '';
+  assert.match(diagnostics, /for page in \$\(seq 1 15\)/);
+  assert.match(diagnostics, /&page=\$\{page\}/);
+  assert.match(diagnostics, /count=\$\(jq 'length'/);
+  assert.match(diagnostics, /if \(\( count < 100 \)\); then/);
+  assert.doesNotMatch(diagnostics, /curl[^\n]*\s-X\s+(?:POST|PUT|DELETE|PATCH)/);
+});
+
+test('legacy CodeQL SARIF ID parses to the exact protected main category', () => {
+  const category = '.github/workflows/codeql.yml:analyze';
+  const sarifAutomationId = category + '/';
+  // GitHub SARIF parsing uses everything before the final slash as category.
+  const parsedCategory = sarifAutomationId.slice(0, sarifAutomationId.lastIndexOf('/'));
+  assert.equal(parsedCategory, category);
+  const generate = sliceBetweenMarkers(codeql,
+    '      - name: Rebuild legacy CodeQL category from analyzed SARIF',
+    '      - name: Upload legacy CodeQL configuration');
+  assert.match(generate, /\.github\/workflows\/codeql\.yml:analyze\//);
+  const upload = codeql.split('      - name: Upload legacy CodeQL configuration')[1] ?? '';
+  assert.match(upload, /category: "\.github\/workflows\/codeql\.yml:analyze\/"/);
 });
