@@ -8,6 +8,34 @@ const providerSelections = [
   { providerId: 'nvidia' as const, modelId: 'nvidia-free-test' },
 ];
 
+test('routes eligible Anthropic Claude through the Specialist Council as software architect', async () => {
+  const assigned = { providerId: 'anthropic' as const, modelId: 'claude-free-model' };
+  const calls: Array<{ providerId: string; modelId: string }> = [];
+  const result = await runSpecialistCouncil({
+    objective: 'Independently review GLORIFIER architecture boundaries and failure modes.',
+    roles: ['software-architect'],
+    providerSelections: [assigned],
+    generateProvider: async (selection) => {
+      calls.push(selection);
+      return {
+        provider: selection.providerId,
+        model: selection.modelId,
+        text: 'The architecture review identifies explicit service boundaries and fail-closed provider routing.',
+        latencyMs: 5,
+      } as never;
+    },
+  });
+
+  assert.deepEqual(calls, [assigned]);
+  assert.deepEqual(result.providerAssignments, [{
+    roleId: 'software-architect',
+    providerId: 'anthropic',
+    modelId: 'claude-free-model',
+  }]);
+  assert.equal(result.result.findings[0]?.role.id, 'software-architect');
+  assert.equal(result.result.findings[0]?.provider, 'anthropic');
+});
+
 test('explicit repository provider assignments cannot use the unguarded provider fallback', async () => {
   await assert.rejects(
     () => runSpecialistCouncil({
