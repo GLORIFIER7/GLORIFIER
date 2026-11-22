@@ -36,6 +36,7 @@
     "test:geas-controls": "node --import tsx/esm --test src/lib/governance/geas-architecture-controls.test.ts",
     "test:agent-control-plane": "node --import tsx/esm --test src/lib/governance/agent-control-plane.test.ts",
     "test:geas-scientist": "node --import tsx/esm --test src/lib/governance/geas-architecture-scientist.test.ts",
+    "test:business-intelligence-pipeline": "node --import tsx/esm --test src/lib/business-intelligence-pipeline.test.ts",
     "test:geas-focus-invoice-reconciliation": "node --import tsx/esm --test src/lib/governance/geas-focus-invoice-reconciliation.test.ts",
     "test:geas-claim-verification": "node --import tsx/esm --test src/lib/governance/geas-claim-verification.test.ts",
     "test:intelligence-pipeline-workflow": "node scripts/intelligence-pipeline-workflow.test.mjs",

@@ -24,6 +24,12 @@ import { getLlamaCloudStatus, listLlamaCloudIndexes, retrieveLlamaCloudContext, 
 import { discoverGlobalProviders, getGlobalProviderDiscoverySnapshot, getGlobalProviderDiscoveryPolicy } from './src/lib/ai/provider-discovery';
 import { executeComputeTask, getComputeSnapshot } from './src/lib/compute';
 import { generateIntelligenceReport, getLatestIntelligenceReport } from './src/lib/intelligence';
+import {
+  getGlobalBusinessIntelligenceArchitecture,
+  ingestIntelligenceReportIntoBusinessIntelligence,
+  runBusinessIntelligenceHealthCheck,
+} from './src/lib/business-intelligence-scientist';
+import { buildGeasBusinessIntelligenceAdvisory, summarizeSearchSourceEvidence } from './src/lib/business-intelligence-pipeline';
 import { agentManifest, createAgentTask, getAgentTask, listAgentCards, listAgentTasks, updateAgentTask, requireAgentTaskUpdate, initializeAgentRuntimePersistence, getAgentRuntimePersistenceStatus, withAgentTaskHeartbeat, getAgentTaskRecoveryObservation, canAccessAgentTask, resolveAgentTaskRequester } from './src/lib/agent-runtime';
 import { getAutopilotOrchestrationStatus } from './src/lib/autopilot-orchestrator';
 import { initializeAutopilotMissionControl, getAutopilotMissionControlStatus, getAutopilotMissionStore, createAutopilotMission, listAutopilotMissions, getAutopilotMission, AutopilotMissionValidationError } from './src/lib/autopilot-mission-control';
@@ -2077,10 +2083,27 @@ let intelligenceRefreshPromise: Promise<any> | null = null;
 
 async function refreshIntelligenceReport() {
   if (!intelligenceRefreshPromise) {
-    intelligenceRefreshPromise = generateIntelligenceReport({
-      runModel: (provider, prompt, options) => runIntelligenceModel(provider, prompt, options),
-      windowHours: 24
-    }).finally(() => {
+    intelligenceRefreshPromise = (async () => {
+      const report = await generateIntelligenceReport({
+        runModel: (provider, prompt, options) => runIntelligenceModel(provider, prompt, options),
+        windowHours: 24
+      });
+      try {
+        const ingestion = await ingestIntelligenceReportIntoBusinessIntelligence(report);
+        console.info('[GBIS] Intelligence report ingested:', {
+          reportId: ingestion.reportId,
+          status: ingestion.status,
+          observationsUpserted: ingestion.observationsUpserted,
+          signalsUpserted: ingestion.signalsUpserted,
+          rejectedEvidenceCount: ingestion.rejectedEvidenceCount,
+        });
+      } catch (error) {
+        // Keep the source-backed intelligence report available, but never claim GBIS
+        // ingestion succeeded when the separate business-intelligence store is unavailable.
+        console.error('[GBIS] Report generated but BI ingestion failed:', error);
+      }
+      return report;
+    })().finally(() => {
       intelligenceRefreshPromise = null;
     });
   }
@@ -2120,6 +2143,7 @@ app.get('/api/intelligence/status', async (_req: Request, res: Response) => {
     generatedAt: report?.generatedAt || null,
     evidenceCount: report?.evidenceCount || 0,
     sourceCount: report?.sourceCount || 0,
+    sourceStatuses: report?.sourceStatuses || [],
     modelStatus: {
       openai: !!process.env.OPENAI_API_KEY,
       gemini: !!process.env.GEMINI_API_KEY
@@ -3167,20 +3191,69 @@ app.get('/api/reports/summary', async (_req: Request, res: Response) => {
 // turn catalog metadata, estimates, or public signals into verified revenue.
 // ============================================================================
 
+app.get('/api/business-intelligence/status', async (_req: Request, res: Response) => {
+  try {
+    const status = await runBusinessIntelligenceHealthCheck();
+    return res.json({ ok: true, ...status });
+  } catch (error) {
+    return apiError(res,503,'Business intelligence runtime status unavailable',error);
+  }
+});
+
+app.get('/api/business-intelligence/advisory', geasRateLimit, requireOwnerOrInternalService, async (_req: Request, res: Response) => {
+  try {
+    const [report, scan] = await Promise.all([
+      getLatestIntelligenceReport(),
+      getLatestGeasArchitectureScan(),
+    ]);
+    const advisory = buildGeasBusinessIntelligenceAdvisory({ report, scan });
+    let businessIntelligence: Awaited<ReturnType<typeof runBusinessIntelligenceHealthCheck>> | null = null;
+    try {
+      businessIntelligence = await runBusinessIntelligenceHealthCheck();
+    } catch (error) {
+      console.warn('[GBIS] Runtime snapshot unavailable while serving GEAS advisory:', error);
+    }
+    return res.json({
+      ok: true,
+      advisory,
+      businessIntelligence: businessIntelligence ? {
+        status: businessIntelligence.status,
+        pipeline: businessIntelligence.pipeline,
+        counts: businessIntelligence.snapshot.counts,
+        latestIngestion: businessIntelligence.snapshot.latestIngestion,
+      } : {
+        status: 'unavailable',
+        pipeline: null,
+        counts: null,
+        latestIngestion: null,
+      },
+    });
+  } catch (error) {
+    return apiError(res,503,'GEAS business intelligence advisory unavailable',error);
+  }
+});
+
 app.get('/api/business-intelligence/report', async (_req: Request, res: Response) => {
   try {
-    const report = await getLatestIntelligenceReport() || await generateIntelligenceReport({ runModel: runIntelligenceModel, windowHours: 24 });
+    const report = await getLatestIntelligenceReport() || await refreshIntelligenceReport();
+    const evidence = report?.evidence || [];
+    const sourceCount = report?.sourceCount || 0;
+    const evidenceCount = evidence.length;
+    const githubEvidenceCount = evidence.filter((item: { source?: unknown } | null) => /github/i.test(String(item?.source ?? ''))).length;
+    const marketEvidenceCount = evidence.filter((item: { title?: unknown; summary?: unknown } | null) => /competitor|company|market|product|pricing|funding|acquisition/i.test(String(item?.title ?? '')+' '+String(item?.summary ?? ''))).length;
+    const hasEvidence = evidenceCount > 0;
+    const searchEvidence = summarizeSearchSourceEvidence(evidence);
     const insights = [
-      { id:'web_mentions', title:'Public web intelligence', status: report ? 'live' : 'connector', summary: report ? 'Evidence collected from configured public intelligence sources.' : 'Public-source intelligence connector is ready.', metrics:[{label:'Sources',value:String(report?.sourceCount ?? 0)},{label:'Evidence',value:String(report?.evidenceCount ?? 0)}], actions:['Review source-backed signals before acting.'] },
-      { id:'github', title:'Engineering activity', status:'connector', summary:'GitHub activity is available through authenticated repository and public-source connectors.', metrics:[{label:'State',value:'Connector-backed'},{label:'Truth',value:'Evidence required'}], actions:['Review repository evidence and CI outcomes.'] },
-      { id:'competitors', title:'Competitive intelligence', status:'connector', summary:'Competitive signals require source-backed collection and are kept separate from verified revenue.', metrics:[{label:'State',value:'Connector-backed'},{label:'Truth',value:'Not verified'}], actions:['Collect and review documented competitor evidence.'] },
-      { id:'trends', title:'AI/software trends', status:'live', summary:'Current public intelligence can be refreshed from configured sources.', metrics:[{label:'Window',value:'24h'},{label:'Evidence',value:String(report?.evidenceCount ?? 0)}], actions:['Inspect evidence IDs and source URLs.'] },
-      { id:'search', title:'Search signals', status:'connector', summary:'Search-derived signals remain observations until independently verified.', metrics:[{label:'Status',value:'Available'},{label:'Revenue',value:'Not inferred'}], actions:['Validate source and commercial relevance.'] },
-      { id:'telemetry', title:'First-party telemetry', status:'protected', summary:'Private telemetry remains inside authorized systems and is not exposed as public evidence.', metrics:[{label:'Access',value:'Governed'},{label:'Truth',value:'Evidence required'}], actions:['Use authorized telemetry only.'] },
-      { id:'revenue', title:'Verified revenue', status:'live', summary:'Revenue is sourced from the authoritative ledger and qualifying external evidence.', metrics:[{label:'Source',value:'Neon'},{label:'Rule',value:'Verified evidence'}], actions:['Do not treat estimates or pipeline as revenue.'] },
-      { id:'opportunities', title:'Opportunity intelligence', status:'live', summary:'Opportunity discovery is evidence-first and remains separate from verified earnings.', metrics:[{label:'Rule',value:'Evidence-first'},{label:'Execution',value:'Human authorization'}], actions:['Qualify opportunities before consequential action.'] }
+      { id:'web_mentions', title:'Public web intelligence', status:hasEvidence ? 'observed' : 'not-available', summary:hasEvidence ? 'Public-source evidence was collected; inspect each source and collection status.' : 'No public-source evidence is available in the latest report.', metrics:[{label:'Sources',value:String(sourceCount)},{label:'Evidence',value:String(evidenceCount)}], actions:['Review source-backed signals before acting.'] },
+      { id:'github', title:'Engineering activity', status:githubEvidenceCount > 0 ? 'observed' : 'not-available', summary:githubEvidenceCount > 0 ? 'Public GitHub feed evidence is present; this is not a full authenticated repository audit.' : 'No GitHub source evidence was collected in the latest report.', metrics:[{label:'Evidence',value:String(githubEvidenceCount)},{label:'Truth','value':'Public-source only'}], actions:['Review repository evidence and CI outcomes.'] },
+      { id:'competitors', title:'Competitive intelligence', status:marketEvidenceCount > 0 ? 'observed' : 'not-available', summary:marketEvidenceCount > 0 ? 'Potential competitive evidence is present and requires source-level review.' : 'No competitive evidence is present in the latest report.', metrics:[{label:'Evidence',value:String(marketEvidenceCount)},{label:'Truth',value:'Not verified'}], actions:['Collect and review documented competitor evidence.'] },
+      { id:'trends', title:'AI/software trends', status:hasEvidence ? 'observed' : 'not-available', summary:'Public evidence is available only for the sources shown below; collection failures are reported separately.', metrics:[{label:'Window',value:'24h'},{label:'Evidence',value:String(evidenceCount)}], actions:['Inspect evidence IDs and source URLs.'] },
+      { id:'search', title:'Search signals', status:searchEvidence.status, summary:searchEvidence.evidenceCount > 0 ? 'Search-source evidence is present but remains an observation until independently verified.' : 'No search-source evidence was collected in the latest report.', metrics:[{label:'Evidence',value:String(searchEvidence.evidenceCount)},{label:'Revenue',value:'Not inferred'}], actions:['Validate source and commercial relevance.'] },
+      { id:'telemetry', title:'First-party telemetry', status:'protected', summary:'Private telemetry is not included in this public-source report and remains unverified here.', metrics:[{label:'Access',value:'Not exposed'},{label:'Truth',value:'Not verified'}], actions:['Use authorized telemetry only.'] },
+      { id:'revenue', title:'Verified revenue', status:'not-verified', summary:'This intelligence endpoint does not reconcile the authoritative revenue ledger; no revenue result is asserted.', metrics:[{label:'Source',value:'Ledger check required'},{label:'Rule',value:'Verified evidence'}], actions:['Use the revenue ledger and qualifying settlement evidence.'] },
+      { id:'opportunities', title:'Opportunity intelligence', status:(report?.themes || []).length > 0 ? 'advisory-only' : 'not-available', summary:'Synthesized themes are advisory signals only; no opportunity value, customer acceptance, or earned revenue is verified here.', metrics:[{label:'Themes',value:String(report?.themes?.length || 0)},{label:'Execution',value:'Human authorization'}], actions:['Qualify opportunities before consequential action.'] }
     ];
-    return res.json({ ok:true, generatedAt:report?.generatedAt || new Date().toISOString(), executiveSummary:report?.executiveSummary || 'No intelligence report is currently available.', insights, evidence:report?.evidence || [], analyses:report?.analyses || [] });
+    return res.json({ ok:true, generatedAt:report?.generatedAt || null, sourceStatuses:report?.sourceStatuses || [], executiveSummary:report?.executiveSummary || 'No intelligence report is currently available.', insights, evidence, analyses:report?.analyses || [], economicTruth:'Estimated opportunity value is NOT VERIFIED REVENUE.' });
   } catch (error) { return apiError(res,503,'Business intelligence report unavailable',error); }
 });
 
@@ -3188,7 +3261,7 @@ app.get('/api/business-intelligence/competitive', async (_req: Request, res: Res
   try {
     const report = await getLatestIntelligenceReport();
     const evidence = (report?.evidence || []).filter((x:any) => /competitor|company|market|product|pricing|funding|acquisition/i.test(String(x.title)+' '+String(x.summary))).slice(0,25);
-    return res.json({ ok:true, generatedAt:new Date().toISOString(), status:'evidence-backed', evidence, economicTruth:'Observed intelligence is not verified revenue.' });
+    return res.json({ ok:true, generatedAt:report?.generatedAt || null, status:evidence.length > 0 ? 'observed' : 'not-available', evidenceCount:evidence.length, evidence, economicTruth:'Observed intelligence is not verified revenue.' });
   } catch (error) { return apiError(res,503,'Competitive intelligence unavailable',error); }
 });
 
@@ -3263,40 +3336,13 @@ app.get('/api/mediator/snapshot', async (_req: Request, res: Response) => {
   catch (error) { return apiError(res,503,'Mediator snapshot unavailable',error); }
 });
 
-app.get('/api/business-intelligence/architecture', (_req: Request, res: Response) => {
-  return res.json({
-    ok: true,
-    architecture: {
-      version: 'GBIS-2.0',
-      identity: 'Continuous business intelligence operating system for evidence-backed decision support.',
-      layers: [
-        'source systems',
-        'ingestion and connectors',
-        'data foundation and lineage',
-        'semantic business layer',
-        'intelligence and analytics',
-        'AI orchestration and specialist scientists',
-        'opportunity and monetization evidence',
-        'governance, security and compliance',
-        'human decision and authorized execution',
-        'outcome verification and economic truth'
-      ],
-      principles: [
-        'provider-neutral orchestration',
-        'evidence provenance',
-        'semantic consistency',
-        'security and privacy by design',
-        'estimated value is not verified revenue',
-        'human authority for consequential actions',
-        'measurable verified outcomes'
-      ],
-      sourceOfTruth: {
-        revenue: 'Neon/PostgreSQL canonical target; production route cutover pending verification',
-        verification: 'Evidence-backed outcome records',
-        orchestration: 'GLORIFIER provider-neutral AI layer'
-      }
-    }
-  });
+app.get('/api/business-intelligence/architecture', async (_req: Request, res: Response) => {
+  try {
+    const architecture = await getGlobalBusinessIntelligenceArchitecture();
+    return res.json({ ok: true, architecture });
+  } catch (error) {
+    return apiError(res,503,'Business intelligence architecture unavailable',error);
+  }
 });
 
 app.get('/api/valuation', async (_req: Request, res: Response) => {

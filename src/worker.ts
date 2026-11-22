@@ -1454,6 +1454,30 @@ export default {
         architecture: {
           version: 'GBIS-2.0',
           identity: 'Continuous business intelligence operating system for evidence-backed decision support.',
+          sourceFamilies: [
+            'public-web','market-and-industry','competitor','customer-and-product',
+            'sales-and-marketing','finance-and-revenue','technology-and-ai','cloud-and-infrastructure',
+            'cybersecurity','regulatory-and-policy','intellectual-property','open-source',
+            'ecosystem-and-partners','marketplace','iot-and-edge','research-and-academia',
+          ],
+          intelligenceDomains: [
+            'market-intelligence','competitive-intelligence','customer-intelligence','product-intelligence',
+            'sales-intelligence','marketing-intelligence','operations-intelligence','financial-intelligence',
+            'pricing-intelligence','supply-chain-intelligence','risk-intelligence','workforce-intelligence',
+            'technology-intelligence','cloud-intelligence','cybersecurity-intelligence','data-intelligence',
+            'regulatory-intelligence','ip-intelligence','asset-intelligence','iot-intelligence',
+            'ecosystem-intelligence','partner-intelligence','marketplace-intelligence','revenue-intelligence',
+            'scenario-intelligence','early-warning','opportunity-intelligence',
+          ],
+          pipeline: [
+            'Discover source','Ingest observation','Normalize data','Validate quality','Resolve entity',
+            'Apply business semantics','Calculate metric','Detect signal','Explain driver','Generate scenario',
+            'Assess opportunity','Check evidence','Govern action','Measure outcome','Feed GEAS improvement',
+          ],
+          runtimeEndpoints: {
+            status: '/api/business-intelligence/status',
+            advisory: '/api/business-intelligence/advisory',
+          },
           layers: [
             'source systems',
             'ingestion and connectors',
