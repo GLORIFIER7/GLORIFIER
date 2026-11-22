@@ -7,14 +7,13 @@ const workflow = readFileSync(
   'utf8',
 );
 
-test('free-tier governance can run manually, daily, and on its own PR changes', () => {
+test('free-tier governance can run manually, daily, and on all PRs, including related governance changes', () => {
   assert.match(workflow, /^on:\n/m);
   assert.match(workflow, /^  workflow_dispatch:\s*$/m);
   assert.match(workflow, /^  schedule:\s*$/m);
   assert.match(workflow, /^    - cron: "41 2 \* \* \*"\s*$/m);
-  assert.match(workflow, /^  pull_request:\s*$/m);
-  assert.match(workflow, /^      - '\.github\/workflows\/free-tier-governance\.yml'$/m);
-  assert.match(workflow, /^      - 'scripts\/free-tier-governance\.test\.mjs'$/m);
+  assert.match(workflow, /^  pull_request: \{\}\s*$/m, 'PR verification must not miss changes in other governed files');
+  assert.doesNotMatch(workflow, /^\s+paths:\s*$/m, 'a paths filter can silently skip a changed workflow or contract');
 });
 
 test('free-tier governance uses only standard public Linux runners with a strict timeout', () => {
@@ -22,7 +21,6 @@ test('free-tier governance uses only standard public Linux runners with a strict
   assert.deepEqual(runners, ['ubuntu-latest']);
   assert.match(workflow, /^    timeout-minutes: 10$/m);
   assert.doesNotMatch(workflow, /self-hosted|ubuntu-\d+-\d+-core|larger-runner|macos-latest|windows-latest/i);
-  assert.match(workflow, /^    if: \$\{\{ github\.event\.repository\.private == false \}\}$/m);
 });
 
 test('free-tier governance is read-only and cannot expose provider credentials', () => {
@@ -49,4 +47,12 @@ test('free-tier governance runs local GEAS and provider authorization regression
 
 test('free-tier governance avoids overlapping scheduled runs', () => {
   assert.match(workflow, /^concurrency:\n  group: glorifier-free-tier-governance-\$\{\{ github\.ref \}\}\n  cancel-in-progress: true$/m);
+});
+
+test('scheduled and manual governance runs fail closed unless explicitly public', () => {
+  const gate = workflow.match(/^    if: \$\{\{ (.+) \}\}$/m)?.[1] ?? '';
+  assert.match(gate, /github\.event\.repository\.visibility == 'public'/);
+  assert.match(gate, /github\.event\.repository\.private == false/);
+  assert.match(gate, /&&/);
+  assert.doesNotMatch(gate, /\|\|/);
 });
