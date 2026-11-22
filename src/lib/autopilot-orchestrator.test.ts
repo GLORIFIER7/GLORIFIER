@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
-import { validateAutopilotPlan, isAutopilotInferenceAuthorized, isAutopilotRepositoryFreeInferenceAuthorized, getAutopilotRepositoryContributorPolicy, startAutopilotMissionLeaseHeartbeat, getAutopilotMaintenanceBranchName, formatAutopilotA2AContext, formatAutopilotUntrustedContext, buildAutopilotMissionPlanningContext, getAutopilotOrchestrationStatus, buildRepositoryContributionAttribution, appendRepositoryContributionAttribution } from './autopilot-orchestrator.ts';
+import { validateAutopilotPlan, isAutopilotInferenceAuthorized, isAutopilotRepositoryFreeInferenceAuthorized, getAutopilotRepositoryContributorPolicy, startAutopilotMissionLeaseHeartbeat, getAutopilotMaintenanceBranchName, formatAutopilotA2AContext, formatAutopilotUntrustedContext, buildAutopilotMissionPlanningContext, getAutopilotOrchestrationStatus, buildRepositoryContributionAttribution, appendRepositoryContributionAttribution, authorizeRepositoryProviderInference } from './autopilot-orchestrator.ts';
 import { authorizeCapability } from './capability-authorization.ts';
 import { evaluateGeasPolicy } from './governance/geas-policy-engine.ts';
 
@@ -43,6 +43,24 @@ test('Autopilot fails closed when capability authorization or GEAS requires appr
     evidenceVerified: false,
   });
   assert.equal(geas.decision, 'require_approval');
+});
+
+test('repository provider inference is blocked when GEAS does not allow the mission', () => {
+  let evaluatedContext: unknown;
+  authorizeRepositoryProviderInference('approved-public-maintenance-1', (context) => {
+    evaluatedContext = context;
+    return { decision: 'allow', reasons: ['test policy allows the bounded public-code inference'] };
+  });
+  assert.deepEqual(evaluatedContext, {
+    actorType: 'agent',
+    action: 'repository.provider.inference',
+    risk: 'medium',
+  });
+
+  assert.throws(() => authorizeRepositoryProviderInference(
+    'approved-public-maintenance-1',
+    () => ({ decision: 'require_approval', reasons: ['human approval required'] }),
+  ), /GEAS rejected repository provider inference/);
 });
 
 test('Autopilot rejects malformed and oversized plans', () => {

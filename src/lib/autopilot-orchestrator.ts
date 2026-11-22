@@ -8,7 +8,7 @@ import { getRepositoryFreeContributorPolicy, isSafeRepositoryContributionInput, 
 import { estimateRepositoryInputTokenUpperBound, reserveRepositoryProviderRequest, type RepositoryProviderUsageLimits } from './ai/repository-provider-budget';
 import { createA2ATaskForProtocol, executeA2ATask, getA2ARuntimeStatus } from './a2a-runtime';
 import { authorizeCapability } from './capability-authorization';
-import { evaluateGeasPolicy } from './governance/geas-policy-engine';
+import { evaluateGeasPolicy, getGeasPolicy } from './governance/geas-policy-engine';
 import { MAX_LEGACY_MISSION_STEPS, getAutopilotGraphAncestors, getReadyAutopilotGraphWave, normalizeAutopilotGraph } from './autopilot-graph';
 import { executeAutopilotToolStep, normalizeGithubToolInvocation } from './autopilot-execution-fabric';
 import { isAllowedAutopilotWritePath, normalizeAutopilotWriteBranch } from './autopilot-github-write';
@@ -23,6 +23,7 @@ import {
   getAutopilotMissionStore,
   getAutopilotMissionControlStatus,
   type AutopilotMissionPlanStep,
+  type AutopilotExecutionTrace,
   type AutopilotMission,
 } from './autopilot-mission-control';
 
@@ -414,10 +415,29 @@ export function validateAutopilotPlan(
   return plan;
 }
 
+export function authorizeRepositoryProviderInference(
+  missionId: string,
+  geasEvaluator: typeof evaluateGeasPolicy = evaluateGeasPolicy,
+): void {
+  const authorization = geasEvaluator({
+    actorType: 'agent',
+    action: 'repository.provider.inference',
+    risk: 'medium',
+  });
+  if (authorization.decision !== 'allow') {
+    throw new Error(
+      `GEAS rejected repository provider inference for mission ${missionId}: ${authorization.decision}.`,
+    );
+  }
+}
+
 async function planMission(objective: string, missionId: string) {
   if (!isRepositoryMissionPublicContentApproved(process.env, missionId)) {
     throw new Error('Repository AI contribution is blocked: this exact mission ID has no owner-approved public-content egress attestation.');
   }
+  // Enforce the GEAS policy decision after the exact owner-approved mission
+  // check and before any Specialist Council/provider inference is dispatched.
+  authorizeRepositoryProviderInference(missionId);
   const repositoryPolicy = getAutopilotRepositoryContributorPolicy();
   if (!repositoryPolicy.authorized || repositoryPolicy.eligibleProviders.length === 0) {
     throw new Error('Repository AI contribution is blocked: configure at least one currently owner-attested free provider, keep all paid routes disabled, and verify the exact account quota.');
@@ -600,7 +620,10 @@ async function planMission(objective: string, missionId: string) {
   };
 }
 
-const authorizeStep = (step: AutopilotMissionPlanStep) => {
+const authorizeStep = (
+  step: AutopilotMissionPlanStep,
+  evaluatedAt = new Date().toISOString(),
+): AutopilotExecutionTrace['stepAuthorizations'][number] => {
   const capability = authorizeCapability({ capability: step.capability, requestedBy: WORKER_ID });
   if (!capability.allowed || !capability.policy) {
     throw new Error(`Capability authorization rejected Autopilot step ${step.id}: ${capability.reason}.`);
@@ -628,6 +651,17 @@ const authorizeStep = (step: AutopilotMissionPlanStep) => {
   if (geas.decision !== 'allow') {
     throw new Error(`GEAS rejected Autopilot step ${step.id}: ${geas.decision}.`);
   }
+  return {
+    stepId: step.id,
+    capability: step.capability,
+    capabilityPolicyId: capability.policy.id,
+    risk: capability.policy.risk,
+    capabilityDecision: 'allow',
+    geasPolicyVersion: getGeasPolicy().version,
+    geasDecision: 'allow',
+    geasReasons: geas.reasons.slice(0, 10).map(reason => String(reason).slice(0, 300)),
+    evaluatedAt,
+  };
 };
 
 const boundedJson = (value: unknown, maximumCharacters = 24_000): string => {
@@ -800,11 +834,24 @@ export async function processNextAutopilotMission(
     if (mission.steps.length === 0) {
       const plan = await planMission(mission.objective, mission.id);
       heartbeat?.assertHealthy();
-      for (const step of plan.steps) authorizeStep(step);
+      const plannedAt = clock();
+      const stepAuthorizations = plan.steps.map(step => authorizeStep(step, plannedAt));
+      const executionTrace: AutopilotExecutionTrace = {
+        schemaVersion: 1,
+        plannedAt,
+        aiCeo: plan.executive,
+        specialists: plan.council.result.findings.slice(0, 16).map(finding => ({
+          roleId: finding.role.id,
+          provider: finding.provider,
+          model: finding.model,
+          findingSha256: createHash('sha256').update(finding.output, 'utf8').digest('hex'),
+        })),
+        stepAuthorizations,
+      };
       await pauseHeartbeat();
       const current = await assertLeaseOwned();
       planned = await recordAutopilotMissionPlan(
-        store, mission.id, current.version, WORKER_ID, plan.steps, clock(),
+        store, mission.id, current.version, WORKER_ID, plan.steps, clock(), executionTrace,
       );
       planningMetadata = { executive: plan.executive, council: plan.council, contributionAttribution: plan.contributionAttribution };
       resumeHeartbeat();
@@ -814,7 +861,20 @@ export async function processNextAutopilotMission(
       if (mission.status !== 'executing') {
         throw new Error('Recovered Autopilot mission did not resume in the executing state.');
       }
-      for (const step of mission.steps) authorizeStep(step);
+      for (const step of mission.steps) {
+        const currentAuthorization = authorizeStep(step, clock());
+        const recordedAuthorization = mission.executionTrace?.stepAuthorizations.find(
+          authorization => authorization.stepId === step.id,
+        );
+        if (mission.executionTrace && (!recordedAuthorization ||
+            recordedAuthorization.capabilityPolicyId !== currentAuthorization.capabilityPolicyId ||
+            recordedAuthorization.risk !== currentAuthorization.risk ||
+            recordedAuthorization.geasPolicyVersion !== currentAuthorization.geasPolicyVersion ||
+            recordedAuthorization.capabilityDecision !== currentAuthorization.capabilityDecision ||
+            recordedAuthorization.geasDecision !== currentAuthorization.geasDecision)) {
+          throw new Error(`Autopilot step ${step.id} authorization no longer matches its durable planning trace; mission requires replanning.`);
+        }
+      }
       planned = mission;
     }
 
