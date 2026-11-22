@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { normalizeIntelligenceSynthesis, parseJson, sanitizeIntelligenceAnalysisOutput } from './intelligence';
+import { getPostgresPool } from './db/postgres';
+import { getLatestIntelligenceReport, normalizeIntelligenceSynthesis, parseJson, sanitizeIntelligenceAnalysisOutput } from './intelligence';
 
 test('valid raw JSON preserves triple-backtick values inside report fields', () => {
   const expected = {
@@ -97,4 +98,41 @@ test('persisted AI analysis omits invented evidence identifiers and unparsed pro
     { theme: 'Supported', evidenceIds: ['known-evidence'], summary: 'Source-backed theme' },
   ]);
   assert.doesNotMatch(sanitized, /invented-evidence|Unverifiable claim|Model preface/);
+});
+
+test('loading a legacy report validates both stored themes and provider analyses against its own evidence', async (t) => {
+  const previousUrl = process.env.DATABASE_URL;
+  process.env.DATABASE_URL = 'postgresql://localhost/intelligence_test';
+  t.after(() => {
+    if (previousUrl === undefined) delete process.env.DATABASE_URL;
+    else process.env.DATABASE_URL = previousUrl;
+  });
+
+  const supported = { theme: 'Release', evidenceIds: ['report-item'], summary: 'Release observed.' };
+  const themes = [
+    { ...supported, evidenceIds: ['report-item', 'other-report-item'] },
+    { theme: 'Unsupported', evidenceIds: ['other-report-item'], summary: 'Unconfirmed.' },
+  ];
+  const synthesis = { executiveSummary: 'Release notes', themes, disagreements: [] };
+  const unavailable = { provider: 'Google Gemini', model: 'unavailable', status: 'unavailable', output: 'Gemini key/model unavailable.' };
+  t.mock.method(getPostgresPool(), 'query', async (sql: string, values?: string[]) => {
+    if (sql.includes('CREATE TABLE')) return { rows: [] };
+    if (sql.includes('FROM intelligence_reports')) {
+      return { rows: [{ id: 'archived-report', themes, executive_summary: synthesis.executiveSummary, disagreements: [] }] };
+    }
+    assert.deepEqual(values, ['archived-report']);
+    if (sql.includes('FROM intelligence_evidence')) return { rows: [{ id: 'report-item' }] };
+    assert.match(sql, /FROM intelligence_analyses/);
+    return { rows: [
+      { provider: 'OpenAI', model: 'archive', status: 'completed', output: ['Model preface', '```json', JSON.stringify(synthesis), '```'].join('\n') },
+      unavailable,
+    ] };
+  });
+
+  const report = await getLatestIntelligenceReport();
+  assert.ok(report);
+  assert.equal(report.id, 'archived-report');
+  assert.deepEqual(report.themes, [supported]);
+  assert.deepEqual(JSON.parse(report.analyses[0].output), { ...synthesis, themes: [supported] });
+  assert.deepEqual(report.analyses[1], unavailable);
 });

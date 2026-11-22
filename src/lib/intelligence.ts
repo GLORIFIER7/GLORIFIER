@@ -380,8 +380,14 @@ export async function getLatestIntelligenceReport() {
   const reportRow = await db.query('SELECT * FROM intelligence_reports ORDER BY generated_at DESC LIMIT 1');
   if (!reportRow.rows[0]) return null;
   const row = reportRow.rows[0];
-  const evidenceRows = await db.query('SELECT id, source, title, url, published_at AS "publishedAt", summary, collected_at AS "collectedAt" FROM intelligence_evidence WHERE report_id=$1 ORDER BY published_at DESC NULLS LAST LIMIT 50', [row.id]);
-  const analysesRows = await db.query('SELECT provider, model, status, output FROM intelligence_analyses WHERE report_id=$1 ORDER BY id', [row.id]);
+  const evidenceRows = await db.query<IntelligenceEvidence>('SELECT id, source, title, url, published_at AS "publishedAt", summary, collected_at AS "collectedAt" FROM intelligence_evidence WHERE report_id=$1 ORDER BY published_at DESC NULLS LAST LIMIT 50', [row.id]);
+  const analysesRows = await db.query<IntelligenceAnalysis>('SELECT provider, model, status, output FROM intelligence_analyses WHERE report_id=$1 ORDER BY id', [row.id]);
+  const validEvidenceIds = new Set(evidenceRows.rows.map(item => item.id));
+  const synthesis = normalizeIntelligenceSynthesis({
+    executiveSummary: row.executive_summary,
+    themes: row.themes,
+    disagreements: row.disagreements,
+  }, validEvidenceIds);
   latestReport = {
     id: row.id,
     generatedAt: row.generated_at,
@@ -389,11 +395,11 @@ export async function getLatestIntelligenceReport() {
     sourceCount: row.source_count,
     evidenceCount: row.evidence_count,
     sourceStatuses: row.source_statuses || [],
-    executiveSummary: row.executive_summary,
-    themes: row.themes || [],
-    disagreements: row.disagreements || [],
+    ...synthesis,
     evidence: evidenceRows.rows,
-    analyses: analysesRows.rows
+    analyses: analysesRows.rows.map(analysis => analysis.status === 'completed'
+      ? { ...analysis, output: sanitizeIntelligenceAnalysisOutput(analysis.output, validEvidenceIds) }
+      : analysis),
   };
   return latestReport;
 }
