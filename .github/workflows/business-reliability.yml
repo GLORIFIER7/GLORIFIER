@@ -50,6 +50,10 @@ jobs:
       - name: Test GLR economic layer and commerce rules
         run: npm run test:glr-economic-layer && npm run test:glr-commerce
 
+      - name: Test Binance read-only API origin isolation
+        run: node --import tsx/esm --test src/lib/binance-api-origin.test.ts
+
+
       - name: Test Ethereum payment verification
         run: npm run test:glr-ethereum-verifier
 
