@@ -128,6 +128,14 @@ jobs:
           print("A2A staging origin and public Agent Card contract verified; bearer credential was not displayed.")
           PY
 
+      - name: Checkout GLORIFIER's reviewed dependency lock
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: scripts/lockfiles/a2a-tck-uv.lock
+          sparse-checkout-cone-mode: false
+
       - name: Checkout official A2A TCK at pinned upstream revision
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
