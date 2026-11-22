@@ -1,0 +1,57 @@
+name: GLORIFIER Free-Tier Governance Verification
+
+on:
+  workflow_dispatch:
+  schedule:
+    # UTC daily, spread away from the most common hourly schedule boundary.
+    - cron: "41 2 * * *"
+  # Validate every PR; narrow path filters miss indirectly inspected contracts.
+  pull_request: {}
+
+# Uses free standard GitHub-hosted runners only while this repository is public.
+# No provider credentials, billable inference, artifact uploads, or deployments.
+permissions:
+  contents: read
+
+concurrency:
+  group: glorifier-free-tier-governance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  offline-contracts:
+    name: Offline policy and governance tests
+    # Fail closed when event repository metadata is missing or non-public.
+    if: ${{ github.event.repository.visibility == 'public' && github.event.repository.private == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source without retained credentials
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Use Node.js without package installation
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Verify local authorization and CI governance contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          node --test \
+            scripts/free-tier-governance.test.mjs \
+            scripts/ai-fleet-diff-policy.test.mjs \
+            scripts/ai-fleet-workflow-contract.test.mjs \
+            scripts/continuous-improvement-workflow-contract.test.mjs \
+            scripts/intelligence-pipeline-workflow.test.mjs \
+            scripts/github-actions-governance.test.mjs
+      - name: Record runner-cost boundary
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          {
+            echo '## GitHub Actions free-runner verification'
+            echo 'Standard GitHub-hosted Linux runner, public repository only.'
+            echo 'Read-only local contract tests; no model or provider API calls were authorized.'
+            echo 'This run does not certify external AI provider free-tier balances or billing settings.'
+          } >> "$GITHUB_STEP_SUMMARY"
