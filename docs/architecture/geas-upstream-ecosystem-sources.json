@@ -1,0 +1,504 @@
+{
+  "schema": "glorifier.geas.upstream-source-registry.v1",
+  "observed_on": "2026-11-21",
+  "notice": "Curated discovered upstream pointers, not an exhaustive internet crawl or a licensing/production approval. No upstream source copied.",
+  "source_organizations": [
+    {
+      "owner": "openai",
+      "ecosystem": "OpenAI",
+      "scope": "OpenAI APIs, Codex and agent orchestration",
+      "source": "github_org",
+      "allow_read_only_discovery": true,
+      "authorization_to_import": false
+    },
+    {
+      "owner": "NVIDIA",
+      "ecosystem": "NVIDIA",
+      "scope": "Inference, runtime performance and NVIDIA agents",
+      "source": "github_org",
+      "allow_read_only_discovery": true,
+      "authorization_to_import": false
+    },
+    {
+      "owner": "NVIDIA-NeMo",
+      "ecosystem": "NVIDIA",
+      "scope": "NeMo agents, model governance and guardrails",
+      "source": "github_org",
+      "allow_read_only_discovery": true,
+      "authorization_to_import": false
+    },
+    {
+      "owner": "google-gemini",
+      "ecosystem": "Google Gemini",
+      "scope": "Gemini CLI, examples and SDK patterns",
+      "source": "github_org",
+      "allow_read_only_discovery": true,
+      "authorization_to_import": false
+    },
+    {
+      "owner": "google",
+      "ecosystem": "Google",
+      "scope": "Agent development and infrastructure (broad organization)",
+      "source": "github_org",
+      "allow_read_only_discovery": true,
+      "authorization_to_import": false
+    },
+    {
+      "owner": "GoogleCloudPlatform",
+      "ecosystem": "Google Cloud",
+      "scope": "Vertex/Gemini enterprise architecture (broad organization)",
+      "source": "github_org",
+      "allow_read_only_discovery": true,
+      "authorization_to_import": false
+    },
+    {
+      "owner": "microsoft",
+      "ecosystem": "Microsoft",
+      "scope": "Copilot, agents and orchestration (broad organization)",
+      "source": "github_org",
+      "allow_read_only_discovery": true,
+      "authorization_to_import": false
+    },
+    {
+      "owner": "github",
+      "ecosystem": "GitHub Copilot ecosystem",
+      "scope": "Copilot, GitHub MCP and engineering agent workflows",
+      "source": "github_org",
+      "allow_read_only_discovery": true,
+      "authorization_to_import": false
+    },
+    {
+      "owner": "meta-llama",
+      "ecosystem": "Meta Llama",
+      "scope": "Llama tools, recipes, model cards and terms",
+      "source": "github_org",
+      "allow_read_only_discovery": true,
+      "authorization_to_import": false
+    },
+    {
+      "owner": "facebookresearch",
+      "ecosystem": "Meta AI Research",
+      "scope": "Evaluation, retrieval and open model tooling (broad organization)",
+      "source": "github_org",
+      "allow_read_only_discovery": true,
+      "authorization_to_import": false
+    },
+    {
+      "owner": "anthropics",
+      "ecosystem": "Anthropic",
+      "scope": "Claude SDKs, coding agents and evaluations",
+      "source": "github_org",
+      "allow_read_only_discovery": true,
+      "authorization_to_import": false
+    },
+    {
+      "owner": "modelcontextprotocol",
+      "ecosystem": "MCP community",
+      "scope": "MCP protocol, SDKs and server examples",
+      "source": "github_org",
+      "allow_read_only_discovery": true,
+      "authorization_to_import": false
+    },
+    {
+      "owner": "a2aproject",
+      "ecosystem": "A2A community",
+      "scope": "A2A specification, SDKs and interoperability tests",
+      "source": "github_org",
+      "allow_read_only_discovery": true,
+      "authorization_to_import": false
+    },
+    {
+      "owner": "huggingface",
+      "ecosystem": "Hugging Face",
+      "scope": "Provider-neutral inference and open models",
+      "source": "github_org",
+      "allow_read_only_discovery": true,
+      "authorization_to_import": false
+    },
+    {
+      "owner": "langchain-ai",
+      "ecosystem": "LangChain",
+      "scope": "Agent orchestration and stateful workflow patterns",
+      "source": "github_org",
+      "allow_read_only_discovery": true,
+      "authorization_to_import": false
+    },
+    {
+      "owner": "vllm-project",
+      "ecosystem": "vLLM",
+      "scope": "Open-model inference and performance",
+      "source": "github_org",
+      "allow_read_only_discovery": true,
+      "authorization_to_import": false
+    },
+    {
+      "owner": "ollama",
+      "ecosystem": "Ollama",
+      "scope": "Local-model runtime and APIs",
+      "source": "github_org",
+      "allow_read_only_discovery": true,
+      "authorization_to_import": false
+    }
+  ],
+  "candidates": [
+    {
+      "repository": "openai/codex",
+      "capability": "coding",
+      "priority": "P1",
+      "glorifier_target": "Existing GitHub repair/Autopilot",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "openai/openai-agents-python",
+      "capability": "orchestration",
+      "priority": "P1",
+      "glorifier_target": "Specialist Council/NEURAL",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "openai/symphony",
+      "capability": "persistent-agent-workflows",
+      "priority": "P1",
+      "glorifier_target": "Autopilot",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "openai/openai-cookbook",
+      "capability": "evaluation",
+      "priority": "P2",
+      "glorifier_target": "GEAS tests",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "NVIDIA/TensorRT-LLM",
+      "capability": "inference-performance",
+      "priority": "P2",
+      "glorifier_target": "GEAS throughput research",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "NVIDIA/NeMo-Agent-Toolkit",
+      "capability": "agent-evaluation",
+      "priority": "P1",
+      "glorifier_target": "GEAS performance and agent evaluation",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "NVIDIA/NemoClaw",
+      "capability": "sandboxing",
+      "priority": "P2",
+      "glorifier_target": "GEAS sandbox review",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "NVIDIA-NeMo/Guardrails",
+      "capability": "safety",
+      "priority": "P1",
+      "glorifier_target": "GEAS policy review",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "NVIDIA-NeMo/Nemotron",
+      "capability": "inference",
+      "priority": "P2",
+      "glorifier_target": "Provider registry",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "google-gemini/gemini-cli",
+      "capability": "coding",
+      "priority": "P1",
+      "glorifier_target": "Existing Gemini engineering workflow",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "google-gemini/cookbook",
+      "capability": "evaluation",
+      "priority": "P2",
+      "glorifier_target": "GEAS test patterns",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "google/adk-python",
+      "capability": "agent-sdk",
+      "priority": "P1",
+      "glorifier_target": "NEURAL adapter review",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "GoogleCloudPlatform/generative-ai",
+      "capability": "architecture",
+      "priority": "P2",
+      "glorifier_target": "Cloud runtime review",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "microsoft/semantic-kernel",
+      "capability": "orchestration",
+      "priority": "P1",
+      "glorifier_target": "AI CEO and Specialist Council",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "microsoft/vscode",
+      "capability": "coding",
+      "priority": "P2",
+      "glorifier_target": "Engineering workflow reference",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "microsoft/autogen",
+      "capability": "historical",
+      "priority": "P3",
+      "glorifier_target": "Architecture history only; archived",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "microsoft/vscode-copilot-chat",
+      "capability": "historical",
+      "priority": "P3",
+      "glorifier_target": "Archived; VS Code is active home",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "github/awesome-copilot",
+      "capability": "coding-guidance",
+      "priority": "P1",
+      "glorifier_target": "AI engineering review prompts",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "github/github-mcp-server",
+      "capability": "interoperability",
+      "priority": "P1",
+      "glorifier_target": "MCP and GitHub authorization",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "github/spec-kit",
+      "capability": "engineering-governance",
+      "priority": "P1",
+      "glorifier_target": "Issue-to-PR evidence patterns",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "meta-llama/llama-models",
+      "capability": "model-governance",
+      "priority": "P1",
+      "glorifier_target": "Provider/asset license registry",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "meta-llama/llama-cookbook",
+      "capability": "evaluation",
+      "priority": "P2",
+      "glorifier_target": "Provider-neutral eval patterns",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "facebookresearch/faiss",
+      "capability": "retrieval",
+      "priority": "P2",
+      "glorifier_target": "Scoped GEAS retrieval",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "anthropics/claude-code",
+      "capability": "coding",
+      "priority": "P1",
+      "glorifier_target": "Existing pinned Claude CLI; no vendoring",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "anthropics/claude-code-action",
+      "capability": "coding",
+      "priority": "P2",
+      "glorifier_target": "Existing Claude workflow comparison",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "anthropics/claude-agent-sdk-python",
+      "capability": "agent-sdk",
+      "priority": "P2",
+      "glorifier_target": "NEURAL agent adapter review",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "modelcontextprotocol/typescript-sdk",
+      "capability": "interoperability",
+      "priority": "P1",
+      "glorifier_target": "MCP conformance",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "modelcontextprotocol/servers",
+      "capability": "interoperability",
+      "priority": "P1",
+      "glorifier_target": "MCP server security review",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "a2aproject/A2A",
+      "capability": "interoperability",
+      "priority": "P1",
+      "glorifier_target": "A2A conformance",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "a2aproject/a2a-python",
+      "capability": "interoperability",
+      "priority": "P2",
+      "glorifier_target": "NEURAL A2A compatibility",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "huggingface/smolagents",
+      "capability": "agent-execution",
+      "priority": "P2",
+      "glorifier_target": "Scoped provider-neutral execution",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "huggingface/transformers",
+      "capability": "inference",
+      "priority": "P2",
+      "glorifier_target": "Provider adapter and evals",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "langchain-ai/langgraph",
+      "capability": "workflows",
+      "priority": "P2",
+      "glorifier_target": "Autopilot state machine patterns",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "vllm-project/vllm",
+      "capability": "inference",
+      "priority": "P2",
+      "glorifier_target": "GEAS throughput/cost research",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    },
+    {
+      "repository": "ollama/ollama",
+      "capability": "local-inference",
+      "priority": "P1",
+      "glorifier_target": "Zero-paid-inference provider option",
+      "adoption_status": "REVIEW_ONLY",
+      "source_code_imported": false,
+      "license_cleared": false,
+      "runtime_verified": false
+    }
+  ],
+  "adoption_rules": {
+    "deny_automatic_import": true,
+    "deny_automatic_install": true,
+    "deny_unapproved_spending": true,
+    "deny_automatic_merge": true,
+    "require_per_file_license_review": true,
+    "require_geas_authorization": true,
+    "require_human_approval_for_high_impact": true
+  }
+}
