@@ -207,3 +207,9 @@ In both runs, HTTPS target validation, the immutable official runner checkout, a
 The HTTP 429 occurred only in the second run's modern smoke, which was scheduled after the high-volume official suite. The evidence and regression test added in GLORIFIER PR [#902](https://github.com/GLORIFIER7/GLORIFIER/pull/902) reorder the workflow so the bounded smoke runs first, while the official TCK remains enabled independently and its failure is not softened. This workflow adjustment does not fix the underlying unsupported server capabilities.
 
 **Current evidence boundary:** the public endpoint was reached by the official runner and passed the legacy tools-list scenario, but the official 2026-07-28 server requirements did not pass. No separate independent MCP client handshake or external A2A test was performed. The broad `protocol.a2a-mcp-adapters` capability remains **NOT VERIFIED**.
+
+## Loopback SDK interoperability check on 2026-11-21
+
+At 01:29 UTC, the official TypeScript client `@modelcontextprotocol/sdk@1.32.2` connected over Streamable HTTP to the PR #941 route on Linux loopback. It negotiated `2025-11-25`, received the GLORIFIER server identity, listed four tools, and called `github_get_repository` with omitted arguments. A local GitHub response fixture supplied the repository metadata. A second call with an undeclared argument returned a tool error. The route regression in [scripts/mcp-read-tool-offline.test.mjs](../../scripts/mcp-read-tool-offline.test.mjs) covers argument rejection before quota or upstream I/O.
+
+This observation covers local client/server compatibility for the negotiated revision. Deployed client interoperability and full MCP conformance remain open under [issue #471](https://github.com/GLORIFIER7/GLORIFIER/issues/471).
