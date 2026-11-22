@@ -308,7 +308,9 @@ jobs:
         run: npm run test:a2a-v1
 
       - name: A2A official TCK workflow security contract tests
-        run: node --test scripts/a2a-tck-workflow-contract.test.mjs
+        run: |
+          node --test scripts/a2a-tck-workflow-contract.test.mjs
+          python3 -m unittest discover -s scripts -p test_a2a_tck_agent_card.py
 
       - name: A2A durable runtime regression tests
         run: npm run test:a2a-runtime
