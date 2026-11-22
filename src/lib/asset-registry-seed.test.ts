@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { seedCanonicalNFTRegistry } from './asset-registry';
+import { seedCanonicalGLRRegistry, seedCanonicalNFTRegistry } from './asset-registry';
 import { test } from 'node:test';
 
 test('asset-registry-seed regression suite', async () => {
@@ -63,6 +63,28 @@ async function run() {
   assert.match(registryDoc, /do not classify it as a Solana NFT without separate NFT-standard evidence/);
   assert.match(registryDoc, /ownerOf/);
   assert.match(registryDoc, /totalSupply/);
+
+  // Verify what the runtime actually writes, including the conflict-update path.
+  // A fake query client ensures this regression cannot change a live database.
+  const glrQueries: QueryCall[] = [];
+  await seedCanonicalGLRRegistry({
+    async query(sql: string, values?: any[]) {
+      glrQueries.push({ sql, values });
+      return { rows: [] };
+    }
+  });
+  const glrDeploymentCalls = glrQueries.filter(({ sql }) => sql.includes('INSERT INTO canonical_asset_deployments'));
+  assert.equal(glrDeploymentCalls.length, 3, 'all three supported GLR chains must be seeded');
+  const verificationStatuses = new Map(glrDeploymentCalls.map(({ values }) => [values?.[0], values?.[11]]));
+  assert.deepEqual(verificationStatuses, new Map([
+    ['glr-ethereum-mainnet', 'partially_verified'],
+    ['glr-bnb-mainnet', 'fully_verified'],
+    ['glr-solana-mainnet-beta', 'partially_verified'],
+  ]), 'deployment verification status must follow the chain-specific evidence');
+  for (const { sql } of glrDeploymentCalls) {
+    assert.match(sql, /ON CONFLICT\(deployment_id\) DO UPDATE SET[\s\S]*?\bstatus\s*=\s*EXCLUDED\.status\b/i,
+      'runtime initialization must not retain stale verification status after conflict');
+  }
 
   console.log('Canonical NFT registry seed and evidence-guard tests passed.');
 }
