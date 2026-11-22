@@ -273,3 +273,12 @@ test('legacy CodeQL SARIF ID parses to the exact protected main category', () =>
   const upload = codeql.split('      - name: Upload legacy CodeQL configuration')[1] ?? '';
   assert.match(upload, /category: "\.github\/workflows\/codeql\.yml:analyze\/"/);
 });
+
+test('Specialist Council provider and provenance regression tests are required by GLORIFIER CI', () => {
+  const councilStep = sliceBetweenMarkers(
+    ci,
+    '      - name: Specialist Council provider and provenance regression tests',
+    '      - name: OpenAI-compatible provider abort tests',
+  );
+  assert.match(councilStep, /^        run: npm run test:specialist-council\s*$/m);
+});

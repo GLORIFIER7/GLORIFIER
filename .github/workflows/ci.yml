@@ -197,6 +197,9 @@ jobs:
       - name: Shared authenticated AI council client tests
         run: npm run test:model-council-client
 
+      - name: Specialist Council provider and provenance regression tests
+        run: npm run test:specialist-council
+
       - name: OpenAI-compatible provider abort tests
         run: npm run test:provider-abort
 
