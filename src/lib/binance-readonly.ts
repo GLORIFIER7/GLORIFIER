@@ -1,4 +1,5 @@
 import { stripTrailingZeros } from './linear-string.js';
+import { resolveBinanceReadOnlyApiOrigin } from './binance-api-origin.js';
 import crypto from 'node:crypto';
 import { registerAssetAccount, recordAssetAccountEvent, recordAssetEvidence } from './asset-registry';
 
@@ -55,12 +56,14 @@ async function signedGet<T>(path: string): Promise<T> {
   });
   params.set('signature', sign(params.toString(), auth.apiSecret));
 
-  const baseUrl = String(process.env.BINANCE_BASE_URL || 'https://api.binance.com').replace(/\/$/, '');
+  const baseUrl = resolveBinanceReadOnlyApiOrigin(process.env.BINANCE_BASE_URL);
   const response = await fetch(`${baseUrl}${path}?${params.toString()}`, {
     headers: {
       'X-MBX-APIKEY': auth.apiKey,
       Accept: 'application/json'
-    }
+    },
+    redirect: 'error',
+    signal: AbortSignal.timeout(8000)
   });
   const body = await response.text();
 

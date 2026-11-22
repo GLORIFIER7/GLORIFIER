@@ -1,0 +1,345 @@
+{
+  "schema_version": "1.0",
+  "generated_at_date": "2026-11-21",
+  "source_repository": "GLORIFIER7/GLORIFIER",
+  "parent_issue": "https://github.com/GLORIFIER7/GLORIFIER/issues/471",
+  "source_snapshot": {
+    "open_issue_count": 4,
+    "open_issue_numbers": [
+      471,
+      615,
+      616,
+      432
+    ],
+    "open_pr_count": 33,
+    "observed_via": "GitHub connector repository search 2026-11-21",
+    "caution": "Snapshot counts can change; issue #471 is one issue, not 471 open issues"
+  },
+  "status": "ROUTING_DEFINED_NOT_DISPATCHED",
+  "status_semantics": {
+    "ROUTING_DEFINED_NOT_DISPATCHED": "Packets are assigned to candidate providers on paper only. No external inference, API call, branch edit, issue reassignment or agent task was executed by this document."
+  },
+  "governance": {
+    "free_only": true,
+    "max_paid_inference_usd": 0,
+    "auto_merge": false,
+    "auto_deploy": false,
+    "signing": false,
+    "secret_changes": false,
+    "external_data_egress": false,
+    "public_code_egress": "requires exact owner approval per mission",
+    "provider_eligibility": "not verified; fail closed",
+    "branch_policy": "one isolated branch per code-changing workstream",
+    "source_policy": "never claim production compatibility from CI alone",
+    "cross_repo_policy": "NEURAL contributions belong in GLORIFIER7/GLORIFIER-NEURAL and cannot be retargeted across repositories"
+  },
+  "candidate_providers": [
+    "openai",
+    "anthropic",
+    "google",
+    "nvidia",
+    "meta-local",
+    "ollama",
+    "qwen",
+    "deepseek",
+    "mistral",
+    "xai",
+    "openrouter",
+    "huggingface",
+    "groq"
+  ],
+  "workstreams": [
+    {
+      "id": "471-01",
+      "priority": "P0",
+      "area": "CodeQL scanning + protected merge verification",
+      "lead": "openai",
+      "reviewers": [
+        "anthropic",
+        "google"
+      ],
+      "issue_numbers": [
+        471,
+        615
+      ],
+      "existing_prs": [
+        953
+      ],
+      "scope": "Reconcile CodeQL analysis identity on main versus the PR head, verify protected-merge Code scanning requirements without relaxing rulesets, and produce exact SHA/check evidence.",
+      "deliverable": "Evidence table with analysis category, tool status, head SHA, merge rule outcome and a minimal tested remediation PR only if a reproducible defect exists.",
+      "requires": [
+        "GitHub read access",
+        "administrator for ruleset edits"
+      ],
+      "issue_urls": [
+        "https://github.com/GLORIFIER7/GLORIFIER/issues/471",
+        "https://github.com/GLORIFIER7/GLORIFIER/issues/615"
+      ],
+      "existing_pr_urls": [
+        "https://github.com/GLORIFIER7/GLORIFIER/pull/953"
+      ],
+      "dispatch_state": "NOT_DISPATCHED",
+      "actual_provider": null,
+      "execution_receipt": null
+    },
+    {
+      "id": "471-02",
+      "priority": "P0",
+      "area": "SonarCloud findings + regression coverage",
+      "lead": "google",
+      "reviewers": [
+        "openai",
+        "qwen"
+      ],
+      "issue_numbers": [
+        471,
+        616
+      ],
+      "existing_prs": [
+        949
+      ],
+      "scope": "Enumerate real SonarCloud issue keys/severity/rules/locations, triage blockers first, write minimal regression tests for confirmed findings and measure new-code coverage.",
+      "deliverable": "Keyed Sonar issue inventory and focused test-backed remediation; report unavailable dashboard access as BLOCKED.",
+      "requires": [
+        "Authorized SonarCloud issue export for complete triage"
+      ],
+      "issue_urls": [
+        "https://github.com/GLORIFIER7/GLORIFIER/issues/471",
+        "https://github.com/GLORIFIER7/GLORIFIER/issues/616"
+      ],
+      "existing_pr_urls": [
+        "https://github.com/GLORIFIER7/GLORIFIER/pull/949"
+      ],
+      "dispatch_state": "NOT_DISPATCHED",
+      "actual_provider": null,
+      "execution_receipt": null
+    },
+    {
+      "id": "471-03",
+      "priority": "P1",
+      "area": "MCP JSON-RPC + independent conformance",
+      "lead": "google",
+      "reviewers": [
+        "openai",
+        "anthropic"
+      ],
+      "issue_numbers": [
+        471
+      ],
+      "existing_prs": [
+        941
+      ],
+      "scope": "Review JSON-RPC error-envelope and metadata corrections; execute bounded protocol-negative tests and independently authenticated conformance only when staging is approved.",
+      "deliverable": "Exact versioned protocol transcript, tests, and distinction between mock, CI and authenticated external MCP evidence.",
+      "requires": [
+        "Authorized authenticated staging MCP endpoint"
+      ],
+      "issue_urls": [
+        "https://github.com/GLORIFIER7/GLORIFIER/issues/471"
+      ],
+      "existing_pr_urls": [
+        "https://github.com/GLORIFIER7/GLORIFIER/pull/941"
+      ],
+      "dispatch_state": "NOT_DISPATCHED",
+      "actual_provider": null,
+      "execution_receipt": null
+    },
+    {
+      "id": "471-04",
+      "priority": "P1",
+      "area": "A2A agent-card + task lifecycle",
+      "lead": "openai",
+      "reviewers": [
+        "anthropic",
+        "google"
+      ],
+      "issue_numbers": [
+        471
+      ],
+      "existing_prs": [
+        951,
+        950
+      ],
+      "scope": "Review Agent Card preflight and locked-runner changes; verify schema, bounded bodies, invalid token, task lifecycle and replay with isolated test fixtures.",
+      "deliverable": "Deterministic A2A test report; separate verified staging results from source-only validations.",
+      "requires": [
+        "Authorized A2A staging service and test credentials"
+      ],
+      "issue_urls": [
+        "https://github.com/GLORIFIER7/GLORIFIER/issues/471"
+      ],
+      "existing_pr_urls": [
+        "https://github.com/GLORIFIER7/GLORIFIER/pull/951",
+        "https://github.com/GLORIFIER7/GLORIFIER/pull/950"
+      ],
+      "dispatch_state": "NOT_DISPATCHED",
+      "actual_provider": null,
+      "execution_receipt": null
+    },
+    {
+      "id": "471-05",
+      "priority": "P1",
+      "area": "Linux host lifecycle + least privilege",
+      "lead": "nvidia",
+      "reviewers": [
+        "meta-local",
+        "anthropic"
+      ],
+      "issue_numbers": [
+        471
+      ],
+      "existing_prs": [
+        952
+      ],
+      "scope": "Evaluate claim/lease deadline, receipts, revocation, termination, distro/container test matrix and least privilege. No host enrollment or command execution without authorization.",
+      "deliverable": "Reproducible Linux/container regression suite plus separately authorized real-host evidence.",
+      "requires": [
+        "Authorized Linux test host for live lifecycle checks"
+      ],
+      "issue_urls": [
+        "https://github.com/GLORIFIER7/GLORIFIER/issues/471"
+      ],
+      "existing_pr_urls": [
+        "https://github.com/GLORIFIER7/GLORIFIER/pull/952"
+      ],
+      "dispatch_state": "NOT_DISPATCHED",
+      "actual_provider": null,
+      "execution_receipt": null
+    },
+    {
+      "id": "471-06",
+      "priority": "P1",
+      "area": "Read-only GLR / EVM / BNB / Solana truth",
+      "lead": "google",
+      "reviewers": [
+        "nvidia",
+        "anthropic"
+      ],
+      "issue_numbers": [
+        471
+      ],
+      "existing_prs": [
+        947
+      ],
+      "scope": "Validate source-to-registry contract identifiers and read-only chain/RPC evidence per network. Flag missing RPC reachability and payment proof rather than implying settlement.",
+      "deliverable": "Per-chain registry status and test vectors; no signing, mint, transfer, smart-contract write or paid RPC.",
+      "requires": [
+        "Free read-only RPC access for independent live probes"
+      ],
+      "issue_urls": [
+        "https://github.com/GLORIFIER7/GLORIFIER/issues/471"
+      ],
+      "existing_pr_urls": [
+        "https://github.com/GLORIFIER7/GLORIFIER/pull/947"
+      ],
+      "dispatch_state": "NOT_DISPATCHED",
+      "actual_provider": null,
+      "execution_receipt": null
+    },
+    {
+      "id": "471-07",
+      "priority": "P2",
+      "area": "Cloudflare Worker, identity, Neural readiness, Neon/Supabase parity",
+      "lead": "openai",
+      "reviewers": [
+        "google",
+        "anthropic"
+      ],
+      "issue_numbers": [
+        471,
+        432
+      ],
+      "existing_prs": [],
+      "scope": "Compare public status to verified Worker health, identity readiness and exact database/data ownership evidence. Prepare read-only parity and rollback plans without changing production.",
+      "deliverable": "Environment-specific evidence matrix and plan separating non-observable components from verified paths.",
+      "requires": [
+        "Owner-confirmed domain values and approved staging secrets only for later live steps"
+      ],
+      "issue_urls": [
+        "https://github.com/GLORIFIER7/GLORIFIER/issues/471",
+        "https://github.com/GLORIFIER7/GLORIFIER/issues/432"
+      ],
+      "existing_pr_urls": [],
+      "dispatch_state": "NOT_DISPATCHED",
+      "actual_provider": null,
+      "execution_receipt": null
+    },
+    {
+      "id": "471-08",
+      "priority": "P2",
+      "area": "GEAS / AI CEO / Specialist Council authorization",
+      "lead": "anthropic",
+      "reviewers": [
+        "openai",
+        "google"
+      ],
+      "issue_numbers": [
+        471
+      ],
+      "existing_prs": [
+        942,
+        944,
+        940
+      ],
+      "scope": "Review deterministic specialist routing, mission provenance, GEAS authorization, bounded graph execution, and human control. Avoid conflating planned architecture with live provider inference.",
+      "deliverable": "Governance contract and focused tests for denial-by-default routing and evidence attribution.",
+      "requires": [
+        "No external model call until attested and owner-approved"
+      ],
+      "issue_urls": [
+        "https://github.com/GLORIFIER7/GLORIFIER/issues/471"
+      ],
+      "existing_pr_urls": [
+        "https://github.com/GLORIFIER7/GLORIFIER/pull/942",
+        "https://github.com/GLORIFIER7/GLORIFIER/pull/944",
+        "https://github.com/GLORIFIER7/GLORIFIER/pull/940"
+      ],
+      "dispatch_state": "NOT_DISPATCHED",
+      "actual_provider": null,
+      "execution_receipt": null
+    },
+    {
+      "id": "471-09",
+      "priority": "P2",
+      "area": "Zero-inference backlog triage + independent review",
+      "lead": "meta-local",
+      "reviewers": [
+        "deepseek",
+        "mistral",
+        "xai",
+        "openrouter",
+        "huggingface",
+        "groq",
+        "ollama"
+      ],
+      "issue_numbers": [
+        471,
+        615,
+        616,
+        432
+      ],
+      "existing_prs": [
+        954,
+        946
+      ],
+      "scope": "Validate deterministic issue/PR snapshot, deduplicate work and produce bounded review packets. Alternative models may review public text only if each is independently authorized.",
+      "deliverable": "Diff-free issue/PR routing report with status NOT_DISPATCHED until real invocation receipt exists.",
+      "requires": [
+        "Existing local free runtime, or exact owner-attested no-cost provider and approved mission"
+      ],
+      "issue_urls": [
+        "https://github.com/GLORIFIER7/GLORIFIER/issues/471",
+        "https://github.com/GLORIFIER7/GLORIFIER/issues/615",
+        "https://github.com/GLORIFIER7/GLORIFIER/issues/616",
+        "https://github.com/GLORIFIER7/GLORIFIER/issues/432"
+      ],
+      "existing_pr_urls": [
+        "https://github.com/GLORIFIER7/GLORIFIER/pull/954",
+        "https://github.com/GLORIFIER7/GLORIFIER/pull/946"
+      ],
+      "dispatch_state": "NOT_DISPATCHED",
+      "actual_provider": null,
+      "execution_receipt": null
+    }
+  ]
+}

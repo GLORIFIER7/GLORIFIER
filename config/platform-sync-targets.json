@@ -1,0 +1,80 @@
+{
+  "version": 1,
+  "canonicalRepository": "GLORIFIER7/GLORIFIER",
+  "canonicalBranch": "main",
+  "policy": "read-only-reconciliation; no automatic source mirroring, private-data replication, or production deployment",
+  "targets": [
+    {
+      "id": "cloudflare-pages",
+      "platform": "cloudflare",
+      "mode": "public-health",
+      "url": "https://glorifier.pages.dev/api/health",
+      "writeEnabled": false,
+      "note": "Public Worker health verifies only endpoint contract, not deployed commit identity or all backend routes"
+    },
+    {
+      "id": "github-pages",
+      "platform": "github",
+      "mode": "public-static",
+      "url": "https://glorifier7.github.io/GLORIFIER/",
+      "writeEnabled": false,
+      "note": "Static site reachability cannot establish checked-out commit parity"
+    },
+    {
+      "id": "github-profile",
+      "platform": "github",
+      "mode": "independent-repository",
+      "writeEnabled": false,
+      "note": "GLORIFIER7/GLORIFIER7 is a separate profile repository; never overwrite it with application source"
+    },
+    {
+      "id": "github-neural",
+      "platform": "github",
+      "mode": "independent-repository",
+      "writeEnabled": false,
+      "note": "GLORIFIER7/GLORIFIER-NEURAL is a separately governed service/template and not a blind mirror"
+    },
+    {
+      "id": "vercel",
+      "platform": "vercel",
+      "mode": "not-connected",
+      "writeEnabled": false,
+      "note": "Connected Hobby team returned zero projects or deployments at 2026-11-22 audit"
+    },
+    {
+      "id": "railway",
+      "platform": "railway",
+      "mode": "no-code-deploy",
+      "writeEnabled": false,
+      "note": "Production project exists; last two service deployments FAILED on 2026-10-21; no new deployment authorized"
+    },
+    {
+      "id": "neon",
+      "platform": "neon",
+      "mode": "data-authority",
+      "writeEnabled": false,
+      "note": "glorifier-ai project exists; requires schema- and record-level reconciliation, not source-code copying"
+    },
+    {
+      "id": "supabase",
+      "platform": "supabase",
+      "mode": "data-authority",
+      "writeEnabled": false,
+      "note": "GLORIFIER project reported ACTIVE_HEALTHY; this does not establish parity with Neon"
+    },
+    {
+      "id": "wordpress-public",
+      "platform": "wordpress",
+      "mode": "profile-only",
+      "writeEnabled": false,
+      "note": "Simple WordPress.com site, not a Git code deployment target"
+    },
+    {
+      "id": "wordpress-private",
+      "platform": "wordpress",
+      "mode": "profile-only",
+      "writeEnabled": false,
+      "note": "Private site excluded from public probes or content replication"
+    }
+  ]
+}
