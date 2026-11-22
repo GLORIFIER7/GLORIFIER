@@ -13,6 +13,7 @@ type TestEnv = CloudflareEnv;
 const originalFetch = globalThis.fetch;
 let capturedRequest: Request | null = null;
 let mcpRateLimitAllowed = true;
+let mcpRateLimitThrows = false;
 const mcpRateLimitKeys: string[] = [];
 const requestedUrls: string[] = [];
 let upstreamResponses: Response[] = [];
@@ -62,6 +63,7 @@ const env: TestEnv = {
   },
   MCP_RATE_LIMITER: {
     limit({ key }: { key: string }) {
+      if (mcpRateLimitThrows) return Promise.reject(new Error('simulated rate-limit backend outage'));
       mcpRateLimitKeys.push(key);
       return Promise.resolve({ success: mcpRateLimitAllowed });
     },
@@ -184,18 +186,46 @@ const run = async (): Promise<void> => {
         assert.equal(previewDatabaseBody.code, 'NEON_HYPERDRIVE_NOT_CONFIGURED',
           'Preview must not silently fall back to the production database');
 
-        const previewMcpWithoutRateLimit = await worker.fetch(
-          mcpPost({ jsonrpc: '2.0', id: 'preview', method: 'initialize', params: {
+        const previewMcpInitialize = await worker.fetch(
+          mcpPost({ jsonrpc: '2.0', id: 'preview-init', method: 'initialize', params: {
             protocolVersion: '2025-03-26',
             capabilities: {},
             clientInfo: { name: 'preview-test', version: '1' },
           } }),
           previewWithoutRateLimiter,
         );
+        assert.equal(previewMcpInitialize.status, 200,
+          'MCP protocol initialization must remain available when the optional preview rate-limit binding is absent');
+
+        const previewMcpToolsList = await worker.fetch(
+          mcpPost({ jsonrpc: '2.0', id: 'preview-list', method: 'tools/list', params: {} }),
+          previewWithoutRateLimiter,
+        );
+        assert.equal(previewMcpToolsList.status, 200,
+          'read-only tool discovery must remain available without an upstream rate-limit binding');
+
+        const previewMcpWithoutRateLimit = await worker.fetch(
+          mcpPost({
+            jsonrpc: '2.0',
+            id: 'preview-tool',
+            method: 'tools/call',
+            params: { name: 'github_get_repository', arguments: {} },
+          }, '203.0.113.43'),
+          previewWithoutRateLimiter,
+        );
         assert.equal(previewMcpWithoutRateLimit.status, 503,
-          'MCP must fail closed when an isolated Preview has no rate-limit binding');
+          'allowlisted upstream tools must fail closed when an isolated Preview has no rate-limit binding');
         assert.equal(previewMcpWithoutRateLimit.headers.get('cache-control'), 'no-store');
-        assert.equal(capturedRequest, null, 'missing preview rate limiting must not reach upstream services');
+        const previewMcpWithoutRateLimitBody = await previewMcpWithoutRateLimit.json() as {
+          jsonrpc: string;
+          id: string;
+          error: { code: number; message: string };
+        };
+        assert.equal(previewMcpWithoutRateLimitBody.jsonrpc, '2.0');
+        assert.equal(previewMcpWithoutRateLimitBody.id, 'preview-tool');
+        assert.equal(previewMcpWithoutRateLimitBody.error.code, -32003);
+        assert.match(previewMcpWithoutRateLimitBody.error.message, /rate-limit service is not configured/i);
+        assert.equal(capturedRequest, null, 'a missing preview rate limiter must never reach upstream GitHub');
 
     };
 
@@ -287,12 +317,41 @@ const run = async (): Promise<void> => {
           env,
         );
         const modernHeaderWithoutMetadataBody = await modernHeaderWithoutMetadata.json() as {
+          jsonrpc: string;
+          id: string;
           error: { code: number; message: string };
         };
         assert.equal(modernHeaderWithoutMetadata.status, 400);
-        assert.equal(modernHeaderWithoutMetadataBody.error.code, -32020,
-          'a modern HTTP request must carry the protocol version in per-request metadata as well as the header');
-        assert.match(modernHeaderWithoutMetadataBody.error.message, /both .*_meta.*MCP-Protocol-Version/i);
+        assert.equal(modernHeaderWithoutMetadataBody.jsonrpc, '2.0');
+        assert.equal(modernHeaderWithoutMetadataBody.id, 'header-without-metadata');
+        assert.equal(modernHeaderWithoutMetadataBody.error.code, -32602,
+          'a modern HTTP request missing params._meta must be rejected as invalid params');
+        assert.match(modernHeaderWithoutMetadataBody.error.message, /params\._meta.*protocolVersion/i);
+
+        const modernMetadataWithoutProtocolVersion = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: { ...modernMcpHeaders, 'Mcp-Method': 'server/discover' },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'metadata-without-protocol-version',
+              method: 'server/discover',
+              params: { _meta: { 'io.modelcontextprotocol/clientCapabilities': {} } },
+            }),
+          }),
+          env,
+        );
+        const modernMetadataWithoutProtocolVersionBody = await modernMetadataWithoutProtocolVersion.json() as {
+          jsonrpc: string;
+          id: string;
+          error: { code: number; message: string };
+        };
+        assert.equal(modernMetadataWithoutProtocolVersion.status, 400);
+        assert.equal(modernMetadataWithoutProtocolVersionBody.jsonrpc, '2.0');
+        assert.equal(modernMetadataWithoutProtocolVersionBody.id, 'metadata-without-protocol-version');
+        assert.equal(modernMetadataWithoutProtocolVersionBody.error.code, -32602,
+          'modern requests missing the per-request protocol version must be invalid params');
+        assert.match(modernMetadataWithoutProtocolVersionBody.error.message, /protocolVersion/i);
 
         const modernMetadataWithoutHeader = await worker.fetch(
           new Request('https://glorifier.glorifier.workers.dev/mcp', {
@@ -393,7 +452,7 @@ const run = async (): Promise<void> => {
         assert.equal(modernDiscoverBody.jsonrpc, '2.0');
         assert.equal(modernDiscoverBody.id, 'discover-1');
         assert.equal(modernDiscoverBody.result.resultType, 'complete');
-        assert.deepEqual(modernDiscoverBody.result.supportedVersions, ['2026-07-28']);
+        assert.deepEqual(modernDiscoverBody.result.supportedVersions, ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26']);
         assert.deepEqual(modernDiscoverBody.result.capabilities, { tools: {} },
           'modern discovery must advertise only the read-only tool capability actually implemented');
         assert.deepEqual(
@@ -576,7 +635,7 @@ const run = async (): Promise<void> => {
         };
         assert.equal(unsupportedModernVersion.status, 400);
         assert.equal(unsupportedModernBody.error.code, -32022);
-        assert.deepEqual(unsupportedModernBody.error.data.supported, ['2026-07-28']);
+        assert.deepEqual(unsupportedModernBody.error.data.supported, ['2026-07-28', '2025-11-25', '2025-06-18', '2025-03-26']);
         assert.equal(unsupportedModernBody.error.data.requested, '2026-01-01');
 
         const modernUnknownMethod = await worker.fetch(
@@ -652,6 +711,103 @@ const run = async (): Promise<void> => {
         assert.equal(unsupportedMcpBody.id, 90);
         assert.equal(unsupportedMcpBody.error.code, -32601);
 
+        // Invalid JSON-RPC and modern transport requests must fail before
+        // reserving quota for an upstream GitHub read.
+        capturedRequest = null;
+        const rateLimitKeysBeforeInvalidRequests = [...mcpRateLimitKeys];
+        const invalidJsonRpcVersion = await worker.fetch(
+          mcpPost({
+            jsonrpc: '1.0',
+            id: 'invalid-jsonrpc-version',
+            method: 'tools/call',
+            params: { name: 'github_get_repository', arguments: {} },
+          }, '203.0.113.41'),
+          env,
+        );
+        const invalidJsonRpcVersionBody = await invalidJsonRpcVersion.json() as {
+          error: { code: number };
+        };
+        assert.equal(invalidJsonRpcVersionBody.error.code, -32600);
+        assert.deepEqual(mcpRateLimitKeys, rateLimitKeysBeforeInvalidRequests,
+          'invalid JSON-RPC envelopes must not consume the upstream tool-call quota');
+        assert.equal(capturedRequest, null);
+
+        const mismatchedModernToolHeaders = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: {
+              ...modernMcpHeaders,
+              'Mcp-Method': 'tools/list',
+              'Mcp-Name': 'github_get_repository',
+            },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'mismatched-tool-routing-header',
+              method: 'tools/call',
+              params: {
+                _meta: modernMetadata,
+                name: 'github_get_repository',
+                arguments: {},
+              },
+            }),
+          }),
+          env,
+        );
+        const mismatchedModernToolHeadersBody = await mismatchedModernToolHeaders.json() as {
+          error: { code: number };
+        };
+        assert.equal(mismatchedModernToolHeadersBody.error.code, -32020);
+        assert.deepEqual(mcpRateLimitKeys, rateLimitKeysBeforeInvalidRequests,
+          'modern routing-header mismatches must not consume the upstream tool-call quota');
+        assert.equal(capturedRequest, null);
+
+        const missingModernClientCapabilitiesToolCall = await worker.fetch(
+          new Request('https://glorifier.glorifier.workers.dev/mcp', {
+            method: 'POST',
+            headers: {
+              ...modernMcpHeaders,
+              'Mcp-Method': 'tools/call',
+              'Mcp-Name': 'github_get_repository',
+            },
+            body: JSON.stringify({
+              jsonrpc: '2.0',
+              id: 'missing-modern-client-capabilities',
+              method: 'tools/call',
+              params: {
+                _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28' },
+                name: 'github_get_repository',
+                arguments: {},
+              },
+            }),
+          }),
+          env,
+        );
+        const missingModernClientCapabilitiesForRateLimitBody = await missingModernClientCapabilitiesToolCall.json() as {
+          error: { code: number };
+        };
+        assert.equal(missingModernClientCapabilitiesForRateLimitBody.error.code, -32602);
+        assert.deepEqual(mcpRateLimitKeys, rateLimitKeysBeforeInvalidRequests,
+          'invalid modern request metadata must not consume the upstream tool-call quota');
+        assert.equal(capturedRequest, null);
+
+        const invalidJsonRpcId = await worker.fetch(
+          mcpPost({
+            jsonrpc: '2.0',
+            id: true,
+            method: 'tools/call',
+            params: { name: 'github_get_repository', arguments: {} },
+          }, '203.0.113.41'),
+          env,
+        );
+        const invalidJsonRpcIdBody = await invalidJsonRpcId.json() as {
+          error: { code: number };
+        };
+        assert.equal(invalidJsonRpcIdBody.error.code, -32600,
+          'non-string, non-number, non-null JSON-RPC IDs must be rejected');
+        assert.deepEqual(mcpRateLimitKeys, rateLimitKeysBeforeInvalidRequests,
+          'invalid JSON-RPC IDs must not consume the upstream tool-call quota');
+        assert.equal(capturedRequest, null);
+
         const previousMcpUpstreamResponse = upstreamResponse;
         upstreamResponse = new Response(JSON.stringify({ full_name: 'GLORIFIER7/GLORIFIER', visibility: 'public' }), {
           status: 200,
@@ -678,8 +834,30 @@ const run = async (): Promise<void> => {
         assert.deepEqual(mcpRateLimitKeys, ['203.0.113.42'], 'MCP upstream tool calls must be rate-limited per connecting client');
         upstreamResponse = previousMcpUpstreamResponse;
 
+        // A rejected tool name is handled locally and must not consume the
+        // Cloudflare quota reserved for real upstream GitHub API requests.
         capturedRequest = null;
         mcpRateLimitAllowed = false;
+        const unknownToolAtLimit = await worker.fetch(
+          mcpPost({
+            jsonrpc: '2.0',
+            id: 70,
+            method: 'tools/call',
+            params: { name: 'unsupported_test_fixture', arguments: {} },
+          }, '203.0.113.42'),
+          env,
+        );
+        assert.equal(unknownToolAtLimit.status, 200,
+          'unknown tool names must be rejected as tool errors without consuming upstream rate limit');
+        const unknownToolAtLimitBody = await unknownToolAtLimit.json() as {
+          result: { isError?: boolean; content: Array<{ text: string }> };
+        };
+        assert.equal(unknownToolAtLimitBody.result.isError, true);
+        assert.match(unknownToolAtLimitBody.result.content[0]?.text || '', /Unknown or unsupported GitHub tool/);
+        assert.deepEqual(mcpRateLimitKeys, ['203.0.113.42'],
+          'unsupported tools must not call the Cloudflare rate limiter');
+        assert.equal(capturedRequest, null);
+
         const rateLimitedMcpToolCall = await worker.fetch(
           mcpPost({
             jsonrpc: '2.0',
@@ -691,8 +869,46 @@ const run = async (): Promise<void> => {
         );
         assert.equal(rateLimitedMcpToolCall.status, 429, 'MCP must stop tool calls when the Cloudflare rate limit is exhausted');
         assert.equal(rateLimitedMcpToolCall.headers.get('retry-after'), '60');
+        const rateLimitedMcpBody = await rateLimitedMcpToolCall.json() as {
+          jsonrpc: string;
+          id: number;
+          error: { code: number; message: string };
+        };
+        assert.equal(rateLimitedMcpBody.jsonrpc, '2.0');
+        assert.equal(rateLimitedMcpBody.id, 7);
+        assert.equal(rateLimitedMcpBody.error.code, -32029);
+        assert.match(rateLimitedMcpBody.error.message, /rate limit/i);
         assert.equal(capturedRequest, null, 'rate-limited MCP calls must not reach GitHub');
         mcpRateLimitAllowed = true;
+
+        capturedRequest = null;
+        const rateLimitKeysBeforeUnavailable = [...mcpRateLimitKeys];
+        mcpRateLimitThrows = true;
+        const unavailableMcpRateLimiter = await worker.fetch(
+          mcpPost({
+            jsonrpc: '2.0',
+            id: 71,
+            method: 'tools/call',
+            params: { name: 'github_get_repository', arguments: {} },
+          }, '203.0.113.42'),
+          env,
+        );
+        assert.equal(unavailableMcpRateLimiter.status, 503,
+          'MCP must fail closed when its rate-limit service is unavailable');
+        const unavailableMcpRateLimiterBody = await unavailableMcpRateLimiter.json() as {
+          jsonrpc: string;
+          id: number;
+          error: { code: number; message: string };
+        };
+        assert.equal(unavailableMcpRateLimiterBody.jsonrpc, '2.0');
+        assert.equal(unavailableMcpRateLimiterBody.id, 71);
+        assert.equal(unavailableMcpRateLimiterBody.error.code, -32003);
+        assert.match(unavailableMcpRateLimiterBody.error.message, /rate-limit service is unavailable/i);
+        assert.equal(capturedRequest, null, 'rate-limit service failures must not reach GitHub');
+        assert.deepEqual(mcpRateLimitKeys, rateLimitKeysBeforeUnavailable,
+          'an unavailable rate-limit backend must not record a key');
+        mcpRateLimitThrows = false;
+        const rateLimitKeysBeforeUnknownTools = [...mcpRateLimitKeys];
 
         for (const inheritedToolName of ['constructor', 'toString', 'github_delete_repository']) {
           capturedRequest = null;
@@ -712,7 +928,29 @@ const run = async (): Promise<void> => {
           assert.equal(inheritedToolBody.result.isError, true, 'prototype properties must not be callable as MCP tools');
           assert.match(inheritedToolBody.result.content[0]?.text || '', /Unknown or unsupported GitHub tool/);
           assert.equal(capturedRequest, null, 'prototype-property tool names must not reach GitHub');
+          assert.deepEqual(mcpRateLimitKeys, rateLimitKeysBeforeUnknownTools,
+            'unknown/prototype tool names must not consume the upstream rate limit');
         }
+
+        // JSON-RPC notifications have no id and must not receive JSON-RPC
+        // error responses or consume a quota for an upstream call that is
+        // intentionally not executed by this transport.
+        capturedRequest = null;
+        const rateLimitKeysBeforeNotification = [...mcpRateLimitKeys];
+        const toolCallNotification = await worker.fetch(
+          mcpPost({
+            jsonrpc: '2.0',
+            method: 'tools/call',
+            params: { name: 'github_get_repository', arguments: {} },
+          }, '203.0.113.42'),
+          env,
+        );
+        assert.equal(toolCallNotification.status, 202,
+          'a tools/call notification must be acknowledged without a JSON-RPC response');
+        assert.equal(await toolCallNotification.text(), '');
+        assert.deepEqual(mcpRateLimitKeys, rateLimitKeysBeforeNotification,
+          'a notification without an id must not consume the upstream tool-call quota');
+        assert.equal(capturedRequest, null, 'a JSON-RPC notification must not call upstream GitHub');
 
     };
 
@@ -733,6 +971,51 @@ const run = async (): Promise<void> => {
           env,
         );
         assert.equal(mcpWrongContentType.status, 415, 'MCP must reject non-JSON content types');
+
+        const hostileOriginHeaderCases: Array<Record<string, string>> = [
+          {
+            'Content-Type': 'application/json',
+            Host: 'evil.example.com',
+            Origin: 'http://evil.example.com',
+          },
+          {
+            'Content-Type': 'application/json',
+            Host: 'glorifier.glorifier.workers.dev',
+            Origin: 'https://evil.example.com',
+          },
+          {
+            'Content-Type': 'application/json',
+            Host: 'evil.example.com',
+          },
+          {
+            'Content-Type': 'application/json',
+            Host: 'evil.example.com/path',
+            Origin: 'https://glorifier.glorifier.workers.dev',
+          },
+          {
+            'Content-Type': 'application/json',
+            Host: '',
+          },
+          {
+            'Content-Type': 'application/json',
+            Host: 'glorifier.glorifier.workers.dev',
+            Origin: '',
+          },
+        ];
+        for (const headers of hostileOriginHeaderCases) {
+          const rejectedRebinding = await worker.fetch(
+            new Request('https://glorifier.glorifier.workers.dev/mcp', {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({ jsonrpc: '2.0', id: 'host-rebinding', method: 'tools/list' }),
+            }),
+            env,
+          );
+          assert.equal(rejectedRebinding.status, 403,
+            'MCP must reject hostile Host authority and mismatched Origin combinations');
+          assert.equal(capturedRequest, null,
+            'Host/Origin rebinding requests must be rejected before any upstream call');
+        }
 
         capturedRequest = null;
         const malformedMcpJson = await worker.fetch(
@@ -883,25 +1166,25 @@ const run = async (): Promise<void> => {
         }> = [
           {
             name: 'github_get_repository',
-            arguments: { host: 'attacker.example', url: 'https://attacker.example/api' },
+            arguments: {},
             pathname: '/repos/GLORIFIER7/GLORIFIER',
             body: { full_name: 'GLORIFIER7/GLORIFIER' },
           },
           {
             name: 'github_list_open_pull_requests',
-            arguments: { state: 'open', per_page: 1, host: 'attacker.example', url: 'https://attacker.example/api' },
+            arguments: { state: 'open', per_page: 1 },
             pathname: '/repos/GLORIFIER7/GLORIFIER/pulls',
             body: [],
           },
           {
             name: 'github_list_workflow_runs',
-            arguments: { per_page: 1, host: 'attacker.example', url: 'https://attacker.example/api' },
+            arguments: { per_page: 1 },
             pathname: '/repos/GLORIFIER7/GLORIFIER/actions/runs',
             body: { workflow_runs: [] },
           },
           {
             name: 'github_read_file',
-            arguments: { path: 'README.md', ref: 'main', host: 'attacker.example', url: 'https://attacker.example/api' },
+            arguments: { path: 'README.md', ref: 'main' },
             pathname: '/repos/GLORIFIER7/GLORIFIER/contents/README.md',
             body: { content: 'b2s=', encoding: 'base64' },
           },
@@ -913,6 +1196,17 @@ const run = async (): Promise<void> => {
             headers: { 'Content-Type': 'application/json' },
           });
           capturedRequest = null;
+          const invalidToolCall = await worker.fetch(
+            mcpPost({
+              jsonrpc: '2.0',
+              id: `github-unknown-argument-${index}`,
+              method: 'tools/call',
+              params: { name: toolCase.name, arguments: { ...toolCase.arguments, host: 'example.org' } },
+            }),
+            tokenEnabledEnv,
+          );
+          assert.equal((await invalidToolCall.json() as { result: { isError?: boolean } }).result.isError, true);
+          assert.equal(capturedRequest, null, 'undeclared arguments must be rejected before using the read token');
           const tokenBackedToolCall = await worker.fetch(
             mcpPost({
               jsonrpc: '2.0',
@@ -994,6 +1288,7 @@ const run = async (): Promise<void> => {
         assert.equal(paginatedWorkflowRunsBody.result.isError, undefined);
         assert.equal(new URL(getCapturedRequest().url).searchParams.get('per_page'), '6');
 
+        const rateLimitKeysBeforeInvalidPagination = [...mcpRateLimitKeys];
         for (const invalidPerPage of [{}, '6', 0, 21, 1.5]) {
           capturedRequest = null;
           const invalidPagination = await worker.fetch(
@@ -1011,6 +1306,8 @@ const run = async (): Promise<void> => {
           assert.equal(invalidPaginationBody.result.isError, true);
           assert.match(invalidPaginationBody.result.content[0]?.text || '', /per_page must be an integer/);
           assert.equal(capturedRequest, null, 'invalid per_page values must not reach GitHub');
+          assert.deepEqual(mcpRateLimitKeys, rateLimitKeysBeforeInvalidPagination,
+            'locally invalid arguments must not consume the upstream tool-call quota');
         }
         upstreamResponse = previousWorkflowRunsResponse;
 

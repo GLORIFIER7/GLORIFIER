@@ -72,6 +72,18 @@ function executiveProfile(providers: AIProvider[]) {
   };
 }
 
+export function assertAIProviderResponseAttribution(
+  provider: Pick<AIProvider, 'id' | 'models'>,
+  response: Pick<AIResponse, 'provider' | 'model'>,
+): void {
+  if (response.provider !== provider.id) {
+    throw new Error(`${provider.id} returned mismatched provider attribution.`);
+  }
+  if (!provider.models().includes(response.model)) {
+    throw new Error(`${provider.id} returned unregistered model attribution.`);
+  }
+}
+
 export class AIOrchestrator {
   private providerCooldownUntil = new Map<AIProviderId, number>();
   private readonly quotaCooldownMs = 15 * 60_000;
@@ -115,6 +127,7 @@ export class AIOrchestrator {
       if (!response || typeof response !== 'object' || typeof response.provider !== 'string' || typeof response.model !== 'string') {
         throw new Error(`${provider.id} returned an invalid/empty AI response.`);
       }
+      assertAIProviderResponseAttribution(provider, response);
       const latencyMs = Date.now() - started;
       response.latencyMs = latencyMs;
       response.evaluation = evaluateResponse(response);
@@ -131,7 +144,11 @@ export class AIOrchestrator {
     }
   }
 
-  async generate(request: OrchestratorRequest): Promise<AIResponse> {
+  async generateWithAttribution(request: OrchestratorRequest): Promise<{
+    response: AIResponse;
+    providerId: AIProviderId;
+    modelId: string;
+  }> {
     const explicitProvider = this.isExplicitProviderRequest(request);
     const connected = explicitProvider ? [getProvider(request.provider as AIProviderId)] : getConnectedProviders();
     const candidates = selectProviders(connected)
@@ -159,7 +176,9 @@ export class AIOrchestrator {
           // substitute another provider for a response that may require review.
           break;
         }
-        return result;
+        // callProvider verifies the response against this concrete adapter before
+        // returning. Preserve that trusted identity across automatic failover.
+        return { response: result, providerId: provider.id, modelId: result.model };
       } catch (error) {
         this.markProviderUnavailable(provider.id, error);
         const message = error instanceof Error ? error.message : String(error);
@@ -176,6 +195,10 @@ export class AIOrchestrator {
         ? `Requested AI provider failed; no implicit provider fallback was performed. ${errors.join(' | ')}`
         : `Controlled provider failover exhausted. No eligible provider produced a verified response. ${errors.join(' | ')}`
     );
+  }
+
+  async generate(request: OrchestratorRequest): Promise<AIResponse> {
+    return (await this.generateWithAttribution(request)).response;
   }
 
   async collaborate(messages: AIMessage[], providerIds?: AIProviderId[]): Promise<AIResponse[]> {

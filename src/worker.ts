@@ -1182,20 +1182,6 @@ export default {
     }
 
     if (stripTrailingSlashes(incomingUrl.pathname) === GITHUB_MCP_PATH) {
-      if (!env.MCP_RATE_LIMITER) {
-        return Response.json({
-          ok: false,
-          status: 'unavailable',
-          code: 'MCP_RATE_LIMITER_NOT_CONFIGURED',
-          error: 'The MCP endpoint is disabled until this environment has its own rate-limit binding.',
-        }, {
-          status: 503,
-          headers: {
-            'Cache-Control': 'no-store',
-            'X-Content-Type-Options': 'nosniff',
-          },
-        });
-      }
       return githubMcpRoute(request, env.MCP_RATE_LIMITER, env.GITHUB_MCP_READ_TOKEN);
     }
 

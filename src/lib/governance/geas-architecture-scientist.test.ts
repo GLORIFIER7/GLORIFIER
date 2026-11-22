@@ -14,6 +14,7 @@ import {
   buildArchitectureEvidence,
   buildObservedArchitecturePatterns,
   createSourceFetchContext,
+  shouldForceUnconditionalSourceRefresh,
   reuseNotModifiedSourceObservation,
   stripHtml,
   stripHtmlForEvidence,
@@ -23,6 +24,7 @@ import {
   findEarliestKeywordIndex,
   trimEvidenceExcerptToWordBoundaries,
   getSourcePatternKeywords,
+  extractSourceEvidenceExcerpt,
   type ArchitectureDomain,
   type ArchitecturePattern,
   type SourceObservation,
@@ -124,21 +126,71 @@ if (!nistAgentIdentityTenetsSource
   throw new Error('NIST Agent Identity Design Tenets must be registered at its canonical URL with a 14-day cadence and explicit source-policy association');
 }
 const nistIdentityTenetKeywords = getSourcePatternKeywords('nist-agent-identity-design-tenets');
-const nistIdentityTenetText = 'Agent Identity Management Systems | NIST. Distinct Agent Identification requires cryptographically verifiable agent identity.';
+const nistDelegationPhrase = 'Additionally, as authority is delegated down to sub-agents or downstream services, scopes attenuate so that downstream entities can never claim more authority than the parent.';
+const nistIdentityTenetText = `Design Tenets for Agent Identity Management Systems. ${nistDelegationPhrase}`;
 const nistIdentityTenetMatch = findEarliestKeywordIndex(nistIdentityTenetText, nistIdentityTenetKeywords);
-if (!nistIdentityTenetKeywords.includes('Distinct Agent Identification')
+if (!nistIdentityTenetKeywords.includes(nistDelegationPhrase)
+    || nistIdentityTenetKeywords.includes('Distinct Agent Identification')
     || nistIdentityTenetKeywords.includes('agent')
-    || nistIdentityTenetMatch !== nistIdentityTenetText.indexOf('Distinct Agent Identification')) {
-  throw new Error('NIST secondary-source matching must select substantive design-tenet text rather than generic page chrome');
+    || nistIdentityTenetMatch !== nistIdentityTenetText.indexOf(nistDelegationPhrase)) {
+  throw new Error('NIST secondary-source matching must select substantive delegation guidance rather than an early heading or generic page chrome');
 }
+const nistIdentityPhrase = 'Agentic infrastructure enables the unique, cryptographically verifiable identification of agents distinguishable from other identities.';
+const nistIdentityTenetHtml = [
+  '<!doctype html><html><body>',
+  '<header>Skip to main content Official websites use .gov A .gov website belongs to an official government organization in the United States. Secure .gov websites use HTTPS</header>',
+  '<article><p>Related content card: general NIST cybersecurity information without the agent identity design tenets.</p></article>',
+  '<main><h1>Design Tenets for Agent Identity Management Systems</h1>',
+  '<h3>01 Distinct Agent Identification</h3>',
+  `<p>${nistIdentityPhrase}</p>`,
+  '<h3>02 Agent Linking, Delegation &amp; Attenuation</h3>',
+  `<p>${nistDelegationPhrase}</p>`,
+  '<h3>03 Least &amp; Zero Standing Privilege</h3>',
+  '<p>Agents operate with zero standing privilege, holding no persistent rights when idle.</p>',
+  '</main></body></html>',
+].join('');
+if (stripHtmlForEvidence(nistIdentityTenetHtml).includes(nistIdentityPhrase)) {
+  throw new Error('generic article-first extraction fixture must demonstrate the unrelated article candidate');
+}
+const nistIdentityTenetExcerpt = extractSourceEvidenceExcerpt('nist-agent-identity-design-tenets', nistIdentityTenetHtml);
+if (!nistIdentityTenetExcerpt
+    || !nistIdentityTenetExcerpt.startsWith(nistIdentityPhrase)
+    || !nistIdentityTenetExcerpt.includes('scopes attenuate')
+    || /Skip to main content|Official websites use \.gov|Secure \.gov websites/.test(nistIdentityTenetExcerpt)) {
+  throw new Error('NIST source-specific fallback must extract substantive main-region text without page chrome');
+}
+const nistIdentityNonSemanticMainHtml = [
+  '<!doctype html><html><body>',
+  '<div class="page-utility">Announcement history blogs news releases resources</div>',
+  '<div role="main"><h1>Design Tenets for Agent Identity Management Systems</h1>',
+  `<p>${nistIdentityPhrase}</p>`,
+  `<p>${nistDelegationPhrase}</p>`,
+  '</div></body></html>',
+].join('');
+const nistIdentityNonSemanticMainText = stripHtmlForEvidence(nistIdentityNonSemanticMainHtml);
+if (!nistIdentityNonSemanticMainText.includes(nistIdentityPhrase)
+    || !nistIdentityNonSemanticMainText.includes('Announcement history blogs news releases resources')) {
+  throw new Error('NIST non-semantic main fixture must reproduce whole-page chrome around substantive article text');
+}
+const nistIdentityNonSemanticMainExcerpt = extractSourceEvidenceExcerpt(
+  'nist-agent-identity-design-tenets',
+  nistIdentityNonSemanticMainHtml,
+);
+if (!nistIdentityNonSemanticMainExcerpt
+    || !nistIdentityNonSemanticMainExcerpt.startsWith(nistIdentityPhrase)
+    || !nistIdentityNonSemanticMainExcerpt.includes('scopes attenuate')
+    || /Announcement history blogs news releases resources/i.test(nistIdentityNonSemanticMainExcerpt)) {
+  throw new Error('NIST exact-phrase fallback must extract substantive text when the page has no literal main element');
+}
+
 const nistIdentityTenetObservation: SourceObservation = {
   sourceId: 'nist-agent-identity-design-tenets',
   ok: true,
   status: 200,
   contentHash: 'd'.repeat(64),
-  observedAt: '2026-11-14T04:00:00.000Z',
+  observedAt: '2026-11-20T02:48:00.000Z',
   finalUrl: 'https://www.nist.gov/blogs/cybersecurity-insights/design-tenets-agent-identity-management-systems',
-  evidenceExcerpt: 'Skip to main content Design Tenets for Agent Identity Management Systems. Distinct Agent Identification: Agentic infrastructure enables the unique, cryptographically verifiable identification of agents distinguishable from other identities.',
+  evidenceExcerpt: nistIdentityTenetExcerpt,
   evidenceStatus: 'content-matched',
 };
 const nistIdentityTenetPattern = buildObservedArchitecturePatterns(
@@ -146,7 +198,18 @@ const nistIdentityTenetPattern = buildObservedArchitecturePatterns(
   nistIdentityTenetObservation.observedAt,
 ).find((pattern) => pattern.id === 'agent-identity-delegation');
 if (!nistIdentityTenetPattern || nistIdentityTenetPattern.evidenceClass !== 'analysis') {
-  throw new Error('a substantive NIST agent-identity excerpt must remain admissible when its article contains an innocuous skip link, while remaining analysis only');
+  throw new Error('a substantive NIST agent-identity excerpt must create analysis evidence, never claim verification');
+}
+const nistIdentitySourceAvailableOnly: SourceObservation = {
+  ...nistIdentityTenetObservation,
+  evidenceExcerpt: null,
+  evidenceStatus: 'source-available',
+};
+if (buildObservedArchitecturePatterns(
+  [nistIdentitySourceAvailableOnly],
+  nistIdentitySourceAvailableOnly.observedAt,
+).some((pattern) => pattern.id === 'agent-identity-delegation')) {
+  throw new Error('NIST source availability without a substantive excerpt must not create an architecture pattern');
 }
 
 const nistIot8259Source = model.sources.find((source) => source.id === 'nist-ir-8259r1');
@@ -1046,6 +1109,58 @@ if (conditionalHeaders['If-None-Match'] !== '"v1"' || conditionalHeaders['If-Mod
 }
 if (Object.keys(buildConditionalRequestHeaders('https://example.org/changed', cachedObservation)).length !== 0) {
   throw new Error('URL changes must suppress conditional request headers');
+}
+
+const nistIdentityUrl = 'https://www.nist.gov/blogs/cybersecurity-insights/design-tenets-agent-identity-management-systems';
+const staleNistIdentityCache = {
+  ...cachedObservation,
+  evidence_excerpt: null,
+  evidence_status: 'source-available' as const,
+  final_url: nistIdentityUrl,
+  source_url: nistIdentityUrl,
+  etag: '"nist-identity-v1"',
+};
+if (!shouldForceUnconditionalSourceRefresh('nist-agent-identity-design-tenets', staleNistIdentityCache)) {
+  throw new Error('a cached NIST source-available row without an excerpt must force one unconditional body refresh after selector changes');
+}
+if (shouldForceUnconditionalSourceRefresh('aws-well-architected', staleNistIdentityCache)) {
+  throw new Error('the NIST cache refresh exception must not affect unrelated sources');
+}
+const refreshedNistCache = shouldForceUnconditionalSourceRefresh('nist-agent-identity-design-tenets', staleNistIdentityCache)
+  ? null
+  : staleNistIdentityCache;
+const nistRefreshContext = createSourceFetchContext(
+  nistIdentityUrl,
+  refreshedNistCache,
+  Date.parse('2026-11-20T03:00:00.000Z'),
+);
+if (Object.keys(nistRefreshContext.conditionalHeaders).length !== 0) {
+  throw new Error('the stale NIST source-available row must not send ETag or Last-Modified validators');
+}
+if (reuseNotModifiedSourceObservation(
+  { id: 'nist-agent-identity-design-tenets', url: nistIdentityUrl },
+  refreshedNistCache,
+  { finalUrl: nistIdentityUrl, etag: null, lastModified: null },
+  nistRefreshContext.observedAt,
+  nistRefreshContext.nowMs,
+) !== null) {
+  throw new Error('a 304 response during the forced NIST body refresh must not reuse the stale source-available row');
+}
+const substantiveNistCache = {
+  ...staleNistIdentityCache,
+  evidence_excerpt: 'Agentic infrastructure enables the unique, cryptographically verifiable identification of agents distinguishable from other identities.',
+  evidence_status: 'content-matched' as const,
+};
+if (shouldForceUnconditionalSourceRefresh('nist-agent-identity-design-tenets', substantiveNistCache)) {
+  throw new Error('a NIST cache row with substantive evidence must retain normal conditional-fetch behavior');
+}
+const substantiveNistContext = createSourceFetchContext(
+  nistIdentityUrl,
+  substantiveNistCache,
+  Date.parse('2026-11-20T03:00:00.000Z'),
+);
+if (substantiveNistContext.conditionalHeaders['If-None-Match'] !== '"nist-identity-v1"') {
+  throw new Error('substantive NIST cache evidence must retain its ETag validator');
 }
 const failedHttpCache = {
   ...cachedObservation,
