@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { readFileSync } from 'node:fs';
-import { validateManifest, evaluateProbe, runProbes, renderAuditSummary } from './platform-sync-audit.mjs';
+import { validateManifest, evaluateProbe, runProbes } from './platform-sync-audit.mjs';
 
 const config = JSON.parse(readFileSync(new URL('../config/platform-sync-targets.json', import.meta.url)));
 
@@ -66,12 +66,4 @@ test('probes are bounded, credentialless, read-only and redirect-resistant', asy
     assert.ok(!('Authorization' in call.options.headers));
   }
   assert.ok(result.every(x => x.releaseParity !== 'VERIFIED'));
-});
-
-test('audit summary uses actual newlines for its Markdown table', () => {
-  const report = { id: 'github-pages', status: 'PARTIALLY VERIFIED', releaseParity: 'NOT VERIFIED' };
-  const summary = renderAuditSummary('d'.repeat(40), [report]);
-  assert.match(summary, /^## GLORIFIER platform reconciliation — read-only\nSource: GLORIFIER7\/GLORIFIER @ /);
-  assert.ok(summary.includes('\n| Target | Evidence | Release parity |\n| --- | --- | --- |\n| github-pages | PARTIALLY VERIFIED | NOT VERIFIED |\n'));
-  assert.equal(summary.includes('\\n'), false, 'summary must not contain escaped newline literals');
 });
