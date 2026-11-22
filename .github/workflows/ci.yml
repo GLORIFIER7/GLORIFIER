@@ -45,6 +45,8 @@ jobs:
 
       - name: AI coding fleet workflow security contract tests
         run: node --test scripts/ai-fleet-workflow-contract.test.mjs
+      - name: Claude and OpenCode agent-policy regression tests
+        run: node --test .claude/hooks/agent-policy.test.mjs
       - name: Governed repair intake security and freshness tests
         run: node --test scripts/governed-repair-intake.test.mjs
       - name: TokenEconomizer local installer contract tests
