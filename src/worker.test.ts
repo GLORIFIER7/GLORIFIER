@@ -1574,9 +1574,18 @@ const run = async (): Promise<void> => {
               const architecture = body.architecture as {
                 version?: string;
                 sourceOfTruth?: { revenue?: string };
+                sourceFamilies?: string[];
+                intelligenceDomains?: string[];
+                pipeline?: string[];
+                runtimeEndpoints?: { status?: string; advisory?: string };
               } | undefined;
               assert.equal(architecture?.version, 'GBIS-2.0');
               assert.match(architecture?.sourceOfTruth?.revenue ?? '', /Neon.*target.*cutover.*pending verification/i);
+              assert.equal(architecture?.sourceFamilies?.length, 16);
+              assert.equal(architecture?.intelligenceDomains?.length, 27);
+              assert.equal(architecture?.pipeline?.length, 15);
+              assert.equal(architecture?.runtimeEndpoints?.status, '/api/business-intelligence/status');
+              assert.equal(architecture?.runtimeEndpoints?.advisory, '/api/business-intelligence/advisory');
             },
           },
         ];

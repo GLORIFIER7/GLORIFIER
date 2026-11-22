@@ -74,6 +74,7 @@ jobs:
               -H "x-glorifier-intelligence-key: ${INTELLIGENCE_KEY}" \
               "${GLORIFIER_INTELLIGENCE_URL}"
           else
-            curl --proto '=https' --fail-with-body --retry 2 --retry-delay 5 \
+            curl --proto '=https' --fail-with-body --retry 2 --retry-delay 5 -X POST \
+              -H "Content-Type: application/json" \
               "${GLORIFIER_INTELLIGENCE_URL}"
           fi

@@ -327,6 +327,12 @@ jobs:
       - name: GEAS architecture scientist evidence and cadence tests
         run: npm run test:geas-scientist
 
+      - name: Intelligence report synthesis evidence-provenance regression tests
+        run: npm run test:intelligence-report-json
+
+      - name: GBIS intelligence ingestion and GEAS advisory contract tests
+        run: npm run test:business-intelligence-pipeline
+
       - name: GEAS evidence-policy static guard
         run: ./node_modules/.bin/tsx scripts/geas-evidence-policy-validate.ts
 
