@@ -42,6 +42,29 @@ export type AutopilotMissionApproval = {
   evidenceRef?: string;
 };
 
+export type AutopilotExecutionTrace = {
+  schemaVersion: 1;
+  plannedAt: string;
+  aiCeo: { provider: string; model: string };
+  specialists: Array<{
+    roleId: string;
+    provider: string;
+    model: string;
+    findingSha256: string;
+  }>;
+  stepAuthorizations: Array<{
+    stepId: string;
+    capability: string;
+    capabilityPolicyId: string;
+    risk: 'low' | 'medium' | 'high' | 'critical';
+    capabilityDecision: 'allow';
+    geasPolicyVersion: string;
+    geasDecision: 'allow';
+    geasReasons: string[];
+    evaluatedAt: string;
+  }>;
+};
+
 export type AutopilotMissionStep = {
   id: string;
   capability: string;
@@ -68,6 +91,7 @@ export type AutopilotMission = {
   objective: string;
   status: AutopilotMissionStatus;
   verificationState: 'not-started' | 'pending-external-evidence' | 'verified' | 'reconciliation-required';
+  executionTrace?: AutopilotExecutionTrace;
   recoveryAttempts?: number;
   planningAttempts?: number;
   version: number;
@@ -496,6 +520,63 @@ export async function claimNextAutopilotMission(
   return store.claimNext(worker, leaseMs, timestamp(now));
 }
 
+function validateAutopilotExecutionTrace(
+  trace: AutopilotExecutionTrace,
+  steps: AutopilotMissionStep[],
+  currentTime: string,
+): void {
+  if (!trace || trace.schemaVersion !== 1 || !Array.isArray(trace.specialists) ||
+      trace.specialists.length < 1 || trace.specialists.length > 16 ||
+      !Array.isArray(trace.stepAuthorizations) || trace.stepAuthorizations.length !== steps.length) {
+    throw new Error('Autopilot execution trace is incomplete or invalid.');
+  }
+
+  const plannedAt = timestamp(trace.plannedAt);
+  if (Date.parse(plannedAt) > Date.parse(currentTime)) {
+    throw new Error('Autopilot execution trace cannot be timestamped in the future.');
+  }
+  requireNonEmpty(trace.aiCeo?.provider, 'AI CEO provider', 128);
+  requireNonEmpty(trace.aiCeo?.model, 'AI CEO model', 256);
+
+  for (const specialist of trace.specialists) {
+    requireNonEmpty(specialist.roleId, 'specialist role', 128);
+    requireNonEmpty(specialist.provider, 'specialist provider', 128);
+    requireNonEmpty(specialist.model, 'specialist model', 256);
+    if (!/^[a-f0-9]{64}$/.test(specialist.findingSha256)) {
+      throw new Error('Autopilot execution trace contains an invalid specialist finding digest.');
+    }
+  }
+
+  const expectedSteps = new Map(steps.map(step => [step.id, step.capability]));
+  const observedSteps = new Set<string>();
+  for (const authorization of trace.stepAuthorizations) {
+    const stepId = requireNonEmpty(authorization.stepId, 'authorized step id', 128);
+    const capability = requireNonEmpty(authorization.capability, 'authorized capability', 128);
+    if (authorization.capabilityDecision !== 'allow' || authorization.geasDecision !== 'allow') {
+      throw new Error('only allowed capability and GEAS decisions can be persisted');
+    }
+    if (observedSteps.has(stepId) || expectedSteps.get(stepId) !== capability) {
+      throw new Error('Autopilot execution trace does not exactly match the planned steps.');
+    }
+    observedSteps.add(stepId);
+    requireNonEmpty(authorization.capabilityPolicyId, 'capability policy id', 128);
+    requireNonEmpty(authorization.geasPolicyVersion, 'GEAS policy version', 64);
+    if (!['low', 'medium', 'high', 'critical'].includes(authorization.risk) ||
+        !Array.isArray(authorization.geasReasons) || authorization.geasReasons.length < 1 ||
+        authorization.geasReasons.length > 10 ||
+        authorization.geasReasons.some(reason => typeof reason !== 'string' || !reason.trim() || reason.length > 300)) {
+      throw new Error('Autopilot execution trace contains invalid policy decision metadata.');
+    }
+    const evaluatedAt = timestamp(authorization.evaluatedAt);
+    if (Date.parse(evaluatedAt) < Date.parse(plannedAt) || Date.parse(evaluatedAt) > Date.parse(currentTime)) {
+      throw new Error('Autopilot authorization evidence must be evaluated between planning and persistence.');
+    }
+  }
+  if (observedSteps.size !== expectedSteps.size) {
+    throw new Error('Autopilot execution trace must authorize every planned step exactly once.');
+  }
+}
+
 export async function recordAutopilotMissionPlan(
   store: AutopilotMissionStore,
   missionId: string,
@@ -503,6 +584,7 @@ export async function recordAutopilotMissionPlan(
   workerId: string,
   plan: AutopilotMissionPlanStep[],
   now = new Date().toISOString(),
+  executionTrace?: AutopilotExecutionTrace,
 ): Promise<AutopilotMission> {
   const worker = requireNonEmpty(workerId, 'workerId', 256);
   const currentTime = timestamp(now);
@@ -544,6 +626,7 @@ export async function recordAutopilotMissionPlan(
       evidenceRefs: [],
     };
   });
+  if (executionTrace) validateAutopilotExecutionTrace(executionTrace, steps, currentTime);
   const mission = await store.get(requireNonEmpty(missionId, 'mission id', 256));
   if (!mission) throw new Error('Autopilot mission not found.');
   if (mission.version !== expectedVersion) throw new Error(`Autopilot mission ${missionId} changed concurrently; reload before retrying.`);
@@ -554,7 +637,12 @@ export async function recordAutopilotMissionPlan(
     throw new Error('worker does not hold an active mission lease.');
   }
   if (mission.steps.length > 0) throw new Error('mission plan is already recorded.');
-  return saveMission(store, mission, { status: 'executing', steps, lastError: undefined }, currentTime);
+  return saveMission(store, mission, {
+    status: 'executing',
+    steps,
+    ...(executionTrace ? { executionTrace: structuredClone(executionTrace) } : {}),
+    lastError: undefined,
+  }, currentTime);
 }
 
 export async function claimAutopilotMissionStep(
