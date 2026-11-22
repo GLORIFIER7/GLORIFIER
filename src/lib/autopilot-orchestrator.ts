@@ -415,10 +415,29 @@ export function validateAutopilotPlan(
   return plan;
 }
 
+export function authorizeRepositoryProviderInference(
+  missionId: string,
+  geasEvaluator: typeof evaluateGeasPolicy = evaluateGeasPolicy,
+): void {
+  const authorization = geasEvaluator({
+    actorType: 'agent',
+    action: 'repository.provider.inference',
+    risk: 'medium',
+  });
+  if (authorization.decision !== 'allow') {
+    throw new Error(
+      `GEAS rejected repository provider inference for mission ${missionId}: ${authorization.decision}.`,
+    );
+  }
+}
+
 async function planMission(objective: string, missionId: string) {
   if (!isRepositoryMissionPublicContentApproved(process.env, missionId)) {
     throw new Error('Repository AI contribution is blocked: this exact mission ID has no owner-approved public-content egress attestation.');
   }
+  // Enforce the GEAS policy decision after the exact owner-approved mission
+  // check and before any Specialist Council/provider inference is dispatched.
+  authorizeRepositoryProviderInference(missionId);
   const repositoryPolicy = getAutopilotRepositoryContributorPolicy();
   if (!repositoryPolicy.authorized || repositoryPolicy.eligibleProviders.length === 0) {
     throw new Error('Repository AI contribution is blocked: configure at least one currently owner-attested free provider, keep all paid routes disabled, and verify the exact account quota.');
