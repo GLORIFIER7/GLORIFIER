@@ -124,3 +124,29 @@ test('scheduled intake workflow remains read-only and never invokes paid models 
   assert.match(workflow, /gh run list.*--branch main/);
   assert.match(workflow, /retention-days: 7/);
 });
+
+test('treats workflow_run completions on main as eligible CI evidence', () => {
+  const report = buildRepairIntake({ ...sample, runs: [
+    { databaseId: 701, workflowName: 'Integration', headBranch: 'main', status: 'completed', conclusion: 'failure', event: 'workflow_run', createdAt: '2026-11-21T05:00:00Z' },
+    { databaseId: 702, workflowName: 'Integration', headBranch: 'feature', status: 'completed', conclusion: 'failure', event: 'workflow_run', createdAt: '2026-11-21T05:10:00Z' },
+  ], pulls: [] });
+  assert.equal(report.observedCounts.failedMainRuns, 1);
+  assert.deepEqual(report.candidates.map(item => item.reference), ['701']);
+});
+
+test('classifies STARTUP_FAILURE as a failing check, never a green PR', () => {
+  const report = buildRepairIntake({ ...sample, runs: [], pulls: [{
+    number: 710, isDraft: false, mergeStateStatus: 'BLOCKED',
+    headRefOid: 'a'.repeat(40), statusCheckRollup: [
+      { name: 'Required CI', status: 'COMPLETED', conclusion: 'STARTUP_FAILURE' },
+    ],
+  }] });
+  assert.deepEqual(report.candidates[0].failingChecks, ['Required CI']);
+  assert.equal(report.autopilotObservationProposals[0].severity, 'high');
+});
+
+test('grants checks:read to the read-only GitHub repair intake snapshot', () => {
+  const workflow = readFileSync(new URL('../.github/workflows/governed-repair-intake.yml', import.meta.url), 'utf8');
+  assert.ok(workflow.includes('  checks: read'));
+  assert.doesNotMatch(workflow, /^  checks: write$/m);
+});
