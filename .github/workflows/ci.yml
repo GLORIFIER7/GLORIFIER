@@ -383,6 +383,9 @@ jobs:
       - name: BNB Smart Chain GLR settlement verifier tests
         run: npm run test:glr-bnb-verifier
 
+      - name: Binance read-only signed-request origin security tests
+        run: node --import tsx/esm --test src/lib/binance-api-origin.test.ts
+
       - name: Solana Token-2022 GLR settlement verifier tests
         run: npm run test:glr-solana-verifier
 

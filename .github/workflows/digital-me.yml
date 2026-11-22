@@ -1,0 +1,36 @@
+name: GLORIFIER Digital Me — governed operator
+on:
+  schedule:
+    - cron: '37 9 * * *'
+  workflow_dispatch:
+    inputs:
+      run_mode:
+        type: choice
+        options: [audit, signed-probe]
+        default: audit
+      confirm_signed_probe:
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  digital-me:
+    if: ${{ github.repository == 'GLORIFIER7/GLORIFIER' && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+      - run: node --test digital-me/test/*.test.mjs
+      - name: Governed Digital Me audit or signed proof
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DIGITAL_ME_RUN_MODE: ${{ github.event_name == 'workflow_dispatch' && inputs.run_mode || 'audit' }}
+          DIGITAL_ME_CONFIRM_SIGN: ${{ github.event_name == 'workflow_dispatch' && inputs.confirm_signed_probe == true && 'true' || 'false' }}
+          DIGITAL_ME_APP_ID: '5876036'
+          DIGITAL_ME_APP_PRIVATE_KEY: ${{ secrets.DIGITAL_ME_APP_PRIVATE_KEY }}
+        run: node digital-me/src/operator.mjs
