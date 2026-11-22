@@ -1,0 +1,4 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {generateKeyPairSync,createVerify} from 'node:crypto';import {appJwt,checkMode,APP_ID} from '../src/operator.mjs';
+test('exact App identity',()=>assert.equal(APP_ID,'5876036'));
+test('no automatic signed mutation',()=>{assert.throws(()=>checkMode({GITHUB_EVENT_NAME:'schedule'},'signed-probe'),/Manual confirmation/);assert.equal(checkMode({},'audit'),true);});
+test('RS256 App JWT cryptographic signature',()=>{const k=generateKeyPairSync('rsa',{modulusLength:2048,privateKeyEncoding:{type:'pkcs8',format:'pem'},publicKeyEncoding:{type:'spki',format:'pem'}});const t=appJwt(APP_ID,k.privateKey,1800000000);const [a,b,c]=t.split('.');assert.equal(JSON.parse(Buffer.from(b,'base64url')).iss,APP_ID);const v=createVerify('RSA-SHA256');v.update(a+'.'+b);v.end();assert.equal(v.verify(k.publicKey,Buffer.from(c,'base64url')),true);});

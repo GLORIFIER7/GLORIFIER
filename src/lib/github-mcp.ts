@@ -32,7 +32,7 @@ export type GithubMcpRateLimiter = {
 };
 type McpMessage = {
   jsonrpc?: unknown;
-  id?: JsonRpcId;
+  id?: unknown;
   method?: unknown;
   params?: unknown;
 };
@@ -40,7 +40,7 @@ type McpMessage = {
 type ToolDefinition = {
   name: string;
   description: string;
-  inputSchema: JsonRecord;
+  inputSchema: { type: 'object'; properties: JsonRecord; required?: string[]; additionalProperties: false };
   annotations: {
     readOnlyHint: true;
     destructiveHint: false;
@@ -118,11 +118,32 @@ const rpcError = (id: JsonRpcId, code: number, message: string, status = 200): R
 const isRecord = (value: unknown): value is JsonRecord =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
+const isJsonRpcId = (value: unknown): value is JsonRpcId =>
+  value === null || typeof value === 'string' ||
+  (typeof value === 'number' && Number.isFinite(value));
+
 const isValidOrigin = (request: Request): boolean => {
-  const origin = request.headers.get('origin');
-  if (!origin) return true;
   try {
-    return new URL(origin).origin === new URL(request.url).origin;
+    const requestUrl = new URL(request.url);
+    const hostHeader = request.headers.get('host');
+    if (hostHeader !== null) {
+      if (!hostHeader || hostHeader.trim() !== hostHeader) return false;
+      // The HTTP authority must agree with the URL Cloudflare routed. Otherwise
+      // an attacker can pair a hostile Host and Origin and make both compare
+      // equal while rebinding the endpoint's authority.
+      const headerUrl = new URL(`${requestUrl.protocol}//${hostHeader}`);
+      if (headerUrl.username || headerUrl.password || headerUrl.pathname !== '/' ||
+          headerUrl.search || headerUrl.hash || headerUrl.host !== requestUrl.host) {
+        return false;
+      }
+    }
+
+    const origin = request.headers.get('origin');
+    if (origin === null) return true;
+    if (!origin || origin.trim() !== origin) return false;
+    const parsedOrigin = new URL(origin);
+    return !parsedOrigin.username && !parsedOrigin.password &&
+      parsedOrigin.origin === requestUrl.origin;
   } catch {
     return false;
   }
@@ -365,57 +386,94 @@ const readGithubFile = async (path: string, ref: string, readToken?: string): Pr
   return { path, ref, content: decodeGithubTextFile(data) };
 };
 
-const toolArguments = (args: unknown): JsonRecord => isRecord(args) ? args : {};
-
 const getRepositoryTool = (readToken?: string): Promise<unknown> =>
   readGithubJson(`/repos/${OWNER}/${REPOSITORY}`, undefined, readToken);
 
 const isValidPerPage = (value: unknown): value is number =>
   typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 20;
 
-const listPullRequestsTool = (args: unknown, readToken?: string): Promise<unknown> => {
-  const input = toolArguments(args);
-  const state = input.state === undefined ? 'open' : input.state;
-  if (state !== 'open' && state !== 'closed' && state !== 'all') {
-    throw new Error('state must be open, closed, or all.');
-  }
-  const perPage = input.per_page === undefined ? 10 : input.per_page;
-  if (!isValidPerPage(perPage)) {
-    throw new Error('per_page must be an integer between 1 and 20.');
-  }
+const listPullRequestsTool = (input: JsonRecord, readToken?: string): Promise<unknown> => {
+  const state = (input.state === undefined ? 'open' : input.state) as string;
+  const perPage = (input.per_page === undefined ? 10 : input.per_page) as number;
   return readGithubJson(`/repos/${OWNER}/${REPOSITORY}/pulls`, new URLSearchParams({
     state,
     per_page: String(perPage),
   }), readToken);
 };
 
-const listWorkflowRunsTool = (args: unknown, readToken?: string): Promise<unknown> => {
-  const input = toolArguments(args);
-  const perPage = input.per_page === undefined ? 10 : input.per_page;
-  if (!isValidPerPage(perPage)) {
-    throw new Error('per_page must be an integer between 1 and 20.');
-  }
+const listWorkflowRunsTool = (input: JsonRecord, readToken?: string): Promise<unknown> => {
+  const perPage = (input.per_page === undefined ? 10 : input.per_page) as number;
   return readGithubJson(`/repos/${OWNER}/${REPOSITORY}/actions/runs`, new URLSearchParams({ per_page: String(perPage) }), readToken);
 };
 
-const readFileTool = (args: unknown, readToken?: string): Promise<unknown> => {
-  const input = toolArguments(args);
-  if (typeof input.path !== 'string') throw new Error('path is required and must be a string.');
-  const ref = input.ref === undefined ? 'main' : input.ref;
-  if (typeof ref !== 'string') throw new Error('ref must be a string.');
-  return readGithubFile(input.path, ref, readToken);
+const readFileTool = (input: JsonRecord, readToken?: string): Promise<unknown> => {
+  const path = input.path as string;
+  const ref = (input.ref === undefined ? 'main' : input.ref) as string;
+  return readGithubFile(path, ref, readToken);
+};
+
+const getToolArgumentError = (name: string, input: JsonRecord): string | null => {
+  switch (name) {
+    case 'github_get_repository':
+      return null;
+    case 'github_list_open_pull_requests': {
+      const state = input.state === undefined ? 'open' : input.state;
+      if (state !== 'open' && state !== 'closed' && state !== 'all') {
+        return 'state must be open, closed, or all.';
+      }
+      const perPage = input.per_page === undefined ? 10 : input.per_page;
+      if (!isValidPerPage(perPage)) {
+        return 'per_page must be an integer between 1 and 20.';
+      }
+      return null;
+    }
+    case 'github_list_workflow_runs': {
+      const perPage = input.per_page === undefined ? 10 : input.per_page;
+      if (!isValidPerPage(perPage)) {
+        return 'per_page must be an integer between 1 and 20.';
+      }
+      return null;
+    }
+    case 'github_read_file': {
+      if (typeof input.path !== 'string') return 'path is required and must be a string.';
+      const ref = input.ref === undefined ? 'main' : input.ref;
+      if (typeof ref !== 'string') return 'ref must be a string.';
+      try {
+        repositoryPathSegments(input.path);
+        assertValidGitReference(ref);
+      } catch (error) {
+        return error instanceof Error ? error.message : 'Invalid repository path or Git reference.';
+      }
+      return null;
+    }
+    default:
+      return 'Unknown or unsupported GitHub tool. This MCP server exposes read-only tools only.';
+  }
+};
+
+const validateToolArguments = (name: string, args: unknown = {}): { input: JsonRecord } | { error: string } => {
+  if (!isRecord(args)) return { error: 'Tool arguments must be an object.' };
+  const tool = tools.find((candidate) => candidate.name === name);
+  if (tool && Object.keys(args).some((key) => !Object.hasOwn(tool.inputSchema.properties, key))) {
+    return { error: 'Tool arguments contain an unsupported property.' };
+  }
+  const error = getToolArgumentError(name, args);
+  return error ? { error } : { input: args };
 };
 
 const callTool = (name: string, args: unknown, readToken?: string): Promise<unknown> => {
+  const validated = validateToolArguments(name, args);
+  if ('error' in validated) throw new Error(validated.error);
+  const { input } = validated;
   switch (name) {
     case 'github_get_repository':
       return getRepositoryTool(readToken);
     case 'github_list_open_pull_requests':
-      return listPullRequestsTool(args, readToken);
+      return listPullRequestsTool(input, readToken);
     case 'github_list_workflow_runs':
-      return listWorkflowRunsTool(args, readToken);
+      return listWorkflowRunsTool(input, readToken);
     case 'github_read_file':
-      return readFileTool(args, readToken);
+      return readFileTool(input, readToken);
     default:
       throw new Error('Unknown or unsupported GitHub tool. This MCP server exposes read-only tools only.');
   }
@@ -488,7 +546,7 @@ const handleServerDiscover = (id: JsonRpcId): Response => jsonResponse({
   id,
   result: {
     resultType: 'complete',
-    supportedVersions: [...MODERN_PROTOCOL_VERSIONS],
+    supportedVersions: [...SUPPORTED_PROTOCOL_VERSIONS],
     capabilities: { tools: {} },
     _meta: modernServerMetadata(),
     instructions: SERVER_DISCOVERY_INSTRUCTIONS,
@@ -582,9 +640,9 @@ const unsupportedProtocolVersion = (
     code: -32022,
     message: 'Unsupported protocol version',
     data: {
-      supported: /^2026(?:-|$)/.test(requested)
-        ? [...MODERN_PROTOCOL_VERSIONS]
-        : [...LEGACY_PROTOCOL_VERSIONS],
+      // Keep negotiation errors aligned with server/discover: report every
+      // protocol revision this endpoint actually accepts.
+      supported: [...SUPPORTED_PROTOCOL_VERSIONS],
       requested,
     },
   },
@@ -606,11 +664,22 @@ const resolveMcpProtocolMode = (
   const modernRequested = metadataVersion === MODERN_PROTOCOL_VERSION ||
     headerVersion === MODERN_PROTOCOL_VERSION;
 
-  // On Streamable HTTP, the modern per-request metadata is mandatory and the
-  // HTTP version header must repeat the same value. A missing or mismatched
-  // declaration is an invalid request, not an unsupported protocol version.
+  // The modern request body must declare its protocol version before the
+  // transport header can be compared. Missing per-request metadata is invalid
+  // params (-32602); a present but absent/mismatched HTTP header is a header
+  // mismatch (-32020).
   if (modernRequested) {
-    if (!metadataVersion || !headerVersion) {
+    if (!metadataVersion) {
+      return {
+        response: rpcError(
+          id,
+          -32602,
+          'Invalid params: modern MCP requests must include params._meta.io.modelcontextprotocol/protocolVersion.',
+          400,
+        ),
+      };
+    }
+    if (!headerVersion) {
       return {
         response: rpcError(
           id,
@@ -733,14 +802,16 @@ const handleJsonRpc = (
   message: McpMessage,
   readToken?: string,
 ): Response | Promise<Response> => {
-  const id = typeof message.id === 'string' || typeof message.id === 'number' || message.id === null
-    ? message.id
-    : null;
+  const hasId = Object.hasOwn(message, 'id');
+  if (hasId && !isJsonRpcId(message.id)) {
+    return rpcError(null, -32600, 'Invalid JSON-RPC request ID.');
+  }
+  const id: JsonRpcId = hasId ? message.id as JsonRpcId : null;
   if (message.jsonrpc !== '2.0' || typeof message.method !== 'string') {
     return rpcError(id, -32600, 'Invalid JSON-RPC request.');
   }
   if (message.method.startsWith('notifications/')) return emptyNotificationResponse();
-  if (!Object.hasOwn(message, 'id')) return emptyNotificationResponse();
+  if (!hasId) return emptyNotificationResponse();
 
   const protocolMode = resolveMcpProtocolMode(request, message, id);
   if ('response' in protocolMode) return protocolMode.response;
@@ -793,26 +864,66 @@ const parseMcpRequest = async (request: Request): Promise<ParsedMcpRequest> => {
   }
 };
 
+type RateLimitableMcpToolCall = { id: JsonRpcId; name: GithubReadToolName };
+
+const getRateLimitableMcpToolCall = (
+  request: Request,
+  message: McpMessage,
+): RateLimitableMcpToolCall | null => {
+  // Do not reserve upstream quota for malformed JSON-RPC envelopes or IDs.
+  if (message.jsonrpc !== '2.0' || message.method !== 'tools/call' ||
+      !Object.hasOwn(message, 'id') || !isJsonRpcId(message.id)) return null;
+
+  const id = message.id;
+  const protocolMode = resolveMcpProtocolMode(request, message, id);
+  if ('response' in protocolMode) return null;
+
+  // Modern MCP routing and envelope checks must complete before quota is
+  // reserved. handleJsonRpc repeats these pure validations before dispatch.
+  if (protocolMode.mode === 'modern') {
+    if (validateModernRequestEnvelope(message, id)) return null;
+    if (validateModernRoutingHeaders(request, message, id)) return null;
+  }
+
+  const params = isRecord(message.params) ? message.params : {};
+  // Only the four allowlisted read tools make upstream GitHub API requests.
+  // Unknown tools and invalid arguments are rejected locally without quota.
+  if (typeof params.name !== 'string' ||
+      !AUTOPILOT_READ_TOOL_NAMES.has(params.name as GithubReadToolName)) return null;
+  if ('error' in validateToolArguments(params.name, params.arguments)) return null;
+
+  return { id, name: params.name as GithubReadToolName };
+};
+
 const enforceMcpToolRateLimit = async (
   request: Request,
   message: McpMessage,
-  rateLimiter: GithubMcpRateLimiter,
+  rateLimiter: GithubMcpRateLimiter | undefined,
 ): Promise<Response | null> => {
-  if (message.method !== 'tools/call') return null;
+  const candidate = getRateLimitableMcpToolCall(request, message);
+  if (!candidate) return null;
+  const { id } = candidate;
+  if (!rateLimiter) {
+    return rpcError(id, -32003, 'MCP rate-limit service is not configured.', 503);
+  }
   const key = request.headers.get('cf-connecting-ip')?.trim() || 'unknown-client';
   try {
     const result = await rateLimiter.limit({ key });
     return result.success
       ? null
-      : jsonResponse({ error: 'MCP tool-call rate limit exceeded.' }, 429, { 'Retry-After': '60' });
+      : jsonResponse({
+          jsonrpc: '2.0',
+          id,
+          error: { code: -32029, message: 'MCP tool-call rate limit exceeded.' },
+        }, 429, { 'Retry-After': '60' });
   } catch {
-    return jsonResponse({ error: 'MCP rate-limit service is unavailable.' }, 503);
+    return rpcError(id, -32003, 'MCP rate-limit service is unavailable.', 503);
   }
 };
 
 export const githubMcpRoute = async (
   request: Request,
-  rateLimiter: GithubMcpRateLimiter,
+  rateLimiter: GithubMcpRateLimiter | undefined,
   readToken?: string,
 ): Promise<Response> => {
   const headerFailure = await validateMcpRequestHeaders(request);

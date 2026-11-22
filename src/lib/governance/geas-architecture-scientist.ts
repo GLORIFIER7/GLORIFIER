@@ -641,7 +641,7 @@ export const stripHtml = (input: string): string => {
 
 /**
  * Extract evidence from the document's semantic content region, not site chrome.
- * Prefer <main>, then <article>; otherwise remove common navigation/sidebar/footer
+ * Prefer <article>, then <main>; otherwise remove common navigation/sidebar/footer
  * elements before normalizing text. The full-page hash still uses stripHtml().
  */
 const removeHtmlChrome = (input: string): string => {
@@ -1092,6 +1092,20 @@ export const createSourceFetchContext = (
   };
 };
 
+/**
+ * A source-specific extractor change cannot repair an old source-available cache
+ * row through a 304 response because the cached row has no excerpt to re-extract.
+ * Force one body fetch for this known NIST migration case; keep every other
+ * source and already substantive NIST cache entry on the normal validator path.
+ */
+export const shouldForceUnconditionalSourceRefresh = (
+  sourceId: string,
+  cached?: CachedSourceObservation | null,
+): boolean => sourceId === 'nist-agent-identity-design-tenets'
+  && cached?.ok === true
+  && cached.evidence_status === 'source-available'
+  && !cached.evidence_excerpt?.trim();
+
 const isCachedObservationForSource = (
   source: Pick<ArchitectureSource, 'url'>,
   cached: CachedSourceObservation,
@@ -1235,8 +1249,8 @@ export function trimEvidenceExcerptToWordBoundaries(
   return text.slice(startIndex, endIndex).trim();
 }
 
-const createEvidenceExcerpt = (text: string, matchIndex: number): string => {
-  const start = Math.max(0, matchIndex - 240);
+const createEvidenceExcerpt = (text: string, matchIndex: number, contextBefore = 240): string => {
+  const start = Math.max(0, matchIndex - contextBefore);
   const end = Math.min(text.length, matchIndex + 760);
   return trimEvidenceExcerptToWordBoundaries(text, start, end);
 };
@@ -1500,16 +1514,15 @@ const SOURCE_PATTERN_KEYWORD_OVERRIDES: Readonly<Record<string, readonly string[
     'access delegation',
   ],
   'nist-agent-identity-design-tenets': [
-    'Distinct Agent Identification',
-    'Agent Linking, Delegation & Attenuation',
-    'Least & Zero Standing Privilege',
-    'Short-Lived, Dynamic & Revocable Authorization',
-    'Human-in-the-Loop Triggers',
-    'Mandates and Constraints',
-    'Architectural Separation of Policy from Reasoning',
-    'Deterministic Access Decisions',
-    'Continuous Monitoring',
-    'Immutable Evidence',
+    'Agentic infrastructure enables the unique, cryptographically verifiable identification of agents distinguishable from other identities.',
+    'Additionally, as authority is delegated down to sub-agents or downstream services, scopes attenuate so that downstream entities can never claim more authority than the parent.',
+    'Agents operate with zero standing privilege, holding no persistent rights when idle.',
+    'All access grants are Just-In-Time (JIT), time-bounded and audience-specific.',
+    'Every organization defines risk thresholds and tolerances that, when reached, initiate human review of agentic actions.',
+    'The logic that determines what an agent attempts to do is architecturally separated from the systems that determine what it is allowed to do.',
+    'Organizations maintain deterministic capabilities as the primary mechanism for making access decisions in agentic scenarios.',
+    'Agents operate at a scale and velocity that is not achievable for humans',
+    'The enterprise maintains an unbroken, tamper-evident chain of custody and append-only body of evidence',
   ],
   'nist-ir-8259r1': [
     'This publication describes recommended activities related to cybersecurity that manufacturers should consider performing before their IoT products are sold to customers.',
@@ -1536,6 +1549,37 @@ export const getSourcePatternKeywords = (sourceId: string): string[] => {
       .filter((pattern) => sourcePatternIds.has(pattern.id))
       .flatMap((pattern) => pattern.keywords),
   )];
+};
+
+/** Extract a source-specific substantive excerpt without promoting it to claim verification. */
+export const extractSourceEvidenceExcerpt = (sourceId: string, body: string): string | null => {
+  const keywords = getSourcePatternKeywords(sourceId);
+  const standardExcerpt = extractEvidence(body, keywords);
+  if (standardExcerpt || sourceId !== 'nist-agent-identity-design-tenets') return standardExcerpt;
+
+  // NIST's page can expose an unrelated <article> card before the substantive <main> region.
+  // Search the main candidate only when the preferred article extraction yields no evidence.
+  const cleaned = removeHtmlChrome(body);
+  const mainCandidates = extractTopLevelElements(cleaned, 'main');
+  for (const candidate of mainCandidates) {
+    const text = stripHtml(candidate);
+    const matchIndex = findEarliestKeywordIndex(text, keywords);
+    if (matchIndex < 0) continue;
+    const excerpt = createEvidenceExcerpt(text, matchIndex, 0);
+    if (isSubstantiveEvidenceExcerpt(excerpt)) return excerpt;
+  }
+
+  // Some public NIST page variants expose the substantive body through a
+  // non-semantic container rather than a literal <main> element. Search only
+  // this source's curated, long-form phrases and anchor the excerpt at the
+  // exact phrase so unrelated page chrome cannot become supporting evidence.
+  const fullPageText = stripHtml(cleaned);
+  const fullPageMatchIndex = findEarliestKeywordIndex(fullPageText, keywords);
+  if (fullPageMatchIndex >= 0) {
+    const excerpt = createEvidenceExcerpt(fullPageText, fullPageMatchIndex, 0);
+    if (isSubstantiveEvidenceExcerpt(excerpt)) return excerpt;
+  }
+  return null;
 };
 
 const createUnavailableSourceObservation = (
@@ -1590,7 +1634,7 @@ const createFetchedSourceObservation = (
 ): SourceObservation => {
   const normalizedText = stripHtml(body);
   const contentHash = createHash('sha256').update(normalizedText).digest('hex');
-  const excerpt = response.ok ? extractEvidence(body, getSourcePatternKeywords(source.id)) : null;
+  const excerpt = response.ok ? extractSourceEvidenceExcerpt(source.id, body) : null;
   const evidenceStatus: EvidenceStatus = excerpt
     ? 'content-matched'
     : response.ok ? 'source-available' : 'not-observed';
@@ -1643,11 +1687,13 @@ const createSourceFetchObservation = async (
 };
 
 const fetchSource = async (source: ArchitectureSource, cached?: CachedSourceObservation | null): Promise<SourceObservation> => {
-  const context = createSourceFetchContext(source.url, cached);
+  const forceUnconditionalRefresh = shouldForceUnconditionalSourceRefresh(source.id, cached);
+  const reusableCachedObservation = forceUnconditionalRefresh ? null : cached;
+  const context = createSourceFetchContext(source.url, reusableCachedObservation);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 12000);
   try {
-    return await createSourceFetchObservation(source, cached, context, controller.signal);
+    return await createSourceFetchObservation(source, reusableCachedObservation, context, controller.signal);
   } catch (error) {
     return createSourceFetchFailure(source, context.observedAt, error);
   } finally {

@@ -7,6 +7,7 @@ import {
   createRequireOwnerOrInternalService,
   initializeAuthenticationBackend,
   isInternalServiceRequest,
+  isOwner,
   verifyBearerToken,
   type TokenVerifier,
 } from './backend-auth';
@@ -35,6 +36,9 @@ const runMiddleware = async (
   await new Promise<void>((resolve) => setImmediate(resolve));
   return { req, nextCalled, statusCode, body, headers: responseHeaders };
 };
+
+assert.equal(isOwner(undefined), false, 'internal-service identities without user claims must not be treated as owners');
+assert.equal(isOwner(null), false, 'missing user identity must fail closed for owner checks');
 
 const fakeVerifier: TokenVerifier = async (req) => {
   const header = req.get('authorization');
