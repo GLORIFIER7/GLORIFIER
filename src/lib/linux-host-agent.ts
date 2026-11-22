@@ -256,25 +256,26 @@ export async function claimLinuxHostAgentTask(runtimeId: string): Promise<null |
     }
     await client.query(
       `UPDATE linux_agent_tasks SET status = 'expired'
-        WHERE runtime_id = $1 AND status = 'approved' AND expires_at <= NOW()`,
+        WHERE runtime_id = $1 AND status = 'approved' AND expires_at <= statement_timestamp()`,
       [runtimeId],
     );
     await client.query(
       `UPDATE linux_agent_tasks
-          SET status = CASE WHEN expires_at > NOW() THEN 'approved' ELSE 'expired' END,
+          SET status = CASE WHEN expires_at > statement_timestamp() THEN 'approved' ELSE 'expired' END,
               claimed_at = NULL, lease_until = NULL, lease_token_sha256 = NULL
-        WHERE runtime_id = $1 AND status = 'claimed' AND lease_until <= NOW()`,
+        WHERE runtime_id = $1 AND status = 'claimed' AND (lease_until <= statement_timestamp() OR expires_at <= statement_timestamp())`,
       [runtimeId],
     );
     const leaseToken = randomBytes(TOKEN_BYTES).toString('base64url');
     const leaseTokenHash = createHash('sha256').update(leaseToken, 'utf8').digest('hex');
     const r = await client.query(
       `UPDATE linux_agent_tasks
-          SET status = 'claimed', claimed_at = NOW(),
-              lease_until = NOW() + ($2 * INTERVAL '1 second'), lease_token_sha256 = $3
+          SET status = 'claimed', claimed_at = statement_timestamp(),
+              lease_until = LEAST(expires_at, statement_timestamp() + ($2 * INTERVAL '1 second')),
+              lease_token_sha256 = $3
         WHERE id = (
           SELECT id FROM linux_agent_tasks
-           WHERE runtime_id = $1 AND status = 'approved' AND expires_at > NOW()
+           WHERE runtime_id = $1 AND status = 'approved' AND expires_at > statement_timestamp()
            ORDER BY approved_at, id
            LIMIT 1 FOR UPDATE SKIP LOCKED
         )
@@ -329,7 +330,8 @@ export async function completeLinuxHostAgentTask(runtimeId: string, taskId: stri
       `UPDATE linux_agent_tasks
           SET status = $3, result = $4::jsonb, result_sha256 = $5,
               error_code = $6, completed_at = NOW(), lease_token_sha256 = NULL
-        WHERE id = $1 AND runtime_id = $2 AND status = 'claimed' AND lease_until > NOW()
+        WHERE id = $1 AND runtime_id = $2 AND status = 'claimed'
+          AND lease_until > statement_timestamp() AND expires_at > statement_timestamp()
           AND lease_token_sha256 = $7
           AND EXISTS (
             SELECT 1 FROM linux_runtime_registry r
