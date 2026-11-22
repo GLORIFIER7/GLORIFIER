@@ -366,6 +366,14 @@ function configuredProvidersArray(providers) {
 
 
 /** Assign every eligible provider exactly one bounded independent council contribution. */
+const PROVIDER_SPECIALIST_ROLE_PREFERENCES = Object.freeze({
+  // Claude is the designated independent software-architecture reviewer.
+  // This is a role assignment only; the existing owner attestation, $0 budget,
+  // public-mission approval, endpoint pinning, and quota reservation still gate
+  // whether an Anthropic request may execute.
+  anthropic: 'software-architect'
+});
+
 export function buildRepositoryCouncilAssignments(eligibleProviders, roles) {
   if (!Array.isArray(eligibleProviders) || !Array.isArray(roles) || roles.length === 0) return [];
   const safeRoles = roles.filter((role) => isRecord(role) && typeof role.id === 'string' && role.id.trim());
@@ -377,10 +385,35 @@ export function buildRepositoryCouncilAssignments(eligibleProviders, roles) {
     return true;
   }).slice(0, MAX_REPOSITORY_CONTRIBUTOR_PROVIDERS);
   if (!safeRoles.length) return [];
-  return providers.map((provider, index) => ({
+
+  const rolesById = new Map(safeRoles.map((role) => [role.id, role]));
+  const reservedRoleIds = new Set(providers
+    .map((provider) => PROVIDER_SPECIALIST_ROLE_PREFERENCES[provider.providerId])
+    .filter((roleId) => typeof roleId === 'string' && rolesById.has(roleId)));
+  const fallbackRoles = safeRoles.filter((role) => !reservedRoleIds.has(role.id));
+  let fallbackIndex = 0;
+
+  const roleByProviderId = new Map();
+  // Assign fallback roles in a canonical provider order so the same eligible
+  // providers receive the same specialist roles regardless of discovery order.
+  const stableProviders = [...providers].sort((left, right) =>
+    left.providerId.localeCompare(right.providerId),
+  );
+  for (const provider of stableProviders) {
+    const preferredRoleId = PROVIDER_SPECIALIST_ROLE_PREFERENCES[provider.providerId];
+    const preferredRole = typeof preferredRoleId === 'string' ? rolesById.get(preferredRoleId) : null;
+    const role = preferredRole || (fallbackRoles.length
+      ? fallbackRoles[fallbackIndex++ % fallbackRoles.length]
+      : safeRoles[fallbackIndex++ % safeRoles.length]);
+    roleByProviderId.set(provider.providerId, role);
+  }
+
+  // Preserve the caller's provider ordering in the returned result while
+  // keeping role allocation stable by provider identity.
+  return providers.map((provider) => ({
     providerId: provider.providerId,
     modelId: provider.modelId,
-    role: safeRoles[index % safeRoles.length]
+    role: roleByProviderId.get(provider.providerId)
   }));
 }
 

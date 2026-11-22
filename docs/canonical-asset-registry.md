@@ -48,6 +48,18 @@ The Solana Mainnet Beta mint's on-chain identity reconciliation is recorded in [
 
 The immutable on-chain metadata URI points to `solana/token.json` at commit `d0d5c16fc4a74099c125c8aac594352d53675177`. That pinned JSON was fetched and contains name, symbol, description, external URL, and attributes, but no `image` or `mint` field. The current `main/solana/token.json` contains both as supplemental repository metadata; it does not change the immutable on-chain URI. Because the metadata pointer and update authorities are disabled, do not claim the on-chain metadata image was updated or attempt a redeployment to change it.
 
+## Fresh read-only chain observations — 2026-11-20 09:00:01 UTC
+
+The existing Alchemy GLORIFIER application was used for read-only JSON-RPC queries. These observations refresh network identity and token state only; the deployment statuses in the table above are unchanged.
+
+| Network | Chain / height | Designated asset | Fresh state |
+|---|---|---|---|
+| Ethereum Mainnet | Chain ID 1; block `0x193ace2` (26,455,266) | `0x9db6f9afe2f4ada50060d32d7c7c0bebbccf89eb` | Non-empty contract bytecode; `name=GLORIFIER`, `symbol=GLR`, 18 decimals, total supply 1,000,000,000 GLR |
+| BNB Smart Chain Mainnet | Chain ID 56; block `0x806dc9c` (134,667,420) | `0x5e0B0A449232FDA7cA6Ea3419A50873b08F64804` | Non-empty contract bytecode; `name=GLORIFIER`, `symbol=GLR`, 18 decimals, total supply 1,000,000,000 GLR |
+| Solana Mainnet Beta | Finalized account slot 471679067; supply context slot 471679082 | Token-2022 mint `7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9` | Initialized mint; `name=GLORIFIER`, `symbol=GLR`, 9 decimals, total supply 1,000,000,000 GLR; mint, freeze, metadata-pointer and metadata-update authorities are null |
+
+All calls were read-only. No signing, minting, transfer, contract write, wallet operation, or state mutation was performed. Ethereum remains partially verified until the second same-deployer contract's relationship to the canonical asset is decided. Solana remains partially verified until the conflicting historical mint-transaction provenance receives independent review. The probes do not establish transfer settlement, payment verification, liquidity, market value, or cross-chain fungibility.
+
 ## NFT collection identities
 
 The canonical asset registry also records the two owner-designated Ethereum NFT collections as separate canonical collection identities:
