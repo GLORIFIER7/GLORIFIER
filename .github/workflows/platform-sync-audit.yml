@@ -1,0 +1,43 @@
+name: GLORIFIER Cross-Platform Reconciliation Audit
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'config/platform-sync-targets.json'
+      - 'scripts/platform-sync-audit.mjs'
+      - 'scripts/platform-sync-audit.test.mjs'
+      - '.github/workflows/platform-sync-audit.yml'
+      - 'docs/operations/CROSS-PLATFORM-SYNC.md'
+  workflow_dispatch:
+  schedule:
+    - cron: '37 3 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: platform-sync-audit-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  reconcile:
+    # A public repo uses free standard runners. Private repositories skip this job.
+    if: ${{ github.event.repository.private == false }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout without persisted credentials
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Set up Node for dependency-free checks
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Validate inventory and fail-closed probe contracts
+        run: node --test scripts/platform-sync-audit.test.mjs
+      - name: Read-only public endpoint evidence (not a deployment or mirror)
+        if: ${{ github.ref == 'refs/heads/main' && (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') }}
+        run: node scripts/platform-sync-audit.mjs

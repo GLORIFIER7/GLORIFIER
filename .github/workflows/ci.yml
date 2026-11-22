@@ -45,6 +45,8 @@ jobs:
 
       - name: AI coding fleet workflow security contract tests
         run: node --test scripts/ai-fleet-workflow-contract.test.mjs
+      - name: Governed repair intake security and freshness tests
+        run: node --test scripts/governed-repair-intake.test.mjs
       - name: TokenEconomizer local installer contract tests
         run: npm run test:token-economizer-integration
       - name: AI fleet publication-time gate regression tests
@@ -308,7 +310,9 @@ jobs:
         run: npm run test:a2a-v1
 
       - name: A2A official TCK workflow security contract tests
-        run: node --test scripts/a2a-tck-workflow-contract.test.mjs
+        run: |
+          node --test scripts/a2a-tck-workflow-contract.test.mjs
+          python3 -m unittest discover -s scripts -p test_a2a_tck_agent_card.py
 
       - name: A2A durable runtime regression tests
         run: npm run test:a2a-runtime
@@ -452,6 +456,12 @@ jobs:
         run: node --import tsx/esm --test src/lib/a2a-runtime.postgres.integration.test.ts
         env:
           A2A_TEST_DATABASE_URL: postgresql://localhost:5432/glorifier_test
+          PGUSER: postgres
+
+      - name: PostgreSQL Linux host task lifecycle integration tests
+        run: node --import tsx/esm --test src/lib/linux-host-agent.postgres.integration.test.ts
+        env:
+          LINUX_HOST_TEST_DATABASE_URL: postgresql://localhost:5432/glorifier_test
           PGUSER: postgres
 
 

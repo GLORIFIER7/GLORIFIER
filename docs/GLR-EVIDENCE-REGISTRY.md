@@ -3,7 +3,7 @@
 # GLORIFIER (GLR) Mainnet Evidence Registry
 
 **Registry status:** PARTIALLY VERIFIED overall; Ethereum canonical identity and Solana cross-file provenance remain partially verified; BNB Smart Chain retains its recorded FULLY VERIFIED — technical evidence status.  
-**Last checked:** 2026-11-09 (UTC; read-only chain reconciliation; see the verification notice above).  
+**Last checked:** 2026-11-20 (UTC; fresh read-only Alchemy probes for Ethereum, BNB Smart Chain, and Solana are recorded below).  
 **Scope:** Contract/mint identity and reported on-chain verification. This is not a security audit, market-liquidity certification, legal opinion, or investment endorsement.
 
 ## Status definitions
@@ -20,6 +20,16 @@
 | Ethereum Mainnet (chain ID 1) | ERC-20 contract: `0x9db6f9afe2f4ada50060d32d7c7c0bebbccf89eb` | [Etherscan contract/source](https://etherscan.io/address/0x9db6f9afe2f4ada50060d32d7c7c0bebbccf89eb#code) · [Token page](https://etherscan.io/token/0x9db6f9afe2f4ada50060d32d7c7c0bebbccf89eb) · [Deployment transaction](https://etherscan.io/tx/0x8b92e5b669ea3188fe55052ed68d3eae0cc7715a0cf8c96e71ee7e95d846f81a) | **PARTIALLY VERIFIED**. Fresh Etherscan source/creation data and independent Ethereum JSON-RPC confirm bytecode, verified source, GLORIFIER/GLR metadata, 18 decimals, 1,000,000,000 supply, and a successful receipt at block 26,120,635. A second same-deployer GLORIFIER/GLR contract at `0x1f8e7FEC258fD1B8A866a323565B276d82EFb353` has its own successful creation receipt at block 26,120,404 and a separate 1,000,000,000 supply. Its relationship to the canonical contract requires owner decision; it is not counted as a canonical GLR deployment. | 2026-11-09 |
 | BNB Smart Chain Mainnet (chain ID 56) | BEP-20 contract: `0x5e0B0A449232FDA7cA6Ea3419A50873b08F64804` | [BscScan contract/source](https://bscscan.com/address/0x5e0b0a449232fda7ca6ea3419a50873b08f64804#code) · [Token page](https://bscscan.com/token/0x5e0b0a449232fda7ca6ea3419a50873b08f64804) · [Deployment transaction](https://bscscan.com/tx/0xf5698f6bbde7ff173be1cbd0bb83da53f03389842c68ca2f6e4e287b89d9bbc0) | **FULLY VERIFIED — technical evidence**. BscScan displays GLORIFIER (GLR), “Source Code Verified — Exact Match,” and the deployment transaction at block 125836150 records 1,000,000,000 GLR minted to the reported initial holder. The supplied verify-existing reconciliation reports on-chain assertions passed. | 2026-10-09 |
 | Solana Mainnet Beta | Token-2022 mint: `7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9` | [Solscan token page](https://solscan.io/token/7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9) · [Solana Explorer mint](https://explorer.solana.com/address/7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9) · [Mint transaction](https://explorer.solana.com/tx/Ast4qmsxwCDcA5eLjrNJ4QH6q9H7GwdAi1CwFMDgCySVHChmY7MEdz8vdfpszFn3SqSyF95fejgLyzMeU9aswQa) | **PARTIALLY VERIFIED**. Fresh finalized Mainnet Beta RPC confirmed mint `7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9`, 1,000,000,000 supply, 9 decimals, Token-2022 program, and null mint/freeze authorities. `HChmY7` returned a successful finalized `mintToChecked` at slot 454519862; `HChyV7` returned null from the same endpoint. Keep partial pending independent reviewer and provenance-gate confirmation. | 2026-11-09 |
+
+## Fresh read-only chain probe — 2026-11-20 09:00:01 UTC
+
+The existing Alchemy GLORIFIER application was used for read-only RPC checks. Current network and token-state observations:
+
+- **Ethereum Mainnet:** `eth_chainId=0x1`; latest block `0x193ace2` (26,455,266). The owner-designated GLR contract `0x9db6f9afe2f4ada50060d32d7c7c0bebbccf89eb` returned non-empty bytecode, `GLORIFIER`, `GLR`, 18 decimals, and total supply 1,000,000,000 GLR.
+- **BNB Smart Chain Mainnet:** `eth_chainId=0x38`; latest block `0x806dc9c` (134,667,420). The owner-designated GLR contract `0x5e0B0A449232FDA7cA6Ea3419A50873b08F64804` returned non-empty bytecode, `GLORIFIER`, `GLR`, 18 decimals, and total supply 1,000,000,000 GLR.
+- **Solana Mainnet Beta:** finalized Token-2022 mint `7Mqd7dSqbE4pgQvozYdCQ1EMABj2ecTrUxLTHceBvkv9` returned initialized mint state at account context slot 471679067 and supply context slot 471679082, with `GLORIFIER`, `GLR`, 9 decimals, 1,000,000,000 GLR, and null mint, freeze, metadata-pointer, and metadata-update authorities.
+
+These are fresh read-only observations, not transfer or payment proofs. Ethereum remains partially verified pending owner determination of the second same-deployer GLORIFIER/GLR contract. Solana remains partially verified pending independent review of the conflicting historical mint-transaction provenance. BNB/Ethereum/Solana transfer settlement, canonical cross-chain equivalence, liquidity, and market value are not established by these calls. No signing, transfer, mint, contract write, or state mutation was performed.
 
 ## Recorded evidence details
 
@@ -66,6 +76,7 @@ Technical verification does **not** establish market liquidity or value. During 
 | Date (UTC) | Change | Evidence |
 |---|---|---|
 | 2026-10-09 | Replaced the stale all-NOT-VERIFIED draft labels with evidence-linked technical statuses after live explorer-page rechecks and reconciliation reports supplied for all three networks. | Ethereum Actions run #37222502787 and Etherscan; BscScan contract and deployment transaction; Solscan token page and finalized Solana mint transaction; supplied Solana Run #87 reconciliation report. |
+| 2026-11-20 | Added fresh read-only Alchemy RPC observations for Ethereum, BNB Smart Chain and Solana, plus exact-version Cloudflare deployment/binding evidence; corrected the Ethereum runtime seed to retain PARTIALLY VERIFIED and added a regression guard. | Alchemy GLORIFIER app read-only RPC; Cloudflare Workers API GET; GitHub commit comparison; PR #947. |
 
 ---
 *Informational registry only. It does not promise a market price, liquidity, exchange listing, or return.*
