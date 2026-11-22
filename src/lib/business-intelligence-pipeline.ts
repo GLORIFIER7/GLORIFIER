@@ -311,13 +311,17 @@ export function buildGeasBusinessIntelligenceAdvisory(input: {
   const report = input.report || null;
   const scan = input.scan || null;
   const normalized = report ? normalizeIntelligenceReportToBiRecords(report) : null;
-  const evidence = (report?.evidence || []).filter((item) =>
-    typeof item.id === 'string' && item.id.trim().length > 0
-    && typeof item.source === 'string' && item.source.trim().length > 0
-    && typeof item.title === 'string' && item.title.trim().length > 0
-    && validHttpUrl(item.url),
-  );
-  const reportEvidenceRefs = evidence.map((item) => item.id as string);
+  // Expose the same accepted, canonical evidence records used to build GBIS
+  // observations and signals. Re-filtering raw input would reintroduce
+  // duplicate IDs, whitespace-padded references, and invalid records.
+  const evidence = (normalized?.observations || []).map((item) => ({
+    id: String(item.metadata.evidenceId),
+    source: item.source,
+    title: item.subject,
+    url: item.sourceRef,
+    publishedAt: typeof item.metadata.publishedAt === 'string' ? item.metadata.publishedAt : null,
+  }));
+  const reportEvidenceRefs = evidence.map((item) => item.id);
   const geasEvidence = (scan?.evidence || []).filter((item) =>
     typeof item.id === 'string' && item.id.trim().length > 0 && validHttpUrl(item.sourceUrl),
   );
