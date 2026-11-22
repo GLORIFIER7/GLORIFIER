@@ -242,6 +242,41 @@ test('GEAS advisory excludes whitespace-only report and scan evidence identities
 });
 
 
+test('GEAS advisory publishes only normalized, unique public evidence references', () => {
+  const advisory = buildGeasBusinessIntelligenceAdvisory({
+    report: {
+      id: 'duplicate-evidence-advisory',
+      evidence: [
+        {
+          id: ' evidence-1 ',
+          source: ' arxiv-ai ',
+          title: ' First valid evidence ',
+          url: 'https://example.com/first',
+        },
+        {
+          id: 'evidence-1',
+          source: 'fake-duplicate',
+          title: 'Duplicate evidence',
+          url: 'https://example.com/duplicate',
+        },
+        {
+          id: 'bad-url',
+          source: 'untrusted',
+          title: 'Invalid URL',
+          url: 'javascript:alert(1)',
+        },
+      ],
+    },
+  });
+
+  assert.equal(advisory.intelligence.evidenceCount, 1);
+  assert.deepEqual(advisory.intelligence.evidence.map((entry) => entry.id), ['evidence-1']);
+  assert.deepEqual(advisory.evidenceRefs, ['evidence-1']);
+  assert.equal(advisory.intelligence.evidence[0].source, 'arxiv-ai');
+  assert.equal(advisory.intelligence.evidence[0].title, 'First valid evidence');
+  assert.equal(advisory.intelligence.evidence[0].url, 'https://example.com/first');
+});
+
 test('BI ingestion transaction commits all writes on one client', async () => {
   const steps: string[] = [];
   const db = {
