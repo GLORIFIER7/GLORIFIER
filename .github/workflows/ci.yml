@@ -93,6 +93,8 @@ jobs:
 
       - name: Engineering workspace truthfulness regression tests
         run: node --import tsx/esm --test src/lib/engineering-workspace.test.ts
+      - name: Engineering workspace hosting CSP contract tests
+        run: node --test scripts/engineering-workspace-csp.test.mjs
 
       - name: Safe external integration URL regression tests
         run: npm run test:safe-external-url
