@@ -23,7 +23,7 @@ function fixture() {
         content: values[3] as string, sourceRef: values[4] as string, category: values[5] as MemoryRecord['category'],
         status: 'NOT VERIFIED', version: 1, createdAt: now, updatedAt: now };
       data.set(full, record);
-      return { rows: [record], rowCount: 1 };
+      return { rows: [{ ...record }], rowCount: 1 };
     }
     if (sql.includes('UPDATE glorifier_long_term_memory')) {
       const found = data.get(full);
@@ -32,7 +32,7 @@ function fixture() {
         category: values[5] as MemoryRecord['category'], status: 'NOT VERIFIED' as const,
         version: found.version + 1 };
       data.set(full, updated);
-      return { rows: [updated], rowCount: 1 };
+      return { rows: [{ ...updated }], rowCount: 1 };
     }
     if (sql.includes('DELETE FROM glorifier_long_term_memory')) {
       const found = data.get(full);
@@ -40,14 +40,14 @@ function fixture() {
       data.delete(full); return { rows: [{ memoryKey: found.memoryKey }], rowCount: 1 };
     }
     if (sql.includes('SELECT') && sql.includes('memory_key = $3')) {
-      const found = data.get(full); return { rows: found ? [found] : [] };
+      const found = data.get(full); return { rows: found ? [{ ...found }] : [] };
     }
     if (sql.includes('SELECT') && sql.includes('tenant_id = $1 AND subject_id = $2')) {
       const match = [...data.values()].filter(v => v.tenantId === tenant && v.subjectId === subject);
       const results = sql.includes('position(lower($3)')
         ? match.filter(v => v.content.toLowerCase().includes(String(values[2]).toLowerCase()))
         : match;
-      return { rows: results.slice(0, Number(values.at(-1))) };
+      return { rows: results.slice(0, Number(values.at(-1))).map(record => ({ ...record })) };
     }
     throw new Error(`unexpected query: ${sql}`);
   };
