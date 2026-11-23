@@ -13,7 +13,7 @@ test('Cloudflare Pages permits only the explicitly needed public GitHub API orig
   const headers = read('public/_headers');
   const match = headers.match(/^\s*Content-Security-Policy:\s*(.+)$/m);
   assert.ok(match, 'Cloudflare Pages CSP header should exist');
-  assert.ok(connectOrigins(match[1]).includes(requiredOrigin), 'Cloudflare CSP blocks public repository observations');
+  assert.ok(connectOrigins(match[1]).some(origin => origin === requiredOrigin), 'Cloudflare CSP blocks public repository observations');
 });
 
 test('Vercel permits the explicitly needed public GitHub API origin', () => {
@@ -22,7 +22,7 @@ test('Vercel permits the explicitly needed public GitHub API origin', () => {
     .filter(x => x.key.toLowerCase() === 'content-security-policy')
     .map(x => x.value);
   assert.ok(policies.length > 0, 'Vercel CSP header should exist');
-  assert.ok(policies.every(x => connectOrigins(x).includes(requiredOrigin)),
+  assert.ok(policies.every(x => connectOrigins(x).some(origin => origin === requiredOrigin)),
     'Vercel CSP blocks public repository observations');
 });
 
@@ -32,6 +32,6 @@ test('Firebase permits the explicitly needed public GitHub API origin', () => {
     .filter(x => x.key.toLowerCase() === 'content-security-policy')
     .map(x => x.value);
   assert.ok(policies.length > 0, 'Firebase CSP header should exist');
-  assert.ok(policies.every(x => connectOrigins(x).includes(requiredOrigin)),
+  assert.ok(policies.every(x => connectOrigins(x).some(origin => origin === requiredOrigin)),
     'Firebase CSP blocks public repository observations');
 });
