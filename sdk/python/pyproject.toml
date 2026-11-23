@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=77.0.3", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "glorifier-neural-client"
+version = "0.1.0"
+description = "Governed HTTP client for GLORIFIER Neural API routes"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+authors = [{ name = "GLORIFIER" }]
+keywords = ["glorifier", "neural", "api", "client", "governance"]
+classifiers = [
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Operating System :: OS Independent",
+]
+
+[project.urls]
+Homepage = "https://github.com/GLORIFIER7/GLORIFIER"
+Repository = "https://github.com/GLORIFIER7/GLORIFIER"
+Issues = "https://github.com/GLORIFIER7/GLORIFIER/issues"
+Documentation = "https://github.com/GLORIFIER7/GLORIFIER/blob/main/sdk/python/README.md"
+
+[tool.setuptools]
+py-modules = ["glorifier_neural_client"]

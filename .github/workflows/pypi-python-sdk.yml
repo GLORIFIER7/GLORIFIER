@@ -1,0 +1,111 @@
+name: GLORIFIER Python SDK PyPI
+
+on:
+  pull_request:
+    paths:
+      - "sdk/python/**"
+      - ".github/workflows/pypi-python-sdk.yml"
+  push:
+    branches: [main]
+    paths:
+      - "sdk/python/**"
+      - ".github/workflows/pypi-python-sdk.yml"
+  workflow_dispatch:
+    inputs:
+      release_version:
+        description: "Exact version in sdk/python/pyproject.toml"
+        required: true
+        type: string
+      confirm_publish:
+        description: "Explicitly authorize a public PyPI upload of this version"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-check:
+    name: Test and build SDK (no publication)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Test Python SDK
+        working-directory: sdk/python
+        run: python -m unittest -v test_glorifier_neural_client.py
+      - name: Install packaging tools
+        run: |
+          python -m pip install --disable-pip-version-check --only-binary=:all: "build==1.6.1" "twine==7.0.0"
+      - name: Validate explicitly requested public release version
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          REQUESTED_VERSION: ${{ inputs.release_version }}
+        run: |
+          python - <<'PY'
+          import os
+          import tomllib
+          from pathlib import Path
+
+          declared = tomllib.loads(Path("sdk/python/pyproject.toml").read_text())["project"]["version"]
+          if declared != os.environ["REQUESTED_VERSION"]:
+              raise SystemExit(f"Refusing release: requested {os.environ['REQUESTED_VERSION']!r} != declared {declared!r}")
+          print(f"Validated SDK package version: {declared}")
+          PY
+      - name: Build distributions
+        working-directory: sdk/python
+        run: python -m build
+      - name: Check distribution metadata
+        working-directory: sdk/python
+        run: python -m twine check dist/*
+      - name: Install built wheel and verify public imports
+        working-directory: sdk/python
+        run: |
+          wheels=(dist/glorifier_neural_client-*.whl)
+          test "${#wheels[@]}" -eq 1
+          wheel="$(realpath "${wheels[0]}")"
+          digest="$(sha256sum "$wheel" | cut -d ' ' -f 1)"
+          printf '%s --hash=sha256:%s\n' "$wheel" "$digest" > "$RUNNER_TEMP/glorifier-sdk-wheel-requirements.txt"
+          python -m pip install --disable-pip-version-check --no-index --no-deps --only-binary=:all: --require-hashes --force-reinstall -r "$RUNNER_TEMP/glorifier-sdk-wheel-requirements.txt"
+          (cd /tmp && python -c "from glorifier_neural_client import GlorifierNeuralClient, GlorifierAPIError; print('Installed SDK imports verified')")
+      - name: Log distribution SHA-256
+        working-directory: sdk/python
+        run: sha256sum dist/*
+      - name: Upload reviewed distributions (not PyPI)
+        uses: actions/upload-artifact@v4
+        with:
+          name: glorifier-neural-client-distributions
+          path: sdk/python/dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish to PyPI (owner authorization required)
+    needs: build-and-check
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref == 'refs/heads/main' &&
+      github.actor == 'GLORIFIER7' &&
+      inputs.confirm_publish == true
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/glorifier-neural-client/
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Retrieve tested distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: glorifier-neural-client-distributions
+          path: dist/
+      - name: Publish with PyPI Trusted Publishing (OIDC; no long-lived token)
+        uses: pypa/gh-action-pypi-publish@ed0c53931b1dc9bd32cbe73a98c7f6766f8a527e # v1.13.0
