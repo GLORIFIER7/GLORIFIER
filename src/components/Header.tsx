@@ -49,7 +49,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'broker', label: 'AI Broker Module', icon: Scale },
   ];
 
-  const primaryIds = new Set(['overview', 'workspace', 'ai_ceo', 'integrations', 'discovery', 'sentinel']);
+  const primaryIds = new Set(['overview', 'workspace', 'ai_ceo', 'integrations', 'discovery']);
   const primaryTabs = tabs.filter(tab => primaryIds.has(tab.id));
   const moreTabs = tabs.filter(tab => !primaryIds.has(tab.id));
 
