@@ -70,7 +70,9 @@ jobs:
             const files = await github.paginate(github.rest.pulls.listFiles, {
               owner, repo, pull_number: number, per_page: 100
             });
-            const highRisk = /(^|\/)(\.github\/workflows|\.github\/CODEOWNERS|CODEOWNERS|.*secret.*|.*credential.*|.*migration.*|.*deploy.*|.*release.*|.*payment.*|.*payout.*|.*wallet.*|.*contract.*|.*auth.*|.*security.*)(\/|$|\.)/i;
+            // Agent instructions, guarded coding policies, and the Digital Me signer are
+            // sensitive regardless of whether their filenames contain auth/security.
+            const highRisk = /(^|\/)(\.github\/workflows|\.github\/CODEOWNERS|CODEOWNERS|\.claude|\.opencode|digital-me|AGENTS\.md|CLAUDE\.md|GEMINI\.md|AGENT_RUNTIME\.md|opencode\.json|.*secret.*|.*credential.*|.*migration.*|.*deploy.*|.*release.*|.*payment.*|.*payout.*|.*wallet.*|.*contract.*|.*auth.*|.*security.*)(\/|$|\.)/i;
             const riskyFiles = files.filter(file =>
               highRisk.test(file.filename) || (file.previous_filename && highRisk.test(file.previous_filename))
             );
