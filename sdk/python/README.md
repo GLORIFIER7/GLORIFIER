@@ -8,10 +8,12 @@ This is an initial standard-library client for the explicitly mapped GLORIFIER N
 - An HTTPS GLORIFIER Worker origin with the Neural adapter configured
 - A caller-issued bearer token for task submission
 
+After the initial public PyPI release, install the standalone client with `python -m pip install glorifier-neural-client`. Until that release is verified, use the client source from this repository. The published distribution installs the top-level `glorifier_neural_client` module; it does not install an `sdk.python` package.
+
 ## Example
 
 ```python
-from sdk.python.glorifier_neural_client import GlorifierNeuralClient, GlorifierAPIError
+from glorifier_neural_client import GlorifierNeuralClient, GlorifierAPIError
 
 client = GlorifierNeuralClient("https://api.example.com", token="YOUR_CALLER_TOKEN")
 try:
@@ -28,6 +30,8 @@ try:
 except GlorifierAPIError as exc:
     print("GLORIFIER request failed:", exc.status, exc.code, str(exc))
 ```
+
+For a checkout of this repository, run the example from `sdk/python` or set that directory on `PYTHONPATH` before running it. No package release or live API readiness is implied.
 
 Never place a real token in source control, frontend code, issue comments, logs, or screenshots. Readiness failures are reported as errors, not silently converted to success.
 
