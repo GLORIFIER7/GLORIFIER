@@ -2,6 +2,7 @@
 #define _POSIX_C_SOURCE 200809L
 #include <sqlite3.h>
 #include <stdio.h>
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
@@ -12,24 +13,55 @@
 #define MAX_VALUE 65536
 #define MAX_SOURCE 1024
 
+/* Reject malformed UTF-8, overlong forms, surrogates, and >U+10FFFF. */
+static size_t utf8_width(const unsigned char *p) {
+    unsigned char c = p[0];
+    size_t n, i;
+    if (c < 0x80) return 1;
+    if (c >= 0xC2 && c <= 0xDF) n = 2;
+    else if (c >= 0xE0 && c <= 0xEF) n = 3;
+    else if (c >= 0xF0 && c <= 0xF4) n = 4;
+    else return 0;
+    for (i = 1; i < n; ++i) {
+        if (p[i] < 0x80 || p[i] > 0xBF) return 0;
+    }
+    if ((c == 0xE0 && p[1] < 0xA0) || (c == 0xED && p[1] > 0x9F) ||
+        (c == 0xF0 && p[1] < 0x90) || (c == 0xF4 && p[1] > 0x8F)) return 0;
+    return n;
+}
+
 static int valid(const char *s, size_t max) {
-    size_t n = s ? strlen(s) : 0;
-    return n > 0 && n <= max;
+    const unsigned char *p = (const unsigned char *)s;
+    size_t n = s ? strlen(s) : 0, width;
+    if (n == 0 || n > max) return 0;
+    while (*p) {
+        width = utf8_width(p);
+        if (!width) return 0;
+        p += width;
+    }
+    return 1;
 }
 
 static void json_string(const unsigned char *s) {
-    const unsigned char *p;
+    const unsigned char *p = s ? s : (const unsigned char *)"";
     putchar('"');
-    for (p = s ? s : (const unsigned char *)""; *p; ++p) {
-        switch (*p) {
-            case '"': fputs("\\\"", stdout); break;
-            case '\\': fputs("\\\\", stdout); break;
-            case '\n': fputs("\\n", stdout); break;
-            case '\r': fputs("\\r", stdout); break;
-            case '\t': fputs("\\t", stdout); break;
-            default:
-                if (*p < 0x20) printf("\\u%04x", (unsigned)*p);
-                else putchar(*p);
+    while (*p) {
+        if (*p < 0x80) {
+            switch (*p) {
+                case '"': fputs("\\\"", stdout); break;
+                case '\\': fputs("\\\\", stdout); break;
+                case '\n': fputs("\\n", stdout); break;
+                case '\r': fputs("\\r", stdout); break;
+                case '\t': fputs("\\t", stdout); break;
+                default:
+                    if (*p < 0x20) printf("\\u%04x", (unsigned)*p);
+                    else putchar(*p);
+            }
+            ++p;
+        } else {
+            size_t width = utf8_width(p);
+            if (width) { fwrite(p, 1, width, stdout); p += width; }
+            else { fputs("\\ufffd", stdout); ++p; }
         }
     }
     putchar('"');
@@ -220,25 +252,73 @@ static int seed(sqlite3 *db) {
     return 0;
 }
 
+/* Build into an unguessable private staging file, then link it into place.
+ * link() atomically fails when destination already exists: no TOCTOU window
+ * between an access() pre-check and SQLite opening a caller-provided path.
+ * Incomplete backup files are removed on every error path. */
 static int backup(sqlite3 *db, const char *destination) {
     sqlite3 *copy = NULL;
     sqlite3_backup *handle = NULL;
-    int rc;
-    if (!valid(destination, 4096) || access(destination, F_OK) == 0) {
-        fputs("Backup path missing or already exists\n", stderr);
+    char *staging;
+    size_t len;
+    int fd, rc, close_rc;
+    if (!valid(destination, 4096)) {
+        fputs("Backup path missing or invalid\n", stderr);
         return 1;
     }
-    if (sqlite3_open_v2(destination, &copy, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, NULL) != SQLITE_OK) {
-        fprintf(stderr, "Cannot create backup: %s\n", sqlite3_errmsg(copy));
-        sqlite3_close(copy);
+    len = strlen(destination);
+    staging = malloc(len + sizeof(".tmpXXXXXX"));
+    if (!staging) { fputs("Backup allocation failed\n", stderr); return 1; }
+    snprintf(staging, len + sizeof(".tmpXXXXXX"), "%s.tmpXXXXXX", destination);
+    fd = mkstemp(staging);
+    if (fd < 0) {
+        perror("Cannot create private backup staging file");
+        free(staging);
+        return 1;
+    }
+    if (close(fd) != 0) {
+        perror("Cannot close backup staging file");
+        unlink(staging);
+        free(staging);
+        return 1;
+    }
+    rc = sqlite3_open_v2(staging, &copy, SQLITE_OPEN_READWRITE, NULL);
+    if (rc != SQLITE_OK) {
+        fprintf(stderr, "Cannot open backup: %s\n", copy ? sqlite3_errmsg(copy) : "unknown");
+        if (copy) sqlite3_close(copy);
+        unlink(staging);
+        free(staging);
         return 1;
     }
     handle = sqlite3_backup_init(copy, "main", db, "main");
-    if (!handle) { fprintf(stderr, "Backup init failed: %s\n", sqlite3_errmsg(copy)); sqlite3_close(copy); return 1; }
+    if (!handle) {
+        fprintf(stderr, "Backup init failed: %s\n", sqlite3_errmsg(copy));
+        sqlite3_close(copy);
+        unlink(staging);
+        free(staging);
+        return 1;
+    }
     rc = sqlite3_backup_step(handle, -1);
     if (sqlite3_backup_finish(handle) != SQLITE_OK) rc = SQLITE_ERROR;
-    sqlite3_close(copy);
-    if (rc != SQLITE_DONE) { fputs("Backup failed\n", stderr); return 1; }
+    close_rc = sqlite3_close(copy);
+    if (rc != SQLITE_DONE || close_rc != SQLITE_OK) {
+        fputs("Backup failed\n", stderr);
+        unlink(staging);
+        free(staging);
+        return 1;
+    }
+    /* Fail closed without ever replacing an existing file (including symlinks). */
+    rc = link(staging, destination);
+    if (unlink(staging) != 0) {
+        perror("Cannot remove backup staging file");
+        free(staging);
+        return 1;
+    }
+    free(staging);
+    if (rc != 0) {
+        perror("Backup destination exists or cannot be created");
+        return 1;
+    }
     puts("backed up");
     return 0;
 }

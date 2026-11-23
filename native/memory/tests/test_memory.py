@@ -71,6 +71,35 @@ class MemoryTests(unittest.TestCase):
         self.assertEqual(len(json.loads(self.run_memory('list', 'glorifier').stdout)), 3)
         self.assertEqual(json.loads(self.run_memory('get', 'glorifier', 'identity').stdout)['value'], 'Customized identity')
 
+    @unittest.skipUnless(os.name == 'posix', 'Malformed POSIX argument bytes')
+    def test_malformed_utf8_is_rejected_before_persistence(self):
+        # CLI memory records must be valid UTF-8 across every language binding.
+        argv = [os.fsencode(str(EXE)), os.fsencode(str(self.db)), b'put',
+                b'glorifier', b'malformed', b'\xff', b'contract-test']
+        result = subprocess.run(argv, capture_output=True, check=False)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(json.loads(self.run_memory('list', 'glorifier').stdout), [])
+
+    def test_existing_malformed_database_text_still_emits_valid_json(self):
+        # Old/imported databases can contain TEXT with invalid UTF-8 bytes.
+        self.run_memory('seed')
+        with sqlite3.connect(self.db) as conn:
+            conn.execute("""INSERT INTO memory_v1(
+                scope,memory_key,value,source,created_at,updated_at)
+                VALUES('glorifier','legacy',CAST(X'FF' AS TEXT),'legacy',
+                       '2026-11-23T00:00:00Z','2026-11-23T00:00:00Z')""")
+        result = json.loads(self.run_memory('get', 'glorifier', 'legacy').stdout)
+        self.assertEqual(result['value'], '\ufffd')
+        self.assertTrue(json.loads(self.run_memory('list', 'glorifier').stdout))
+
+    def test_backup_never_overwrites_existing_destination(self):
+        self.run_memory('put', 's', 'a', 'contents', 'source')
+        destination = Path(self.tmp.name) / 'sentinel.sqlite'
+        destination.write_bytes(b'not a database: sentinel')
+        self.assertNotEqual(self.run_memory('backup', str(destination), check=False).returncode, 0)
+        self.assertEqual(destination.read_bytes(), b'not a database: sentinel')
+        self.assertEqual(list(Path(self.tmp.name).glob('*.tmp*')), [])
+
     def test_invalid_inputs_rejected(self):
         self.assertNotEqual(self.run_memory('put', '', 'key', 'value', 'source', check=False).returncode, 0)
         self.assertNotEqual(self.run_memory('put', 's', '', 'value', 'source', check=False).returncode, 0)
