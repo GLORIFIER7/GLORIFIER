@@ -96,6 +96,9 @@ test('list and literal search never cross tenant or subject boundaries', async (
   assert.equal((await store.search('glorifier', 'agent-1', '100%')).length, 1);
   assert.ok(calls.some(v => v.sql.includes('position(lower($3) in lower(content))')),
     'literal substring search must not interpret user-supplied LIKE wildcards');
+  const searchSQL = calls.find(v => v.sql.includes('position(lower($3)'))?.sql ?? '';
+  assert.match(searchSQL, /WITH candidates AS MATERIALIZED[\s\S]*ORDER BY updated_at DESC, memory_key ASC LIMIT 500/,
+    'substring search must bound indexed scoped candidates before scanning content');
   await store.list('glorifier', 'agent-1', 1000000);
   assert.equal(calls.at(-1)?.values.at(-1), 100);
 });

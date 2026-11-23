@@ -39,6 +39,7 @@ const memoryColumns = `tenant_id AS "tenantId", subject_id AS "subjectId",
 
 const maxContentBytes = 8192;
 const maxSourceBytes = 1024;
+const maxSearchCandidates = 500;
 const categories: ReadonlySet<string> = new Set(['identity', 'fact', 'decision', 'episode']);
 
 function validateIdentifier(value: unknown, label: string): asserts value is string {
@@ -109,8 +110,8 @@ export class PostgresLongTermMemoryStore {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       PRIMARY KEY (tenant_id, subject_id, memory_key)
     )`);
-    await this.query(`CREATE INDEX IF NOT EXISTS idx_glorifier_memory_scope_updated
-      ON glorifier_long_term_memory (tenant_id, subject_id, updated_at DESC)`);
+    await this.query(`CREATE INDEX IF NOT EXISTS idx_glorifier_memory_scope_recency_v1
+      ON glorifier_long_term_memory (tenant_id, subject_id, updated_at DESC, memory_key ASC)`);
   }
 
   /** Create only: concurrent duplicate inserts do not overwrite existing records. */
@@ -163,16 +164,22 @@ export class PostgresLongTermMemoryStore {
     return result.rows.map(normalizeRecord);
   }
 
-  /** Literal text substring search. No wildcard or embedding inference semantics. */
+  /** Literal substring search over the 500 most recent scoped records only.
+   * MATERIALIZED limits content scanning *before* filtering the text; use get()
+   * for complete key-based historical retrieval. No wildcard/embedding semantics.
+   */
   async search(tenantId: string, subjectId: string, query: string, limit = 25): Promise<MemoryRecord[]> {
     validateIdentifier(tenantId, 'tenantId');
     validateIdentifier(subjectId, 'subjectId');
     validateText(query, 'query', 256);
     const bounded = validateLimit(limit);
-    const result = await this.query(`SELECT ${memoryColumns}
-      FROM glorifier_long_term_memory
-      WHERE tenant_id = $1 AND subject_id = $2
-        AND position(lower($3) in lower(content)) > 0
+    const result = await this.query(`WITH candidates AS MATERIALIZED (
+        SELECT * FROM glorifier_long_term_memory
+        WHERE tenant_id = $1 AND subject_id = $2
+        ORDER BY updated_at DESC, memory_key ASC LIMIT ${maxSearchCandidates}
+      )
+      SELECT ${memoryColumns} FROM candidates
+      WHERE position(lower($3) in lower(content)) > 0
       ORDER BY updated_at DESC, memory_key ASC LIMIT $4`, [tenantId, subjectId, query, bounded]);
     return result.rows.map(normalizeRecord);
   }

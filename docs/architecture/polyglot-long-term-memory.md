@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | TypeScript / Node.js | Primary server-side memory API (`src/lib/memory/long-term-memory.ts`) | Query-adapter unit tests locally; production NOT VERIFIED |
 | PostgreSQL | Durable tenant/subject-keyed records using shared `DATABASE_URL` pool policy | SQL provided; live database migrations, backups and failover NOT VERIFIED |
-| Python | Stdlib-only JSON record / JSONL contract validation (`scripts/memory/memory_contract.py`) | Shared fixture tests locally; no runtime Neural integration |
+| Python | Stdlib-only JSON record / bounded-byte JSONL contract validation (`scripts/memory/memory_contract.py`) | Shared fixture tests locally; no runtime Neural integration |
 | C / SQLite | Separate offline prototype in pending PR #1017 | No automatic synchronization with PostgreSQL; not a Cloudflare Worker native runtime |
 | Other first-party SDKs | Existing Neural HTTP/JSON clients | No new memory endpoint or memory capability claimed |
 
@@ -22,7 +22,7 @@ The C/SQLite prototype stores records with its own column format. No implicit cr
 - A source reference is a claim of origin, **not** proof that the statement is true. All newly written records have status `NOT VERIFIED`; a separate, reviewed verification process is needed before a system may promote confidence. No caller can mark these records `VERIFIED` using this API.
 - Keys are unique per `(tenantId, subjectId, memoryKey)`. Writes use insert-if-absent and version-checked compare-and-swap replacements; deletes require the current version. These prevent silent overwrites, not unauthorized access by a caller who already has database credentials.
 - Do not put secrets, signing credentials, wallet keys, sensitive personal records, prompts containing credentials, or unredacted conversations into memory. Store only explicitly allowed and minimized data. The data is ordinary PostgreSQL text, not application-level encrypted content.
-- Retrieval is exact-key, scoped list, or bounded case-insensitive literal substring search (not semantic similarity). Nothing automatically retrieves memory for an LLM context or executes a saved instruction.
+- Retrieval is exact-key, scoped list, or case-insensitive literal substring search **only over the 500 most recently updated records of the authenticated tenant/subject scope** (not semantic similarity or complete archival search). A MATERIALIZED SQL candidate limit and a matching scope/recency index bound the content scan. Use `get` for full historical exact-key retrieval. Nothing automatically retrieves memory for an LLM context or executes a saved instruction.
 - Deletion removes the live row; PostgreSQL WAL, replicas, logs and retained backups are **not** purged automatically. Define backup retention, deletion propagation and restoration controls before storing regulated information.
 - Backups, recovery drills, storage retention, operator access restrictions, encryption at rest, schema deployment, and real persistence through restarts are environment responsibilities and remain NOT VERIFIED.
 - Cloudflare Workers cannot directly use the Node `pg` driver or the C local executable. A separately reviewed Worker-native authenticated persistence bridge is required for production Worker memory use.

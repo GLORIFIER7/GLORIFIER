@@ -19,6 +19,7 @@ FIELDS = frozenset({
 IDENTIFIER = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}\Z")
 TIMESTAMP = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z\Z")
 CATEGORIES = frozenset({"identity", "fact", "decision", "episode"})
+MAX_JSONL_LINE_BYTES = 16_384
 
 
 def parse_memory_record(value: Any) -> dict[str, Any]:
@@ -36,7 +37,10 @@ def parse_memory_record(value: Any) -> dict[str, Any]:
             raise ValueError(f"invalid {name}")
     if value["status"] != "NOT VERIFIED":
         raise ValueError("invalid status")
-    if type(value["version"]) is not int or not (1 <= value["version"] <= 9_007_199_254_740_991):
+    version = value["version"]
+    # JSON Schema's integer includes numbers such as 1.0; JavaScript's JSON.parse
+    # normalizes these to Number(1). Reject bool, fractions and unsafe integers.
+    if type(version) not in (int, float) or not (1 <= version <= 9_007_199_254_740_991) or (type(version) is float and not version.is_integer()):
         raise ValueError("invalid version")
     for name in ("createdAt", "updatedAt"):
         timestamp = value[name]
@@ -48,19 +52,24 @@ def parse_memory_record(value: Any) -> dict[str, Any]:
                 raise ValueError(f"invalid {name}")
         except ValueError as exc:
             raise ValueError(f"invalid {name}") from exc
-    return dict(value)
+    return {**value, "version": int(version)}
 
 
 def validate_jsonl(path: Path) -> int:
     """Read and validate a bounded line-oriented export, without executing it."""
     count = 0
-    with path.open("r", encoding="utf-8") as stream:
-        for line in stream:
-            if len(line.encode("utf-8")) > 16_384:
+    # Read a bounded number of raw *bytes*, not unbounded text lines. Reject an
+    # oversized line before decoding or JSON parsing to cap peak memory use.
+    with path.open("rb") as stream:
+        while True:
+            raw = stream.readline(MAX_JSONL_LINE_BYTES + 1)
+            if not raw:
+                break
+            if len(raw) > MAX_JSONL_LINE_BYTES:
                 raise ValueError("memory record line exceeds 16 KiB")
-            if not line.strip():
+            if not raw.strip():
                 continue
-            parse_memory_record(json.loads(line))
+            parse_memory_record(json.loads(raw.decode("utf-8")))
             count += 1
     return count
 

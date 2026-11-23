@@ -11,6 +11,18 @@
         "createdAt": "2026-11-23T10:00:00.000Z", "updatedAt": "2026-11-23T10:00:00.000Z"
       }
     },
+    { "name": "integer-equivalent JSON number 1.0", "valid": true, "record": {
+      "tenantId": "glorifier", "subjectId": "agent-1", "memoryKey": "fact.float-equivalent",
+      "category": "fact", "content": "JSON number integer", "sourceRef": "docs/SECURITY.md",
+      "status": "NOT VERIFIED", "version": 1.0,
+      "createdAt": "2026-11-23T10:00:00.000Z", "updatedAt": "2026-11-23T10:00:00.000Z"
+    } },
+    { "name": "reject fractional JSON number 1.5", "valid": false, "record": {
+      "tenantId": "glorifier", "subjectId": "agent-1", "memoryKey": "fact.fractional",
+      "category": "fact", "content": "JSON number fractional", "sourceRef": "docs/SECURITY.md",
+      "status": "NOT VERIFIED", "version": 1.5,
+      "createdAt": "2026-11-23T10:00:00.000Z", "updatedAt": "2026-11-23T10:00:00.000Z"
+    } },
     { "name": "missing provenance", "valid": false, "record": {
       "tenantId": "glorifier", "subjectId": "agent-1", "memoryKey": "fact.one", "category": "fact",
       "content": "Memory", "sourceRef": "", "status": "NOT VERIFIED", "version": 1,

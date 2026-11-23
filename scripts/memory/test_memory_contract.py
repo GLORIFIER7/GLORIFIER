@@ -1,6 +1,7 @@
 """Cross-language fixture parity tests for GLORIFIER memory v1."""
 
 import json
+from unittest.mock import patch
 import tempfile
 import unittest
 from pathlib import Path
@@ -25,6 +26,33 @@ class MemoryContractTests(unittest.TestCase):
         record = json.loads(FIXTURES.read_text(encoding="utf-8"))["cases"][0]["record"]
         with self.assertRaises(ValueError):
             parse_memory_record({**record, "content": "界" * 3000})
+
+    def test_integer_equivalent_json_number_acceptance_matches_typescript(self):
+        record = json.loads(FIXTURES.read_text(encoding="utf-8"))["cases"][0]["record"]
+        self.assertEqual(parse_memory_record({**record, "version": 1.0})["version"], 1)
+        for value in (1.5, 0.0, True, float('inf'), float('nan')):
+            with self.subTest(version=str(value)):
+                with self.assertRaises(ValueError):
+                    parse_memory_record({**record, "version": value})
+
+    def test_jsonl_reader_caps_byte_reads_before_decoding(self):
+        class GuardedBinaryStream:
+            reads = 0
+            def __enter__(self): return self
+            def __exit__(self, *_): return False
+            def readline(self, size=-1):
+                self.assert_size(size)
+                self.reads += 1
+                return b'x' * (16_384 + 1)
+            def assert_size(self, size):
+                if size != 16_385:
+                    raise AssertionError(f"unbounded read: {size}")
+
+        stream = GuardedBinaryStream()
+        with patch.object(Path, 'open', return_value=stream):
+            with self.assertRaisesRegex(ValueError, '16 KiB'):
+                validate_jsonl(Path('untrusted-records.jsonl'))
+        self.assertEqual(stream.reads, 1)
 
     def test_validates_bounded_jsonl_without_import(self):
         record = json.loads(FIXTURES.read_text(encoding="utf-8"))["cases"][0]["record"]
