@@ -1,0 +1,5 @@
+glorifier-memory
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
