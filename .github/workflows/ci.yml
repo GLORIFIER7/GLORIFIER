@@ -91,6 +91,9 @@ jobs:
       - name: Validate polyglot SDK inventory
         run: npm run validate:polyglot-sdk-inventory
 
+      - name: Engineering workspace truthfulness regression tests
+        run: node --import tsx/esm --test src/lib/engineering-workspace.test.ts
+
       - name: Safe external integration URL regression tests
         run: npm run test:safe-external-url
       - name: Safe external integration link rendering tests
