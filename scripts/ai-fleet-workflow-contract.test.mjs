@@ -797,6 +797,7 @@ test('bot auto-approval requires human review for agent security and Digital Me 
     'CODEOWNERS',
     '.claude/hooks/agent-policy.mjs',
     '.claude/settings.json',
+    '.opencode/agents/qa-verifier.md',
     '.opencode/agents/security-reviewer.md',
     'digital-me/src/operator.mjs',
     'digital-me/test/operator.test.mjs',
