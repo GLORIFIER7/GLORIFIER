@@ -3,7 +3,7 @@ import { GLORIFIER_OFFICIAL_BRAND_ASSET } from '../lib/brand-assets';
 import {
   ShieldCheck, Wallet, Sparkles, Zap, Database, Scale, Layers,
   ShieldAlert, ArrowUpRight, Coins, Lock, Users,
-  Globe, Globe2, Cpu, Bot, Network, FileText, BrainCircuit, Atom, Smartphone, Menu, X
+  Globe, Globe2, Cpu, Bot, Network, FileText, BrainCircuit, Atom, Smartphone, Code2, Menu, X
 } from 'lucide-react';
 type HeaderIdentity = { uid: string; email: string | null; displayName: string | null };
 const AuthPanel = React.lazy(() => import('./AuthPanel').then((module) => ({ default: module.AuthPanel })));
@@ -29,6 +29,7 @@ export const Header: React.FC<HeaderProps> = ({
 
   const tabs = [
     { id: 'overview', label: 'Overview', icon: Layers },
+    { id: 'workspace', label: 'Workspace', icon: Code2 },
     { id: 'business_intelligence', label: 'Business Intelligence', icon: Database },
     { id: 'geas_architecture', label: 'Architecture', icon: BrainCircuit },
     { id: 'autonomous_core', label: 'Autonomous Core (Design)', icon: ShieldCheck },
@@ -48,7 +49,7 @@ export const Header: React.FC<HeaderProps> = ({
     { id: 'broker', label: 'AI Broker Module', icon: Scale },
   ];
 
-  const primaryIds = new Set(['overview', 'business_intelligence', 'ai_ceo', 'integrations', 'discovery', 'sentinel']);
+  const primaryIds = new Set(['overview', 'workspace', 'ai_ceo', 'integrations', 'discovery', 'sentinel']);
   const primaryTabs = tabs.filter(tab => primaryIds.has(tab.id));
   const moreTabs = tabs.filter(tab => !primaryIds.has(tab.id));
 
