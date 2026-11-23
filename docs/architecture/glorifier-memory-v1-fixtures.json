@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "cases": [
+    {
+      "name": "valid decision with unicode",
+      "valid": true,
+      "record": {
+        "tenantId": "glorifier", "subjectId": "agent-1", "memoryKey": "governance.approval",
+        "category": "decision", "content": "Keep approvals explicit — verified outcomes only",
+        "sourceRef": "docs/SECURITY.md", "status": "NOT VERIFIED", "version": 1,
+        "createdAt": "2026-11-23T10:00:00.000Z", "updatedAt": "2026-11-23T10:00:00.000Z"
+      }
+    },
+    { "name": "missing provenance", "valid": false, "record": {
+      "tenantId": "glorifier", "subjectId": "agent-1", "memoryKey": "fact.one", "category": "fact",
+      "content": "Memory", "sourceRef": "", "status": "NOT VERIFIED", "version": 1,
+      "createdAt": "2026-11-23T10:00:00.000Z", "updatedAt": "2026-11-23T10:00:00.000Z"
+    } },
+    { "name": "reject fabricated verification", "valid": false, "record": {
+      "tenantId": "glorifier", "subjectId": "agent-1", "memoryKey": "fact.two", "category": "fact",
+      "content": "Memory", "sourceRef": "docs/SECURITY.md", "status": "VERIFIED", "version": 1,
+      "createdAt": "2026-11-23T10:00:00.000Z", "updatedAt": "2026-11-23T10:00:00.000Z"
+    } },
+    { "name": "reject traversal identifier", "valid": false, "record": {
+      "tenantId": "../glorifier", "subjectId": "agent-1", "memoryKey": "fact.two", "category": "fact",
+      "content": "Memory", "sourceRef": "docs/SECURITY.md", "status": "NOT VERIFIED", "version": 1,
+      "createdAt": "2026-11-23T10:00:00.000Z", "updatedAt": "2026-11-23T10:00:00.000Z"
+    } },
+    { "name": "reject invalid date", "valid": false, "record": {
+      "tenantId": "glorifier", "subjectId": "agent-1", "memoryKey": "fact.three", "category": "fact",
+      "content": "Memory", "sourceRef": "docs/SECURITY.md", "status": "NOT VERIFIED", "version": 1,
+      "createdAt": "2026-02-30T10:00:00.000Z", "updatedAt": "2026-11-23T10:00:00.000Z"
+    } },
+    { "name": "reject unexpected field", "valid": false, "record": {
+      "tenantId": "glorifier", "subjectId": "agent-1", "memoryKey": "fact.four", "category": "fact",
+      "content": "Memory", "sourceRef": "docs/SECURITY.md", "status": "NOT VERIFIED", "version": 1,
+      "createdAt": "2026-11-23T10:00:00.000Z", "updatedAt": "2026-11-23T10:00:00.000Z",
+      "executeAction": "yes"
+    } }
+  ]
+}

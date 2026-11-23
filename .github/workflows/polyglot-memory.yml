@@ -1,0 +1,39 @@
+name: GLORIFIER Polyglot Memory Contract
+
+on:
+  pull_request:
+    paths:
+      - 'src/lib/memory/**'
+      - 'scripts/memory/**'
+      - 'docs/architecture/glorifier-memory-v1*'
+      - 'docs/architecture/polyglot-long-term-memory.md'
+      - '.github/workflows/polyglot-memory.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/lib/memory/**'
+      - 'scripts/memory/**'
+      - 'docs/architecture/glorifier-memory-v1*'
+      - 'docs/architecture/polyglot-long-term-memory.md'
+      - '.github/workflows/polyglot-memory.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  memory-contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .node-version
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: TypeScript PostgreSQL adapter and portable record tests
+        run: node --experimental-transform-types --test src/lib/memory/long-term-memory.test.ts
+      - name: Python portable memory validation and parity tests
+        run: python3 -m unittest discover -s scripts/memory -p 'test_*.py'

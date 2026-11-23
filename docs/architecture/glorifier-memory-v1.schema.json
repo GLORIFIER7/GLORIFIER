@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/GLORIFIER7/GLORIFIER/blob/main/docs/architecture/glorifier-memory-v1.schema.json",
+  "title": "GLORIFIER portable long-term memory record v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["tenantId", "subjectId", "memoryKey", "category", "content", "sourceRef", "status", "version", "createdAt", "updatedAt"],
+  "properties": {
+    "tenantId": { "$ref": "#/$defs/id" },
+    "subjectId": { "$ref": "#/$defs/id" },
+    "memoryKey": { "$ref": "#/$defs/id" },
+    "category": { "enum": ["identity", "fact", "decision", "episode"] },
+    "content": { "type": "string", "minLength": 1, "maxLength": 8192 },
+    "sourceRef": { "type": "string", "minLength": 1, "maxLength": 1024 },
+    "status": { "const": "NOT VERIFIED" },
+    "version": { "type": "integer", "minimum": 1, "maximum": 9007199254740991 },
+    "createdAt": { "$ref": "#/$defs/time" },
+    "updatedAt": { "$ref": "#/$defs/time" }
+  },
+  "$defs": {
+    "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$" },
+    "time": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$" }
+  },
+  "description": "Record values are limited in UTF-8 bytes by the TypeScript and Python adapters (8192/1024). Schema validation alone does not enforce byte limits, calendar-valid timestamps, or prove provenance."
+}
