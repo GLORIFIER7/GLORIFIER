@@ -13,7 +13,6 @@ const PROTECTED_PATHS = [
   /(^|\/)(?:database|db|supabase)\/(?:.*\/)?migrations?(?:\/|$)/i,
   /(^|\/)services\/neural\/db\/(?:.*\/)?migrations?(?:\/|$)/i,
   /(^|\/)(?:package\.json|package-lock\.json|pnpm-lock\.yaml|yarn\.lock|pyproject\.toml|uv\.lock|Cargo\.lock|Gemfile\.lock)$/i,
-  /(^|\/).*(?:credential|private[-_]?key|service[-_]?account)(?:\.[^/]*)?$/i,
   /\.(?:pem|key|p12|pfx)$/i,
 ];
 
@@ -24,7 +23,6 @@ const SENSITIVE_READ_PATHS = [
   /(^|\/)\.(?:ssh|aws)(?:\/|$)/i,
   /(^|\/)(?:secrets?|credentials?)(?:\/|$)/i,
   /(^|\/)(?:id_rsa|id_ed25519|id_ecdsa)(?:\.pub)?$/i,
-  /(^|\/).*(?:credential|private[-_]?key|service[-_]?account)(?:\.[^/]*)?$/i,
   /\.(?:pem|key|p12|pfx)$/i,
 ];
 
@@ -70,9 +68,42 @@ const SAFE_BASH_COMMANDS = [
   /^cat [A-Za-z0-9_./@-]+$/,
 ];
 
+// Match only the final filename, with bounded scans rather than greedy regex
+// backtracking. Preserve the legacy policy's case-insensitive basename suffix
+// contract: a sensitive marker must be followed by a dot or end-of-filename.
+const SENSITIVE_FILENAME_MARKERS = [
+  'credential', 'privatekey', 'private-key', 'private_key',
+  'serviceaccount', 'service-account', 'service_account',
+];
+
+function isSensitiveCredentialFilename(relativePath) {
+  const filename = relativePath.slice(relativePath.lastIndexOf('/') + 1).toLowerCase();
+  return SENSITIVE_FILENAME_MARKERS.some((marker) => {
+    let position = filename.indexOf(marker);
+    while (position !== -1) {
+      const next = filename[position + marker.length];
+      if (next === undefined || next === '.') return true;
+      position = filename.indexOf(marker, position + 1);
+    }
+    return false;
+  });
+}
+
+function isShortForceFlagPresent(command) {
+  return command.split(/\s+/).some((token) => {
+    if (!token.startsWith('-') || token.startsWith('--')) return false;
+    const letters = token.slice(1).toLowerCase();
+    if (!letters.includes('f')) return false;
+    for (const letter of letters) {
+      if (letter < 'a' || letter > 'z') return false;
+    }
+    return true;
+  });
+}
+
 function isForceFlagPresent(command) {
   return /--force(?:-with-lease|-if-includes)?(?:=|\b)/i.test(command)
-    || /(?:^|\s)-[a-z]*f[a-z]*(?:\s|$)/i.test(command);
+    || isShortForceFlagPresent(command);
 }
 
 function deny(reason) {
@@ -111,7 +142,7 @@ export function decidePreToolUse(event) {
   if (toolName === 'Read') {
     const target = normalizeTarget(toolInput.file_path ?? toolInput.path, cwd);
     if (target.error) return deny(target.error);
-    if (SENSITIVE_READ_PATHS.some((pattern) => pattern.test(target.relative))) {
+    if ((isSensitiveCredentialFilename(target.relative) || SENSITIVE_READ_PATHS.some((pattern) => pattern.test(target.relative)))) {
       return deny('Direct reads of credential and secret files are prohibited: ' + target.relative);
     }
     return null;
@@ -120,7 +151,7 @@ export function decidePreToolUse(event) {
   if (toolName === 'Write' || toolName === 'Edit' || toolName === 'MultilineEdit' || toolName === 'MultiEdit' || toolName === 'NotebookEdit') {
     const target = normalizeTarget(toolInput.file_path ?? toolInput.path, cwd);
     if (target.error) return deny(target.error);
-    if (PROTECTED_PATHS.some((pattern) => pattern.test(target.relative))) {
+    if ((isSensitiveCredentialFilename(target.relative) || PROTECTED_PATHS.some((pattern) => pattern.test(target.relative)))) {
       return deny('This path is protected and requires a separately reviewed owner change: ' + target.relative);
     }
     return null;
