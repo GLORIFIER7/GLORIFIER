@@ -174,3 +174,38 @@ test('obfuscated dangerous shell commands fail closed without a parser bypass', 
     assert.equal(decision?.hookSpecificOutput?.permissionDecision, 'deny', command);
   }
 });
+
+
+test('agent policy avoids the known super-linear credential and force-flag regex patterns', () => {
+  const source = readFileSync(new URL('./agent-policy.mjs', import.meta.url), 'utf8');
+  assert.equal(source.includes('/(^|\\/).*(?:credential'), false, 'credential detection must avoid leading wildcard backtracking');
+  assert.equal(source.includes('[a-z]*f[a-z]*'), false, 'short force-flag detection must not use overlapping quantified character classes');
+});
+
+test('credential file classification remains secure for nested and dotted filenames', () => {
+  for (const file of [
+    'secrets/archive.foo.credential.json',
+    'nested/deployment.private-key.backup',
+    'nested/foo.service_account.env',
+    'nested/UPPER.CREDENTIAL.JSON',
+    'nested/myprivatekey',
+    'nested/service-account.json',
+  ]) {
+    for (const tool_name of ['Read', 'Write', 'Edit']) {
+      const decision = decidePreToolUse({ tool_name, tool_input: { file_path: file }, cwd });
+      assert.equal(decision?.hookSpecificOutput?.permissionDecision, 'deny', tool_name + ': ' + file);
+    }
+  }
+  for (const file of ['src/credential-helper.ts', 'src/credentials-example.ts', 'src/force-flag.test.mjs']) {
+    assert.equal(decidePreToolUse({ tool_name: 'Read', tool_input: { file_path: file }, cwd }), null, file);
+    assert.equal(decidePreToolUse({ tool_name: 'Write', tool_input: { file_path: file }, cwd }), null, file);
+  }
+});
+
+test('force-flag variants retain the specific force-push denial', () => {
+  for (const command of ['git push -f', 'git push -rf', 'git push -F', 'git push --force', 'git push --force-with-lease']) {
+    const decision = decidePreToolUse({ tool_name: 'Bash', tool_input: { command }, cwd });
+    assert.equal(decision?.hookSpecificOutput?.permissionDecision, 'deny', command);
+    assert.match(decision?.hookSpecificOutput?.permissionDecisionReason || '', /Force-push/, command);
+  }
+});
