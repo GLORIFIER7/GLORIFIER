@@ -783,3 +783,36 @@ test('Gemini manual PR review retains its separately pinned Gemini CLI dependenc
   assert.equal(version, '0.68.0');
   assert.match(version ?? '', /^\d+\.\d+\.\d+$/);
 });
+
+
+test('bot auto-approval requires human review for agent security and Digital Me files', () => {
+  const botGate = readFileSync(new URL('../.github/workflows/bot-review-auto-approval.yml', import.meta.url), 'utf8');
+  const source = botGate.split('const highRisk = /')[1]?.split('/i;')[0];
+  assert.ok(source, 'the bot approval gate must explicitly declare sensitive paths');
+  const highRisk = new RegExp(source, 'i');
+
+  for (const file of [
+    '.github/workflows/bot-review-auto-approval.yml',
+    '.github/CODEOWNERS',
+    'CODEOWNERS',
+    '.claude/hooks/agent-policy.mjs',
+    '.claude/settings.json',
+    '.opencode/agents/security-reviewer.md',
+    'digital-me/src/operator.mjs',
+    'digital-me/test/operator.test.mjs',
+    'AGENTS.md',
+    'CLAUDE.md',
+    'GEMINI.md',
+    'AGENT_RUNTIME.md',
+    'opencode.json',
+  ]) {
+    assert.equal(highRisk.test(file), true, file + ' must not be bot-auto-approved');
+  }
+
+  for (const file of ['README.md', 'src/components/Widget.tsx', 'docs/tutorials/index.md']) {
+    assert.equal(highRisk.test(file), false, file + ' should not be classified as sensitive');
+  }
+
+  assert.match(botGate, /pr\.user\?\.login === owner/, 'owner-authored PRs require independent human review');
+  assert.match(botGate, /sensitive paths require human review/, 'sensitive path matches must deny auto-approval');
+});
