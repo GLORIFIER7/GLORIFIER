@@ -19,7 +19,7 @@
   },
   "$defs": {
     "id": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$" },
-    "time": { "type": "string", "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$" }
+    "time": { "type": "string", "pattern": "^(?!0000)[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$" }
   },
   "description": "Record values are limited in UTF-8 bytes by the TypeScript and Python adapters (8192/1024). Schema validation alone does not enforce byte limits, calendar-valid timestamps, or prove provenance."
 }
