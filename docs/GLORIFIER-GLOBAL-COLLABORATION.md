@@ -6,6 +6,14 @@ Version: GCR-1.1
 
 Make global collaboration the top coordination priority across GLORIFIER's declared AI providers, specialist scientists, authorized services, discovery engines, evidence systems, policy controls, resolution engine, and revenue ledger. This participant list is an architecture target, not proof that every subsystem is currently connected or executing.
 
+## Public-interest AI and humanity mission
+
+GLORIFIER supports responsible AI development and human flourishing through provider-neutral cooperation, evidence-based research, accessible technology, safety, privacy and human oversight. Commercial work is not a prerequisite for a useful contribution.
+
+The public-interest intake searches bounded public GitHub issues carrying help-wanted and AI-safety or accessibility labels. It queues candidates for evidence review without creating monetization opportunities or claiming funding, acceptance, impact or revenue. Labels are not evidence that an issue is safe, appropriate or authorized. The existing six-hour batch cadence is unchanged. No automatic comments, PRs to external repositories, provider inference or paid action are introduced. Candidates remain review-only until a separately approved noncommercial contribution and acceptance path is implemented.
+
+Other future domains include education, trustworthy information, climate resilience, health access and open scientific infrastructure; these are research priorities, not deployed integrations or verified impact.
+
 ## Intended operating loop (not proof of current execution)
 
 GLOBAL DISCOVERY → CROSS-SYSTEM COLLABORATION → EVIDENCE → VERIFY → QUALIFY → AUTHORIZE → EXECUTE → DELIVER → ACCEPT → SETTLE → RESOLVE → LEARN → REPEAT
