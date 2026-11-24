@@ -1,5 +1,6 @@
 import { isPotentialPaidWork, isPublicInterestCandidate } from './24x7-opportunity-discovery';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 test("Paid-work opportunity qualification regression cases", () => {
@@ -38,4 +39,12 @@ test('public-interest intake accepts only bounded AI safety and accessibility is
     {url:'https://github.com.evil.test/example/project/issues/12'}, {url:'https://github.com@example.test/example/project/issues/12'},
     {url:'http://github.com/example/project/issues/12'}, {url:'https://github.com/example/project/issues/12?token=secret'},
   ]) assert.equal(isPublicInterestCandidate({ ...finding, ...change }), false);
+});
+
+
+test('public-interest intake is classified atomically at insertion, before commercial processing', () => {
+  const source = readFileSync(new URL('./24x7-opportunity-discovery.ts', import.meta.url), 'utf8');
+  assert.match(source, /const initialStatus = publicInterest \? 'public-interest-review' : publicInterestSource \? 'observed-noncommercial' : 'observed'/);
+  assert.match(source, /scientist_id,status,evidence\) VALUES\(\$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8,\$9,\$10::jsonb\)/);
+  assert.ok(source.indexOf('if (!insert.rowCount || publicInterestSource) continue') < source.indexOf('if (!isPotentialPaidWork(finding))'));
 });
