@@ -197,7 +197,7 @@ export const AuthPanel: React.FC<AuthPanelProps> = ({ currentUser }) => {
                 <h2 className="mt-1 text-xl font-bold text-white">Command Center Access</h2>
                 <p className="mt-1 text-xs text-slate-400">One account for the full GLORIFIER AI Command Center.</p>
               </div>
-              <button onClick={() => setOpen(false)} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
+              <button type="button" aria-label="Close sign-in panel" onClick={() => setOpen(false)} className="text-slate-400 hover:text-white"><X className="h-5 w-5" /></button>
             </div>
 
             <div className="mt-6 grid grid-cols-1 gap-2">
@@ -241,14 +241,14 @@ export const AuthPanel: React.FC<AuthPanelProps> = ({ currentUser }) => {
                 <label htmlFor="auth-password" className="mb-1 block text-xs text-slate-400">Password</label>
                 <div className="relative">
                   <input id="auth-password" type={showPassword ? 'text' : 'password'} value={password} onChange={e => setPassword(e.target.value)} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3 py-2.5 pr-10 text-sm text-white outline-none focus:border-emerald-500" placeholder="At least 6 characters" />
-                  <button type="button" onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300">
+                  <button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword(v => !v)} className="absolute right-3 top-2.5 text-slate-500 hover:text-slate-300">
                     {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
               </div>
 
               {message && (
-                <div className={`flex items-start gap-2 rounded-lg border p-3 text-xs ${message.type === 'error' ? 'border-rose-500/20 bg-rose-500/10 text-rose-300' : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'}`}>
+                <div role={message.type === 'error' ? 'alert' : 'status'} className={`flex items-start gap-2 rounded-lg border p-3 text-xs ${message.type === 'error' ? 'border-rose-500/20 bg-rose-500/10 text-rose-300' : 'border-emerald-500/20 bg-emerald-500/10 text-emerald-300'}`}>
                   {message.type === 'error' ? <AlertCircle className="h-4 w-4 shrink-0" /> : <CheckCircle2 className="h-4 w-4 shrink-0" />}
                   <span>{message.text}</span>
                 </div>
