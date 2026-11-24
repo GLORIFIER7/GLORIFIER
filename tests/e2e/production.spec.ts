@@ -1,21 +1,23 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 
-const testCredentials = () => ({ email: process.env.E2E_TEST_EMAIL, password: process.env.E2E_TEST_PASSWORD });
 const frontendUrl = process.env.FRONTEND_URL || 'https://glorifier.pages.dev';
 
+async function signInWithDedicatedAccount(page: Page) {
+  const email = process.env.E2E_TEST_EMAIL;
+  const password = process.env.E2E_TEST_PASSWORD;
+  if (!email || !password) throw new Error('Dedicated production E2E credentials required.');
+  await page.goto('/');
+  await expect(page.getByRole('button', { name: /^sign in$/i })).toBeVisible();
+  await page.getByRole('button', { name: /^sign in$/i }).click();
+  await page.locator('input[autocomplete="email"]').fill(email);
+  await page.locator('input[autocomplete="current-password"]').fill(password);
+  await page.getByRole('button', { name: 'Sign in to Command Center', exact: true }).click();
+  await expect(page.getByRole('button', { name: /sign out/i })).toBeVisible();
+}
+
 test.describe('GLORIFIER production end-to-end', () => {
-    test('authenticated session, API bridge, persistence, and major modules', async ({ page }) => {
-    test.skip(!process.env.E2E_TEST_EMAIL || !process.env.E2E_TEST_PASSWORD, 'Authenticated production E2E requires E2E_TEST_EMAIL and E2E_TEST_PASSWORD secrets.');
-    const { email, password } = testCredentials();
-    await page.goto('/');
-    await expect(page.getByRole('button', { name: /sign in/i })).toBeVisible();
-    await page.getByRole('button', { name: /sign in/i }).click();
-    await page.getByRole('button', { name: /create a new account/i }).click();
-    await page.locator('input[autocomplete="name"]').fill('GLORIFIER E2E');
-    await page.locator('input[autocomplete="email"]').fill(email!);
-    await page.locator('input[autocomplete="new-password"]').fill(password!);
-    await page.getByRole('button', { name: /create account/i }).click();
-    await expect(page.getByRole('button', { name: /sign out/i })).toBeVisible();
+  test('authenticated session, API bridge, persistence, and major modules', async ({ page }) => {
+    await signInWithDedicatedAccount(page);
 
     const session = await page.evaluate(async () => {
       const r = await fetch('/api/auth/session', { cache: 'no-store' });
@@ -65,17 +67,8 @@ test.describe('GLORIFIER production end-to-end', () => {
   });
 
   test('mobile navigation remains usable', async ({ page }) => {
-    test.skip(!process.env.E2E_TEST_EMAIL || !process.env.E2E_TEST_PASSWORD, 'Authenticated production E2E requires E2E_TEST_EMAIL and E2E_TEST_PASSWORD secrets.');
-    const { email, password } = testCredentials();
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.goto('/');
-    await page.getByRole('button', { name: /sign in/i }).click();
-    await page.getByRole('button', { name: /create a new account/i }).click();
-    await page.locator('input[autocomplete="name"]').fill('GLORIFIER E2E');
-    await page.locator('input[autocomplete="email"]').fill(email!);
-    await page.locator('input[autocomplete="new-password"]').fill(password!);
-    await page.getByRole('button', { name: /create account/i }).click();
-    await expect(page.getByRole('button', { name: /sign out/i })).toBeVisible();
+    await signInWithDedicatedAccount(page);
     await page.getByRole('button', { name: /^menu$/i }).click();
     await expect(page.locator('#mobile-navigation')).toBeVisible();
     await page.getByRole('button', { name: /binance \/ nft/i }).click();
