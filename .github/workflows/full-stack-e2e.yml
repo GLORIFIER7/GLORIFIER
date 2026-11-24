@@ -9,7 +9,9 @@ permissions:
   contents: read
 jobs:
   e2e:
-    if: ${{ github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'workflow_run' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository) }}
+    if: ${{ github.repository == 'GLORIFIER7/GLORIFIER' && github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'workflow_run' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository)) }}
+    # Configure this environment to allow only protected main; store credentials here, never as repository secrets.
+    environment: production-e2e
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -31,5 +33,16 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Install Playwright browser
         run: ./node_modules/.bin/playwright install --with-deps chromium
+      - name: Verify production E2E contract
+        run: node --test scripts/e2e-production-workflow-contract.test.mjs
       - name: Run production E2E
-        run: ./node_modules/.bin/playwright test tests/e2e/production.spec.ts
+        env:
+          E2E_TEST_EMAIL: ${{ secrets.PRODUCTION_E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.PRODUCTION_E2E_TEST_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${E2E_TEST_EMAIL:-}" || -z "${E2E_TEST_PASSWORD:-}" ]]; then
+            echo 'Authenticated production E2E NOT VERIFIED: dedicated test credentials required.' >&2
+            exit 1
+          fi
+          ./node_modules/.bin/playwright test tests/e2e/production.spec.ts --trace off
