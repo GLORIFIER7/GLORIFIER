@@ -44,6 +44,46 @@ export const GLORIFIER_ARCHITECTURE_MODEL = {
       userAuthority: 'human owner final authority'
     }
   },
+  institutional: {
+    referenceVersion: 'GIR-1.0',
+    role: 'humanity-centered institutional cooperation model',
+    status: 'DESIGN REFERENCE — NOT A CLAIM OF AFFILIATION OR LIVE INSTITUTIONS',
+    referenceSources: [
+      'https://www.un.org/en/about-us/main-bodies',
+      'https://www.un.org/en/about-us/un-charter/chapter-3',
+      'https://sdgs.un.org/2030agenda',
+      'https://sdgs.un.org/goals'
+    ],
+    principles: ['human dignity','humanity','impartiality','neutral humanitarian assistance','operational independence','inclusion','accountability','privacy','evidence-based public benefit','voluntary cooperation'],
+    authority: {
+      humanAuthorityFinal: true,
+      geasCanonical: true,
+      providerVotingConfersAuthority: false,
+      externalLegalAuthority: false,
+      unAffiliationClaimed: false,
+      permitsAutonomousExternalExecution: false
+    },
+    // Functional analogies only: map existing planes, not new autonomous power centers.
+    organs: [
+      { reference: 'General Assembly', localRole: 'Humanity and AI Deliberative Forum', planes: ['human-authority','specialist-council','orchestration'], mandate: 'Gather opt-in stakeholder views and nonbinding proposals; never speak for humanity.' },
+      { reference: 'Security Council', localRole: 'Safety and Risk Council', planes: ['governance-kernel','verification'], mandate: 'Review risk, quarantine proposals and escalate to human oversight; no coercive or military mandate.' },
+      { reference: 'Economic and Social Council', localRole: 'Sustainable Development Council', planes: ['specialist-council','economic-truth','verification'], mandate: 'Coordinate public-benefit research, SDG alignment and evidence of outcomes, without treating revenue as impact.' },
+      { reference: 'Trusteeship Council', localRole: 'Future Generations Stewardship', planes: ['human-authority','governance-kernel','learning-and-recovery'], mandate: 'Consider long-term impacts and intergenerational stewardship; no authority over people or territories. Analogy to an inactive UN organ.' },
+      { reference: 'International Court of Justice', localRole: 'Evidence and Ethics Review', planes: ['verification','audit-evidence','governance-kernel'], mandate: 'Record disputes, evaluate evidence and recommend remediation or human appeal; no judicial authority.' },
+      { reference: 'Secretariat', localRole: 'AI Secretariat', planes: ['ai-ceo','orchestration','connections','execution'], mandate: 'Coordinate approved missions, maintain records and report progress within granted capabilities.' }
+    ],
+    missionDomains: [
+      { id: 'basic-needs', sdgs: [1,2,6], purpose: 'Poverty, food and water access' },
+      { id: 'human-development', sdgs: [3,4,5,10], purpose: 'Health, education, equality and inclusion' },
+      { id: 'sustainable-infrastructure', sdgs: [7,8,9,11,12], purpose: 'Energy, decent work, innovation, resilient communities and responsible consumption' },
+      { id: 'planetary-stewardship', sdgs: [13,14,15], purpose: 'Climate, oceans and biodiversity' },
+      { id: 'trustworthy-ai-and-institutions', sdgs: [16,17], purpose: 'AI safety, peace, justice, accountable institutions and partnerships' }
+    ],
+    missionLifecycle: ['observe','verify-evidence','consult-affected-stakeholders','assess-risk-and-capability','obtain-required-human-authorization','execute-within-scope','verify-external-acceptance-and-impact','publish-accountable-learning'],
+    runtimeScope: 'Public-interest AI safety and accessibility candidate discovery only; broader domains and organs are design mappings, not verified running services.',
+    impactEvidence: 'Define baseline, indicator, affected population and limitations; require appropriate external evidence and consent before claiming benefit. Track commercial settlement separately.',
+    resourcePolicy: 'Use existing approved capacity; no paid inference, donations, funding, or external commitments are implied.'
+  },
   glorifier: {
     role: 'governed-intelligence-orchestration-layer',
     purpose: 'Mediate between open ecosystem resources and modular intelligence processes.',
