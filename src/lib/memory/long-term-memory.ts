@@ -223,7 +223,7 @@ export function parsePortableMemoryRecord(value: unknown): MemoryRecord {
   validateVersion(record.version as number);
   for (const field of ['createdAt', 'updatedAt'] as const) {
     const timestamp = record[field];
-    if (typeof timestamp !== 'string' ||
+    if (typeof timestamp !== 'string' || timestamp.startsWith('0000-') ||
         !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(timestamp) ||
         !Number.isFinite(Date.parse(timestamp)) || new Date(timestamp).toISOString() !== timestamp) {
       throw new Error(`invalid ${field} timestamp`);
