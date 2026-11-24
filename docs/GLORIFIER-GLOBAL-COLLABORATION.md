@@ -14,6 +14,16 @@ The public-interest intake searches bounded public GitHub issues carrying help-w
 
 Other future domains include education, trustworthy information, climate resilience, health access and open scientific infrastructure; these are research priorities, not deployed integrations or verified impact.
 
+## Institutional reference: United Nations
+
+The canonical architecture adds a third analogy alongside Internet connectivity and Linux modular operation: UN-inspired institutional cooperation for human flourishing. See `src/lib/governance/glorifier-architecture.ts` for the single canonical mapping, published in the architecture snapshot and referenced by collaboration policy. These are design roles mapped onto existing GEAS and execution planes, not new autonomous authorities or evidence of operational councils.
+
+The six functional analogies are deliberation (General Assembly), safety and risk review (Security Council), sustainable development (ECOSOC), future generations stewardship (Trusteeship Council, whose regular operations are suspended), evidence and ethics review (ICJ), and bounded coordination (Secretariat). Human approval remains final. GLORIFIER is independent; it is not a UN body, member-state representative, court or humanitarian agency. AI/provider votes cannot confer permissions or legal authority.
+
+The 17 SDGs serve as a voluntary classification framework for research and public-benefit missions. Impact claims require a defined indicator, baseline, affected-stakeholder consultation, appropriate evidence and acceptance; economic settlement remains separate. Only AI safety and accessibility intake are implemented in the scheduled workflow; other mission domains are design priorities. Existing budget, authorization and data protections remain in force.
+
+References: [UN principal organs](https://www.un.org/en/about-us/main-bodies), [UN Charter, chapter III](https://www.un.org/en/about-us/un-charter/chapter-3), [2030 Agenda](https://sdgs.un.org/2030agenda), [17 SDGs](https://sdgs.un.org/goals).
+
 ## Intended operating loop (not proof of current execution)
 
 GLOBAL DISCOVERY → CROSS-SYSTEM COLLABORATION → EVIDENCE → VERIFY → QUALIFY → AUTHORIZE → EXECUTE → DELIVER → ACCEPT → SETTLE → RESOLVE → LEARN → REPEAT
