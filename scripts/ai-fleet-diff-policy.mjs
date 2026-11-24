@@ -6,6 +6,9 @@ const DEFAULT_LIMITS = Object.freeze({
 });
 
 const PROTECTED_PATHS = [
+  /^digital-me\//i,
+  /^\.claude\//i,
+  /(^|\/)wrangler\.jsonc?$/i,
   /^\.github\//i,
   /(^|\/)\.env(?:\..*)?$/i,
   /(^|\/)(?:secrets?|credentials?)(?:\/|$)/i,
