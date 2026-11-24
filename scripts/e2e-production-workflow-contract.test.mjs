@@ -10,7 +10,7 @@ const step = workflow.split('      - name: Run production E2E\n')[1]?.split('\n 
 
 test('test credentials are scoped exclusively to the production test step', () => {
   for (const name of ['E2E_TEST_EMAIL', 'E2E_TEST_PASSWORD']) {
-    const assignment = `${name}: $` + `{{ secrets.${name} }}`;
+    const assignment = `${name}: $` + `{{ secrets.PRODUCTION_${name} }}`;
     assert.ok(step.includes(assignment));
     assert.equal(workflow.split(assignment).length, 2);
     assert.ok(!workflow.split('      - name: Run production E2E\n')[0].includes(name));
@@ -47,4 +47,12 @@ test('authenticated and unauthenticated API assertions remain present', () => {
   assert.match(spec, /expect\(state\.status\)\.toBe\(200\)/);
   assert.match(spec, /expect\(\[401, 403\]\)\.toContain\(postLogout\.status\)/);
   assert.match(spec, /expect\(\[401, 403\]\)\.toContain\(response\.status\(\)\)/);
+});
+
+// Secret-bearing jobs must run only on protected main and use dedicated environment secrets.
+test('production credentials are isolated from non-main manual dispatches and forked workflows', () => {
+  const guard = "github.repository == 'GLORIFIER7/GLORIFIER' && github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'workflow_run' && github.event.workflow_run.head_branch == 'main' && github.event.workflow_run.head_repository.full_name == github.repository))";
+  assert.ok(workflow.includes('if: $' + '{{ ' + guard + ' }}'));
+  assert.match(workflow, /^    environment: production-e2e$/m);
+  assert.doesNotMatch(workflow, /secrets\.E2E_TEST_(EMAIL|PASSWORD)/);
 });
