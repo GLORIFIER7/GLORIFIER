@@ -9,6 +9,7 @@ import {
   setVerification,
 } from './architecture-core';
 import { before, test } from 'node:test';
+import { GLORIFIER_ARCHITECTURE_MODEL } from './glorifier-architecture';
 
 let assertionsCompleted = false;
 
@@ -83,4 +84,21 @@ console.log('Architecture consolidation tests: PASS');
 
 test('existing assertions completed in setup hook', () => {
   assert.ok(assertionsCompleted, 'existing assertions completed before the test case');
+});
+
+
+test('institutional model is an advisory reference using existing planes, not a second authority', () => {
+  const institution = GLORIFIER_ARCHITECTURE_MODEL.institutional;
+  assert.equal(institution.organs.length, 6);
+  assert.equal(institution.authority.humanAuthorityFinal, true);
+  assert.equal(institution.authority.geasCanonical, true);
+  assert.equal(institution.authority.providerVotingConfersAuthority, false);
+  assert.equal(institution.authority.externalLegalAuthority, false);
+  assert.equal(institution.authority.unAffiliationClaimed, false);
+  assert.equal(institution.authority.permitsAutonomousExternalExecution, false);
+  const planes = new Set<string>(GLORIFIER_ARCHITECTURE_MODEL.glorifier.planes);
+  for (const organ of institution.organs) for (const plane of organ.planes) assert.ok(planes.has(plane), plane);
+  const goals = institution.missionDomains.flatMap(domain => [...domain.sdgs]).sort((a,b) => a-b);
+  assert.deepEqual(goals, Array.from({length:17}, (_,i) => i+1));
+  assert.equal(getArchitectureConsolidationSnapshot().institutionalReference, institution);
 });
