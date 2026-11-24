@@ -67,6 +67,7 @@ export const Header: React.FC<HeaderProps> = ({
       <button
         key={tab.id}
         id={`tab-btn-${tab.id}`}
+        aria-current={isActive ? 'page' : undefined}
         onClick={() => handleTab(tab.id)}
         className={`flex items-center gap-2 rounded-md whitespace-nowrap transition-colors ${
           compact ? 'w-full px-3 py-2.5 text-left text-xs' : 'px-3 py-2 text-[11px]'
@@ -109,12 +110,12 @@ export const Header: React.FC<HeaderProps> = ({
               )}
             </div>
             <div>
-              <h1 className="text-[15px] font-semibold tracking-[-0.03em] text-white flex items-center gap-1.5">
+              <p className="text-[15px] font-semibold tracking-[-0.03em] text-white flex items-center gap-1.5">
                 GLORIFIER
                 <span className="text-[10px] px-1.5 py-0.5 rounded-sm text-emerald-300 border border-slate-700 font-mono">
                   AUTONOMOUS AI ENTERPRISE
                 </span>
-              </h1>
+              </p>
               <p className="text-[11px] text-slate-500 hidden sm:block mt-0.5">
                 AI-first operating model · verified status shown per module
               </p>
