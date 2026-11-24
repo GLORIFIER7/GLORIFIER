@@ -22,6 +22,10 @@ test('AI fleet accepts a small, reviewable change to an ordinary source file', (
 test('AI fleet rejects automatic changes to security and release-control paths', () => {
   for (const path of [
     '.github/workflows/ci.yml',
+    "digital-me/src/operator.mjs",
+    "digital-me/test/operator.test.mjs",
+    ".claude/hooks/agent-policy.mjs",
+    "wrangler.jsonc",
     'src/lib/capability-authorization.ts',
     'src/lib/auth/session.ts',
     'src/lib/governance/agent-control-plane.ts',
