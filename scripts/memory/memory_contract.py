@@ -48,7 +48,7 @@ def parse_memory_record(value: Any) -> dict[str, Any]:
             raise ValueError(f"invalid {name}")
         try:
             parsed = dt.datetime.strptime(timestamp, "%Y-%m-%dT%H:%M:%S.%fZ")
-            if parsed.strftime("%Y-%m-%dT%H:%M:%S.%f")[:23] + "Z" != timestamp:
+            if parsed.isoformat(timespec="milliseconds") + "Z" != timestamp:
                 raise ValueError(f"invalid {name}")
         except ValueError as exc:
             raise ValueError(f"invalid {name}") from exc
