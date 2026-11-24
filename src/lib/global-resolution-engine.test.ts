@@ -17,3 +17,11 @@ test('global-resolution conflict target matches the partial unique index predica
     'the INSERT conflict target must include the partial-index predicate so PostgreSQL can infer it',
   );
 });
+
+
+test('public-interest cases enter the evidence queue separately from commercial cases', () => {
+  assert.match(source, /'public-interest-review'/);
+  assert.match(source, /NOT EXISTS\s*\(SELECT 1 FROM glorifier_global_resolution_cases/s);
+  assert.match(source, /contributionMode: publicInterest \? 'public-interest-review' : 'commercial'/);
+  assert.match(source, /Public-interest review cases cannot enter execution or settlement/);
+});
