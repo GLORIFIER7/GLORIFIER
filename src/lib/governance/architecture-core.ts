@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { GLORIFIER_ARCHITECTURE_MODEL } from './glorifier-architecture';
 
 export type ArchitectureRisk = 'low' | 'medium' | 'high' | 'irreversible';
 export type VerificationStatus = 'FULLY VERIFIED' | 'VERIFIED' | 'PARTIALLY VERIFIED' | 'NOT VERIFIED' | 'DEGRADED' | 'UNKNOWN';
@@ -176,6 +177,7 @@ export function getArchitectureConsolidationSnapshot() {
     identity: 'GLORIFIER = provider-neutral, governed operating system for orchestrating heterogeneous intelligence, computation and execution under human authority.',
     version: 'GLORIFIER-ARCH-4.0',
     status: 'consolidation',
+    institutionalReference: GLORIFIER_ARCHITECTURE_MODEL.institutional,
     humanAuthority: { finalAuthority: true, irreversibleActionsRequireApproval: true },
     kernel: {
       governance: 'active',
