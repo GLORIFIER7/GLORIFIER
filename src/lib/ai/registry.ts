@@ -307,6 +307,14 @@ const attemptProviderOnce = async (
   markUnavailable: boolean,
   emptyResponseSuffix = '',
 ): Promise<{ response?: import('./types').AIResponse; retry: boolean }> => {
+  // Recheck authorization immediately before every outbound attempt, including retries.
+  const currentDiscovery = new Map(getGlobalProviderDiscoverySnapshot().map(entry => [entry.id, entry]));
+  if (!isProviderEligible(provider, currentDiscovery, request.capability)) {
+    state.attemptedProviders.push(provider.id);
+    state.providerStatuses[provider.id] = 'unavailable';
+    state.errors.push(`${provider.id}: current discovery or authorization is no longer valid.`);
+    return { retry: false };
+  }
   state.attemptedProviders.push(provider.id);
   state.providerStatuses[provider.id] = 'connected';
   state.attempts += 1;

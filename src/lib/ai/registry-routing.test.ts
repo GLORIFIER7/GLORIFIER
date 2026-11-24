@@ -122,3 +122,17 @@ test('failed model-list discovery status blocks inference despite configured aut
   }
   metaModelListStatus = 200;
 });
+
+
+test('revoking authorization blocks a pinned provider without refreshing discovery', async () => {
+  metaModelListStatus = 200;
+  process.env.META_AUTHORIZED = 'true';
+  await discoverGlobalProviders('provider-registry-cached-authorization', { persistConnections: false });
+  const beforePosts = providerRequests.filter(r => r.method === 'POST').length;
+  try {
+    process.env.META_AUTHORIZED = 'false';
+    const result = await executeThroughProviderRegistry({ requiredProvider: 'meta', model: 'meta-default', messages });
+    assert.equal(result.provider, 'provider-registry-exhausted');
+    assert.equal(providerRequests.filter(r => r.method === 'POST').length, beforePosts);
+  } finally { process.env.META_AUTHORIZED = 'true'; }
+});

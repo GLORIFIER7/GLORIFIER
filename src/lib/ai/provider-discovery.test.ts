@@ -285,3 +285,27 @@ test('NVIDIA inference verification expires and requires a fresh authorized infe
     Date.now = originalNow;
   }
 });
+
+
+test('cached discovery is invalidated immediately when authorization, key or endpoint changes', async () => {
+  metaProbeStatus = 200;
+  const changes = [
+    ['META_AUTHORIZED', 'false'],
+    ['META_API_KEY', 'rotated-test-key'],
+    ['META_BASE_URL', 'https://different.example.test/v1'],
+  ] as const;
+  for (const [key, value] of changes) {
+    const old = process.env[key];
+    await discoverGlobalProviders('configuration-binding-regression', { persistConnections: false });
+    assert.equal(getGlobalProviderDiscoverySnapshot().find(p => p.id === 'meta')?.authenticated, true);
+    try {
+      process.env[key] = value;
+      const stale = getGlobalProviderDiscoverySnapshot().find(p => p.id === 'meta');
+      assert.equal(stale?.authenticated, false);
+      assert.equal(stale?.authorization, 'pending');
+      assert.deepEqual(stale?.models, []);
+    } finally {
+      if (old === undefined) delete process.env[key]; else process.env[key] = old;
+    }
+  }
+});
