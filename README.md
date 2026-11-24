@@ -1,7 +1,148 @@
-# GLORIFIER coding-agent target-verification candidate (v3)
+# GLORIFIER
 
-Supersedes the phase 1 v2 package. Six fixed, additive repository files; no arbitrary patch uploader. Local verification: 16 intake/target tests and six mocked publication tests. Live GitHub workflow, full repository tests, actual App signing and inference are unverified. This is not yet an autonomous coder.
+**The governed intelligence layer for AI-powered businesses.**
 
-Use Node 22+ on a trusted runner. Run `node --test publisher.test.mjs` and `node publish.mjs` first (offline). Inspect the patch and fixed payload. To publish a draft, the existing scoped Digital Me App private key must already be securely injected as `DIGITAL_ME_APP_PRIVATE_KEY` into an authorized runner. Do not paste the key into chat, source, or shell history. Only then run `node publish.mjs --publish`. The existing installation must already permit contents, pull requests and workflows write. The publisher checks exact App, installation, pinned signed main, absent paths, expected head, App signature, every signed file's content and draft readback. It never merges or deploys. If main changed, any path exists, or a partial branch exists, stop and inspect before retrying.
+**Official organization motto: _Committed to Glorify, Passion to Evangelize_**
 
-The connected chat identity is the owner, not Digital Me. The existing fixed Actions publisher cannot publish this candidate, and the Actions secret cannot be retrieved from GitHub. The owner needs a trusted App-authenticated runner or a separately authorized signed bootstrap publication path. No paid inference or external provider transmission is needed for this package.
+> **The native economic unit for governed AI-agent commerce.**
+
+GLORIFIER is a provider-neutral AI orchestration platform for coordinating models, agents, tools, data, and compute through a governed control plane. Intelligence providers can change; identity, authority, policy, evidence, and human approval remain explicit.
+
+[Repository](https://github.com/GLORIFIER7/GLORIFIER) · [Issues](https://github.com/GLORIFIER7/GLORIFIER/issues) · [Security policy](SECURITY.md) · [Support](SUPPORT.md)
+
+## At a glance
+
+- **Provider-neutral AI orchestration** — connect eligible models and tools without treating one model as the system's permanent brain.
+- **Governed execution** — use identity, least privilege, policy checks, authorization, and human approval for consequential actions.
+- **Evidence-first operations** — distinguish verified observations from assumptions. Missing evidence means **UNKNOWN / NOT VERIFIED**, never automatic success.
+- **Honest provider failover** — account for availability, capability, authentication, quotas, latency, and authorization; report failure when no eligible provider is available.
+- **Persistent coordination** — make workflows, state, and outcomes observable and reviewable.
+- **Interoperability** — build toward governed handoffs between AI agents, Web2 services, tools, and supported blockchain networks.
+
+## Governance model
+
+```text
+Human Owner (highest authority)
+        |
+GEAS / Governance Control Plane
+(identity · policy · permissions · approvals)
+        |
+AI Orchestration and Specialist Agents
+        |
+Governed Actions / External Providers / Services
+        |
+Evidence, Reconciliation, and Outcome Review
+```
+
+The human owner retains final authority. High-impact or irreversible production changes, asset transfers, trading, and credential rotation require the appropriate explicit authorization and safeguards. An unobserved outcome is not considered verified.
+
+
+## Milestone: YOLO owner-delegated maintenance (2026-11-08)
+
+**“You want it? You merge it.”** GLORIFIER recorded the owner's delegation of routine, low-risk maintenance decisions to its maintenance operator. This is bounded authority: changes still require their applicable tests, successful required checks, review and branch-protection gates. Security, privacy, legal, financial, credential, destructive, and production-release decisions remain subject to explicit human approval.
+
+The milestone was merged into `main` in [PR #742](https://github.com/GLORIFIER7/GLORIFIER/pull/742). Read the [full historical record](docs/ops/merge-delegation-milestone-2026-11-08.md).
+
+## Architecture
+
+**Agentic workflow governance:** The [GitHub Agentic Workflows adoption assessment](docs/architecture/github-agentic-workflows-adoption.md) records the selectively adopted gh-aw patterns and the conditions required before activating its runtime. The repository policy overlay is at [`.github/aw/instructions.md`](.github/aw/instructions.md); it does not install or activate gh-aw.
+
+The repository includes a web application, API/server code, AI-provider integrations, governance components, and blockchain-related contracts and evidence records.
+
+**NEURAL service:** The Python/FastAPI service is maintained in this repository at [`services/neural/`](services/neural/README.md). It retains its own Python dependency lock, tests, Docker build context and independently deployable Cloudflare Worker. GLORIFIER remains the governance/control plane; NEURAL remains a separately deployable execution service. See [the NEURAL integration contract](docs/architecture/neural-engine-integration.md).
+
+**GEAS MPHR target and current evidence boundary:** Cloudflare Pages/Workers is the primary source path; Vercel is configured as a React/Vite frontend standby; and `Dockerfile.frontend` defines a portable static React frontend container. Vercel forwards runtime requests to the Cloudflare Pages origin, and the legacy Vercel API functions that bypassed this routing by calling Railway have been removed. This does not establish independent backend failover.
+
+**Backend migration caveat:** the Cloudflare Worker has Worker-native `/api/health` (liveness only) and `/api/identity` handlers. Most backend-dependent API and authentication routes are not yet Worker-native; they fail closed with HTTP 503 unless a separately reviewed HTTPS backend origin and exact-host allowlist are configured. A successful build does not prove that those routes or the current production deployment are healthy. Automatic traffic failover is not enabled. Vercel project linking, independent Docker hosting, independent backend capacity, and external traffic/DNS control still require separate provisioning and verification. See [GEAS Multi-Provider Hosting Resilience](docs/architecture/geas-multi-provider-hosting-resilience.md) for the topology, evidence status, and release gates; the historical [Cloudflare Workers-only migration plan](docs/architecture/cloudflare-workers-only-migration.md) remains available for route-migration evidence.
+
+**Runtime requirement:** Node.js `24.12.0` or newer is required for the application runtime. The production images and application workflows use Node.js 24 to match the locked Firebase dependency engines.
+
+The repository also uses technologies including React, TypeScript, Node.js, Firebase, PostgreSQL, and GitHub Actions. Actual capabilities depend on configuration, credentials, provider quotas, and runtime health. Confirm the relevant deployment and workflow evidence before describing a service as live or healthy.
+
+## GLORIFIER Token (GLR)
+
+GLR is intended to be the native economic unit for governed AI-agent commerce. Each network deployment must be assessed using its own chain-specific evidence.
+
+- **Asset name / symbol:** GLORIFIER / GLR
+- **Ethereum ERC-20 decimals:** 18
+- **EVM supply target:** 1,000,000,000 GLR
+- **Solana Token-2022:** uses a separate network-specific mint and 9-decimal representation; addresses and decimals are not interchangeable across chains.
+- **Independent checks:** deployment, explorer/contract verification, metadata publication, and registry reconciliation are separate requirements.
+
+See the [canonical asset registry](docs/canonical-asset-registry.md) and [contracts documentation](contracts/README.md) for the current recorded evidence. Do not infer that every network or cross-chain integration is verified because one deployment or workflow passed.
+
+## Security and reliability principles
+
+1. Human authority and explicit authorization remain in force.
+2. Apply least privilege; do not bypass authentication, provider access controls, or quotas.
+3. Keep secrets, private keys, and credentials out of source control and logs.
+4. Use evidence-backed status labels: **FULLY VERIFIED**, **VERIFIED**, **PARTIALLY VERIFIED**, **NOT VERIFIED**, **DEGRADED**, and **NOT OBSERVABLE**.
+5. A passing workflow proves only what that workflow tested for its specific commit; it does not prove all production services are healthy.
+6. Never claim a change merged, a deployment live, a provider operational, or an asset verified without checking current evidence.
+
+See [SECURITY.md](SECURITY.md) for reporting security concerns.
+
+## Getting started
+
+Requirements: Node.js `24.12.0` or newer and npm. From a checkout of this repository:
+
+```bash
+npm ci
+npm run build
+```
+
+Useful scripts declared in `package.json` include:
+
+| Command | Purpose |
+|---|---|
+| `npm run dev` | Start the development server |
+| `npm run build` | Build the frontend and compiled server bundle |
+| `npm run lint` | Run the TypeScript no-emit check |
+| `npm run test:architecture` | Run the architecture-core test |
+| `npm run test:geas-all` | Run the configured GEAS reconciliation, enterprise-controls, and scientist tests |
+| `npm run validate:geas-architecture` | Validate GEAS architecture requirements |
+| `npm run scan:geas-architecture` | Run the GEAS architecture scan |
+
+Some scripts may require environment variables, credentials, external services, or additional setup. Check `package.json` and the relevant documentation before running specialized tests.
+
+## Docker image
+
+- [Docker Hub image repository](https://hub.docker.com/r/glorifier/glorifier)
+- [Container build, health check, security scan, and release policy](docs/dockerhub-release.md)
+- [Portable React frontend container](Dockerfile.frontend) (static assets only; backend readiness is separate)
+
+The Docker publishing workflow is gated by successful `GLORIFIER CI` on a push to `main`, followed by a Trivy scan before Docker Hub login and publishing. Configure the `DOCKERHUB_USERNAME` and `DOCKERHUB_TOKEN` repository secrets before a release can publish. A successful build is not proof that a production deployment is running or healthy.
+
+## Documentation
+
+- [AI Intelligence Radar and Engineering Blueprint](docs/architecture/ai-intelligence-radar-2026-11-19.md)
+- [Open-source agent orchestration landscape and GLORIFIER extraction plan](docs/architecture/open-source-agent-orchestration-landscape-2026-11-18.md)
+- [Native Agent Graph Engine](docs/architecture/native-agent-graph-engine.md)
+- [EDDI external agent-workforce adoption boundary](docs/architecture/eddi-agent-workforce-adoption.md)
+- [NVIDIA Megatron Core training adoption boundary](docs/architecture/nvidia-megatron-training-adoption.md)
+- [GEAS — Multi-Provider Hosting Resilience (MPHR)](docs/architecture/geas-multi-provider-hosting-resilience.md)
+- [Universal AI Enterprise operating model](docs/architecture/universal-ai-enterprise-operating-model.md)
+- [Humanity-first universal enterprise charter](docs/architecture/humanity-first-universal-enterprise-charter.md)
+- [Governed AI and GLR economic layer](docs/GLORIFIER-GOVERNED-AI-ECONOMIC-LAYER.md)
+- [Official motto and organizational architecture](docs/official-motto-and-organizational-architecture.md)
+- [Documentation directory](docs/)
+- [AI community platform architecture: GitHub + Stack Overflow for AI](docs/ai-community-platform-architecture.md)
+- [ASAP Protocol integration boundary and acceptance gates](docs/architecture/asap-protocol-integration.md)
+- [Linux- and Web-inspired architecture](docs/linux-web-inspired-architecture.md)
+- [Linux host-agent integration and verification gates](docs/architecture/linux-host-agent.md)
+- [REA reverse-intelligence capability assessment and adoption boundary](docs/architecture/rea-reverse-intelligence-adoption.md)
+- [SAP-inspired enterprise operations architecture](docs/sap-inspired-enterprise-operations-architecture.md)
+- [Canonical GLR asset registry](docs/canonical-asset-registry.md)
+- [Tokenomics](docs/tokenomics.md)
+- [Hybrid multichain money architecture](docs/glr-hybrid-multichain-money.md)
+- [Token launch checklist](docs/token-launch-checklist.md)
+- [Smart contracts](contracts/README.md)
+- [Contributing guide](CONTRIBUTING.md)
+- [Security policy](SECURITY.md)
+- [Support guide](SUPPORT.md)
+
+## Project objective
+
+Build reliable, provider-neutral intelligence orchestration where governance constrains actions, evidence supports claims, and economic settlement follows verifiable outcomes.
+
+**GLORIFIER — intelligence orchestration with governed execution and truthful evidence.**

@@ -1,0 +1,17 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {buildCodingMission} from '../src/coding-intake.mjs';
+const env={GITHUB_REPOSITORY:'GLORIFIER7/GLORIFIER',GITHUB_EVENT_NAME:'issue_comment',GITHUB_REF:'refs/heads/main',GITHUB_ACTOR_ID:'32674233',GITHUB_SHA:'34db17ffcc6dd0a12b742f2d8d470181d4ee6ccf',GITHUB_TRIGGERING_ACTOR:'GLORIFIER7'};
+const event={action:'created',repository:{full_name:'GLORIFIER7/GLORIFIER'},sender:{id:32674233,type:'User'},issue:{number:471,state:'open'},comment:{id:1234,body:'/glorifier fix',user:{id:32674233,type:'User'}}};
+const copy=()=>structuredClone(event);
+test('owner fix request produces bounded, deterministic proposal only',()=>{
+ const m=buildCodingMission(env,event); assert.equal(m.status,'PROPOSAL_ONLY'); assert.equal(m.intent,'fix'); assert.equal(m.target.number,471); assert.equal(m.target.kind,'issue'); assert.equal(m.id,'github-comment-1234'); assert.deepEqual(m,buildCodingMission(env,event)); assert.equal(m.executionAuthorized,false); assert.equal(m.paidInferenceAuthorized,false); assert.equal(m.mergeAuthorized,false);
+});
+test('rejects non-owner even with OWNER association',()=>{const e=copy();e.sender.id=999;e.comment.user.id=999;e.comment.author_association='OWNER';assert.equal(buildCodingMission({...env,GITHUB_ACTOR_ID:'999'},e).status,'IGNORED');});
+test('rejects forged or mismatched actor, repo, event and ref',()=>{for(const x of [{GITHUB_ACTOR_ID:'999'},{GITHUB_REPOSITORY:'other/repo'},{GITHUB_EVENT_NAME:'pull_request_target'},{GITHUB_REF:'refs/heads/topic'}])assert.equal(buildCodingMission({...env,...x},event).status,'IGNORED');const e=copy();e.repository.full_name='other/repo';assert.equal(buildCodingMission(env,e).status,'IGNORED');});
+test('ignores edited, deleted, bot, closed and malformed requests',()=>{for(const mutate of [e=>e.action='edited',e=>e.action='deleted',e=>e.sender.type='Bot',e=>e.issue.state='closed',e=>e.issue.number=0,e=>e.comment.id='1234',e=>e.comment.user.id=999,e=>e.comment.user.type='Bot']){const e=copy();mutate(e);assert.equal(buildCodingMission(env,e).status,'IGNORED');}});
+test('only exact commands accepted, never copies arbitrary text',()=>{for(const body of ['/glorifier fix\nrun arbitrary code','/glorifier fix; rm -rf /','@glorifier fix','/glorifier deploy','/glorifier approve']){const e=copy();e.comment.body=body;assert.deepEqual(buildCodingMission(env,e),{status:'IGNORED'});} });
+test('review is PR-only; plan and explain are available for issues',()=>{const e=copy();e.comment.body='/glorifier review';assert.equal(buildCodingMission(env,e).status,'IGNORED');e.issue.pull_request={};assert.equal(buildCodingMission(env,e).intent,'review');assert.equal(buildCodingMission(env,e).target.kind,'pull_request');for(const cmd of ['plan','explain']){e.comment.body='/glorifier '+cmd;assert.equal(buildCodingMission(env,e).intent,cmd);}});
+test('rejects trailing newlines and emits no user-controlled body',()=>{const e=copy();e.comment.body='/glorifier fix\n';assert.equal(buildCodingMission(env,e).status,'IGNORED');assert.ok(!JSON.stringify(buildCodingMission(env,event)).includes('/glorifier fix'));});
+
+test('pins trusted main snapshot and denies unknown or changed triggering context',()=>{const m=buildCodingMission(env,event);assert.equal(m.sourceSnapshotSha,env.GITHUB_SHA);assert.equal(m.targetHeadVerified,false);for(const override of [{GITHUB_SHA:''},{GITHUB_SHA:'invalid'},{GITHUB_TRIGGERING_ACTOR:'other-user'}])assert.equal(buildCodingMission({...env,...override},event).status,'IGNORED');});
