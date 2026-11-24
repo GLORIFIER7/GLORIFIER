@@ -31,5 +31,16 @@ jobs:
         run: npm ci --ignore-scripts --no-audit --no-fund
       - name: Install Playwright browser
         run: ./node_modules/.bin/playwright install --with-deps chromium
+      - name: Verify production E2E contract
+        run: node --test scripts/e2e-production-workflow-contract.test.mjs
       - name: Run production E2E
-        run: ./node_modules/.bin/playwright test tests/e2e/production.spec.ts
+        env:
+          E2E_TEST_EMAIL: ${{ secrets.E2E_TEST_EMAIL }}
+          E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${E2E_TEST_EMAIL:-}" || -z "${E2E_TEST_PASSWORD:-}" ]]; then
+            echo 'Authenticated production E2E NOT VERIFIED: dedicated test credentials required.' >&2
+            exit 1
+          fi
+          ./node_modules/.bin/playwright test tests/e2e/production.spec.ts --trace off
