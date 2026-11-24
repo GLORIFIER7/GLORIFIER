@@ -15,6 +15,7 @@ export function getGlobalCollaborationPolicy() {
     architecture: {
       internetRole: GLORIFIER_ARCHITECTURE_MODEL.internet.role,
       linuxRole: GLORIFIER_ARCHITECTURE_MODEL.linux.role,
+      institutionalRole: GLORIFIER_ARCHITECTURE_MODEL.institutional.role,
       glorifierRole: GLORIFIER_ARCHITECTURE_MODEL.glorifier.role
     },
     objective:
