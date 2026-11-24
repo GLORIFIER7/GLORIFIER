@@ -1,5 +1,6 @@
-import { isPotentialPaidWork } from './24x7-opportunity-discovery';
+import { isPotentialPaidWork, isPublicInterestCandidate } from './24x7-opportunity-discovery';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 test("Paid-work opportunity qualification regression cases", () => {
@@ -25,4 +26,25 @@ test("Paid-work opportunity qualification regression cases", () => {
   assert.strictEqual(isPotentialPaidWork(finding({ description: 'Task pays 100 USD to implement the fix.' })), true, 'Explicit USD work reward should qualify for review');
   assert.strictEqual(isPotentialPaidWork(finding({ description: 'Reward of stickers for implementing the fix.' })), false, 'Non-monetary rewards must not qualify');
   console.log('Opportunity discovery qualification tests passed.');
+});
+
+
+test('public-interest intake accepts only bounded AI safety and accessibility issue candidates', () => {
+  const finding = { sourceId: 'github-ai-safety', category: 'public-interest-ai-safety', title: 'Improve AI safety evaluation', description: 'Help wanted', url: 'https://github.com/example/project/issues/12', observedAt: new Date(0).toISOString() };
+  assert.equal(isPublicInterestCandidate(finding), true);
+  assert.equal(isPotentialPaidWork(finding), false);
+  assert.equal(isPublicInterestCandidate({ ...finding, sourceId: 'github-accessibility', category: 'public-interest-accessibility' }), true);
+  for (const change of [
+    {sourceId:'github-bounties'}, {category:'bounties'}, {url:'https://github.com/example/project/pull/12'},
+    {url:'https://github.com.evil.test/example/project/issues/12'}, {url:'https://github.com@example.test/example/project/issues/12'},
+    {url:'http://github.com/example/project/issues/12'}, {url:'https://github.com/example/project/issues/12?token=secret'},
+  ]) assert.equal(isPublicInterestCandidate({ ...finding, ...change }), false);
+});
+
+
+test('public-interest intake is classified atomically at insertion, before commercial processing', () => {
+  const source = readFileSync(new URL('./24x7-opportunity-discovery.ts', import.meta.url), 'utf8');
+  assert.match(source, /const initialStatus = publicInterest \? 'public-interest-review' : publicInterestSource \? 'observed-noncommercial' : 'observed'/);
+  assert.match(source, /scientist_id,status,evidence\) VALUES\(\$1,\$2,\$3,\$4,\$5,\$6,\$7,\$8,\$9,\$10::jsonb\)/);
+  assert.ok(source.indexOf('if (!insert.rowCount || publicInterestSource) continue') < source.indexOf('if (!isPotentialPaidWork(finding))'));
 });

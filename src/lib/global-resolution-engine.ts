@@ -48,6 +48,7 @@ export function getGlobalResolutionPolicy() {
     execution: 'Preparation and verification may be automated; external consequential actions require explicit authorization.',
     nonFabrication: 'No opportunity, authorization, acceptance, contract, earnings, payment, or settlement may be inferred without evidence.',
     economicTruth: 'Estimated opportunity value is never posted as verified revenue.',
+    publicInterestBoundary: 'Public-interest candidates are review-only, with no revenue or impact claim; external contribution and noncommercial acceptance require a separate approved workflow.',
     resolutionDefinition: 'A case is resolved only after the external issue/work owner has accepted the deliverable and settlement evidence is independently recorded.',
     safety: 'No unauthorized access, exploitation, spam, impersonation, evasion, or irreversible financial action.'
   };
@@ -57,17 +58,18 @@ export async function runGlobalResolutionCycle(actor = 'ai-ceo-autonomous', limi
   await initializeGlobalResolutionEngine();
   const db = getPostgresPool();
   const findings = await db.query(
-    'SELECT id, source_id, title, url, category, evidence FROM glorifier_discovery_findings WHERE status IN ($1,$2,$3) ORDER BY created_at DESC LIMIT $4',
-    ['observed', 'qualified-for-review', 'qualified', Math.min(Math.max(limit, 1), 500)]
+    'SELECT id, source_id, title, url, category, evidence, status FROM glorifier_discovery_findings f WHERE status IN ($1,$2,$3,$4) AND NOT EXISTS (SELECT 1 FROM glorifier_global_resolution_cases c WHERE c.source_finding_id=f.id) ORDER BY created_at DESC LIMIT $5',
+    ['observed', 'qualified-for-review', 'qualified', 'public-interest-review', Math.min(Math.max(limit, 1), 500)]
   );
   let created = 0;
   for (const f of findings.rows) {
+    const publicInterest = f.status === 'public-interest-review';
     await db.query(
       'INSERT INTO glorifier_global_resolution_cases (id,source_finding_id,source_url,title,category,stage,evidence,metadata) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb) ON CONFLICT(source_finding_id) WHERE source_finding_id IS NOT NULL DO NOTHING',
       [
         'resolution-' + crypto.randomUUID(), f.id, f.url, f.title, f.category, 'EVIDENCE_PENDING',
         JSON.stringify({ discoveryFindingId: f.id, source: f.source_id, status: 'observed', evidence: f.evidence || {} }),
-        JSON.stringify({ actor, economicTruth: 'OBSERVED — NOT VERIFIED', externalExecution: 'authorization-required' })
+        JSON.stringify({ actor, contributionMode: publicInterest ? 'public-interest-review' : 'commercial', economicTruth: publicInterest ? 'NONCOMMERCIAL CANDIDATE — NO REVENUE CLAIM' : 'OBSERVED — NOT VERIFIED', externalExecution: 'authorization-required' })
       ]
     ).then(r => { if (r.rowCount) created += r.rowCount; });
   }
@@ -111,6 +113,9 @@ export async function advanceGlobalResolutionCase(input: {
   if (!current.rowCount) throw new Error('Resolution case not found');
   const row = current.rows[0];
   const from = row.stage as ResolutionStage;
+  if (row.metadata?.contributionMode === 'public-interest-review' && !['QUALIFIED', 'REJECTED'].includes(input.stage)) {
+    throw new Error('Public-interest review cases cannot enter execution or settlement until a separate approved noncommercial acceptance workflow is established');
+  }
   if (!TRANSITIONS[from].includes(input.stage)) throw new Error('Invalid resolution transition: ' + from + ' -> ' + input.stage);
 
   if (['EXECUTION_READY', 'IN_PROGRESS', 'DELIVERY_PENDING'].includes(input.stage) && !input.authorizationObserved && !row.authorization_observed) {

@@ -14,6 +14,9 @@ type DiscoveryFinding = { sourceId: string; title: string; url: string; descript
 const DEFAULT_SOURCES: DiscoverySource[] = [
   { id: 'github-issues', name: 'GitHub Issues', url: 'https://api.github.com/search/issues?q=is:open+label:help+wanted', category: 'developer-work', enabled: true },
   { id: 'github-bounties', name: 'GitHub Bounty Signals', url: 'https://api.github.com/search/issues?q=is:open+bounty+OR+reward+OR+paid', category: 'bounties', enabled: true },
+  // Read-only, bounded public-interest issue searches; a label is a candidate signal, never proof of impact or authorization.
+  { id: 'github-ai-safety', name: 'Open AI Safety Issues', url: 'https://api.github.com/search/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22+label%3A%22ai-safety%22&per_page=20', category: 'public-interest-ai-safety', enabled: true },
+  { id: 'github-accessibility', name: 'Open Accessibility Issues', url: 'https://api.github.com/search/issues?q=is%3Aissue+is%3Aopen+label%3A%22help+wanted%22+label%3Aaccessibility&per_page=20', category: 'public-interest-accessibility', enabled: true },
   { id: 'huggingface-models', name: 'Hugging Face Models', url: 'https://huggingface.co/api/models?sort=downloads&direction=-1&limit=20', category: 'ai', enabled: true },
   { id: 'huggingface-datasets', name: 'Hugging Face Datasets', url: 'https://huggingface.co/api/datasets?sort=downloads&direction=-1&limit=20', category: 'data', enabled: true }
 ];
@@ -30,6 +33,8 @@ function configuredSources(): DiscoverySource[] {
 
 function scientistForCategory(category: string): string {
   const c = category.toLowerCase();
+  if (c === 'public-interest-ai-safety') return 'security-scientist';
+  if (c === 'public-interest-accessibility') return 'engineering-scientist';
   if (c.includes('data') || c.includes('dataset')) return 'data-scientist';
   if (c.includes('ai') || c.includes('model')) return 'engineering-scientist';
   if (c.includes('security') || c.includes('bounty')) return 'security-scientist';
@@ -52,6 +57,14 @@ export function isPotentialPaidWork(finding: DiscoveryFinding): boolean {
   const explicitPaidSignal = /(?:\$\s?\d+(?:[,.]\d{2})?|\b\d+(?:\.\d+)?\s?(?:usd|usdc|usdt|eth|btc)\b|\b(?:paid bounty|cash reward|funded bounty)\b)/i.test(text);
   const workSignal = /\b(issue|bug|fix|implement|feature|task|bounty|pull request|pr)\b/i.test(finding.title + ' ' + finding.description);
   return explicitPaidSignal && workSignal && (/bount(?:y|ies)/i.test(finding.category) || finding.category.toLowerCase().includes('developer-work'));
+}
+
+/** Public-benefit intake is review-only: never infer funding, impact or permission from a label. */
+export function isPublicInterestCandidate(finding: DiscoveryFinding): boolean {
+  const trustedCategory = (finding.sourceId === 'github-ai-safety' && finding.category === 'public-interest-ai-safety')
+    || (finding.sourceId === 'github-accessibility' && finding.category === 'public-interest-accessibility');
+  if (!trustedCategory) return false;
+  return /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/issues\/[1-9][0-9]*$/.test(finding.url);
 }
 
 function extractFindings(source: DiscoverySource, payload: any): DiscoveryFinding[] {
@@ -98,8 +111,15 @@ export async function run24x7OpportunityDiscoveryCycle(actor = 'ai-ceo-autonomou
         findingsObserved++;
         const fingerprint = crypto.createHash('sha256').update(finding.sourceId + '|' + finding.url + '|' + finding.title).digest('hex');
         const scientistId = scientistForCategory(finding.category);
-        const insert = await db.query('INSERT INTO glorifier_discovery_findings (id,source_id,title,url,description,category,fingerprint,scientist_id,evidence) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb) ON CONFLICT(fingerprint) DO NOTHING RETURNING id', [ 'finding-' + crypto.randomUUID(), finding.sourceId, finding.title, finding.url, finding.description, finding.category, fingerprint, scientistId, JSON.stringify({ source: finding.sourceId, observedAt: finding.observedAt, evidenceStatus: 'observed' }) ]);
-        if (!insert.rowCount) continue;
+        const publicInterest = isPublicInterestCandidate(finding);
+        const publicInterestSource = finding.sourceId === 'github-ai-safety' || finding.sourceId === 'github-accessibility';
+        const initialStatus = publicInterest ? 'public-interest-review' : publicInterestSource ? 'observed-noncommercial' : 'observed';
+        const initialEvidence = {
+          source: finding.sourceId, observedAt: finding.observedAt, evidenceStatus: 'observed',
+          ...(publicInterest ? { qualification: 'candidate-only', contributionMode: 'public-interest-review', impactVerified: false, economicTruth: 'NONCOMMERCIAL CANDIDATE — NO REVENUE CLAIM', requiresHumanQualification: true } : {}),
+        };
+        const insert = await db.query('INSERT INTO glorifier_discovery_findings (id,source_id,title,url,description,category,fingerprint,scientist_id,status,evidence) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb) ON CONFLICT(fingerprint) DO NOTHING RETURNING id', [ 'finding-' + crypto.randomUUID(), finding.sourceId, finding.title, finding.url, finding.description, finding.category, fingerprint, scientistId, initialStatus, JSON.stringify(initialEvidence) ]);
+        if (!insert.rowCount || publicInterestSource) continue; // Public-interest intake never enters monetization.
         if (!isPotentialPaidWork(finding)) {
           await db.query("UPDATE glorifier_discovery_findings SET status=$2, evidence=evidence || $3::jsonb, updated_at=NOW() WHERE id=$1", [
             insert.rows[0].id, 'observed-noncommercial',

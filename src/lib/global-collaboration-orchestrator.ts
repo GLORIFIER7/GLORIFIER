@@ -34,6 +34,8 @@ export function getGlobalCollaborationPolicy() {
       'global resolution engine', 'revenue ledger'
     ],
     priority: 'Coordinate connected subsystems around evidence-backed, authorized, measurable outcomes.',
+    humanityMission: 'Support responsible AI development and human flourishing through accessible, safe, evidence-backed public-interest collaboration alongside commercial work.',
+    publicInterestIntake: 'Read-only AI safety and accessibility issue discovery, candidate review only; no autonomous external contribution or impact claims.',
     humanAuthority: 'Human owner remains final authority for consequential, irreversible, legal, contractual, access, disclosure, and financial actions.',
     nonFabrication:
       'GLORIFIER cannot manufacture opportunities, authorization, acceptance, contracts, earnings, payments, ownership, or settlement evidence.',
