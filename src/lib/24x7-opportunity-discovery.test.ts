@@ -1,4 +1,4 @@
-import { isPotentialPaidWork } from './24x7-opportunity-discovery';
+import { isPotentialPaidWork, isPublicInterestCandidate } from './24x7-opportunity-discovery';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -25,4 +25,17 @@ test("Paid-work opportunity qualification regression cases", () => {
   assert.strictEqual(isPotentialPaidWork(finding({ description: 'Task pays 100 USD to implement the fix.' })), true, 'Explicit USD work reward should qualify for review');
   assert.strictEqual(isPotentialPaidWork(finding({ description: 'Reward of stickers for implementing the fix.' })), false, 'Non-monetary rewards must not qualify');
   console.log('Opportunity discovery qualification tests passed.');
+});
+
+
+test('public-interest intake accepts only bounded AI safety and accessibility issue candidates', () => {
+  const finding = { sourceId: 'github-ai-safety', category: 'public-interest-ai-safety', title: 'Improve AI safety evaluation', description: 'Help wanted', url: 'https://github.com/example/project/issues/12', observedAt: new Date(0).toISOString() };
+  assert.equal(isPublicInterestCandidate(finding), true);
+  assert.equal(isPotentialPaidWork(finding), false);
+  assert.equal(isPublicInterestCandidate({ ...finding, sourceId: 'github-accessibility', category: 'public-interest-accessibility' }), true);
+  for (const change of [
+    {sourceId:'github-bounties'}, {category:'bounties'}, {url:'https://github.com/example/project/pull/12'},
+    {url:'https://github.com.evil.test/example/project/issues/12'}, {url:'https://github.com@example.test/example/project/issues/12'},
+    {url:'http://github.com/example/project/issues/12'}, {url:'https://github.com/example/project/issues/12?token=secret'},
+  ]) assert.equal(isPublicInterestCandidate({ ...finding, ...change }), false);
 });
