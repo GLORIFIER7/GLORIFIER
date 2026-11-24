@@ -111,15 +111,15 @@ export async function run24x7OpportunityDiscoveryCycle(actor = 'ai-ceo-autonomou
         findingsObserved++;
         const fingerprint = crypto.createHash('sha256').update(finding.sourceId + '|' + finding.url + '|' + finding.title).digest('hex');
         const scientistId = scientistForCategory(finding.category);
-        const insert = await db.query('INSERT INTO glorifier_discovery_findings (id,source_id,title,url,description,category,fingerprint,scientist_id,evidence) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb) ON CONFLICT(fingerprint) DO NOTHING RETURNING id', [ 'finding-' + crypto.randomUUID(), finding.sourceId, finding.title, finding.url, finding.description, finding.category, fingerprint, scientistId, JSON.stringify({ source: finding.sourceId, observedAt: finding.observedAt, evidenceStatus: 'observed' }) ]);
-        if (!insert.rowCount) continue;
-        if (isPublicInterestCandidate(finding)) {
-          await db.query("UPDATE glorifier_discovery_findings SET status=$2, evidence=evidence || $3::jsonb, updated_at=NOW() WHERE id=$1", [
-            insert.rows[0].id, 'public-interest-review',
-            JSON.stringify({ qualification: 'candidate-only', contributionMode: 'public-interest-review', impactVerified: false, economicTruth: 'NONCOMMERCIAL CANDIDATE — NO REVENUE CLAIM', requiresHumanQualification: true })
-          ]);
-          continue; // No monetization, model execution, external outreach or contribution submission.
-        }
+        const publicInterest = isPublicInterestCandidate(finding);
+        const publicInterestSource = finding.sourceId === 'github-ai-safety' || finding.sourceId === 'github-accessibility';
+        const initialStatus = publicInterest ? 'public-interest-review' : publicInterestSource ? 'observed-noncommercial' : 'observed';
+        const initialEvidence = {
+          source: finding.sourceId, observedAt: finding.observedAt, evidenceStatus: 'observed',
+          ...(publicInterest ? { qualification: 'candidate-only', contributionMode: 'public-interest-review', impactVerified: false, economicTruth: 'NONCOMMERCIAL CANDIDATE — NO REVENUE CLAIM', requiresHumanQualification: true } : {}),
+        };
+        const insert = await db.query('INSERT INTO glorifier_discovery_findings (id,source_id,title,url,description,category,fingerprint,scientist_id,status,evidence) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::jsonb) ON CONFLICT(fingerprint) DO NOTHING RETURNING id', [ 'finding-' + crypto.randomUUID(), finding.sourceId, finding.title, finding.url, finding.description, finding.category, fingerprint, scientistId, initialStatus, JSON.stringify(initialEvidence) ]);
+        if (!insert.rowCount || publicInterestSource) continue; // Public-interest intake never enters monetization.
         if (!isPotentialPaidWork(finding)) {
           await db.query("UPDATE glorifier_discovery_findings SET status=$2, evidence=evidence || $3::jsonb, updated_at=NOW() WHERE id=$1", [
             insert.rows[0].id, 'observed-noncommercial',
