@@ -1,0 +1,497 @@
+name: GLORIFIER Digital Me — fixed frontend repair publication
+'on':
+  workflow_dispatch:
+    inputs:
+      confirm_publication:
+        description: Confirm reviewed exact five-file repair and App-signed draft PR only (no merge/deploy)
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: digital-me-frontend-repair-publication
+  cancel-in-progress: false
+jobs:
+  validate:
+    if: ${{ github.repository == 'GLORIFIER7/GLORIFIER' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+      && github.actor_id == '32674233' && github.actor == 'GLORIFIER7' && github.triggering_actor == 'GLORIFIER7' && github.run_attempt
+      == 1 && inputs.confirm_publication == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CONFIRM_PUBLICATION: ${{ inputs.confirm_publication }}
+      EXPECTED_MAIN: ${{ github.sha }}
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        persist-credentials: false
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+      with:
+        node-version: '24'
+    - name: Materialize reviewed fixed publisher and patch
+      shell: bash
+      run: |
+        set -euo pipefail
+        umask 077
+        mkdir -p "$RUNNER_TEMP/frontend-publisher"
+        cat > "$RUNNER_TEMP/frontend-publisher/publisher.mjs" <<'PUBLISHER_JS'
+        // Fixed, owner-confirmed frontend repair. This program never executes candidate source.
+        import {createHash,createSign} from 'node:crypto';
+        import {execFileSync} from 'node:child_process';
+        import {readFileSync} from 'node:fs';
+        import {pathToFileURL} from 'node:url';
+        const REPO='GLORIFIER7/GLORIFIER', R='/repos/'+REPO, APP=5876036, BOT='glorifier-digital-me[bot]';
+        const sha=s=>typeof s==='string'&&/^[a-f0-9]{40}$/.test(s);
+        export const FILES=Object.freeze({
+         'src/components/Header.tsx':{before:'47f32d9849a41b0ffc533913cb7c3b2bceacc488',after:'3f696ee721153c3e6d9ad2ef8700b5a61e2f9343'},
+         'src/components/AuthPanel.tsx':{before:'4dd11228cddc3cbba9486ec2f26fb44dd6eec5d5',after:'26faab5452022d61bfecfff12132913d9a9255e6'},
+         'tests/e2e/production.spec.ts':{before:'eb6ac935ab832d1f74ac8cc2bb050b55018817c5',after:'a96afa5d1602c206c11f8069927f3f6e34f3e633'},
+         'scripts/e2e-production-workflow-contract.test.mjs':{before:'3ce13bbb10588cbd76346f81ee43c91839607f39',after:'d0c58813bfc40a27ade04c5e84dc1a50fa682c7e'},
+         'scripts/e2e-navigation-audit.test.mjs':{before:null,after:'66173a625b18468b185a21bcb7da852dc9caf51c'}
+        });
+        export const PATCH_SHA256='c2eec38c9f57325ec942f29bf5b3e1d966399ff9004d6cba944a4b0e84ebf219';
+        const fail=s=>{throw Error(s)};
+        export function validateContext(e){const required={GITHUB_REPOSITORY:REPO,GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'workflow_dispatch',GITHUB_ACTOR:'GLORIFIER7',GITHUB_ACTOR_ID:'32674233',GITHUB_TRIGGERING_ACTOR:'GLORIFIER7',GITHUB_RUN_ATTEMPT:'1',CONFIRM_PUBLICATION:'true'};if(Object.entries(required).some(([k,v])=>e[k]!==v)||!sha(e.GITHUB_SHA)||e.EXPECTED_MAIN!==e.GITHUB_SHA||!/^\d{1,20}$/.test(e.GITHUB_RUN_ID||''))fail('Invalid owner/exact-main publication context');return e.GITHUB_SHA;}
+        export function validateFiles(files){if(!Array.isArray(files)||files.length!==Object.keys(FILES).length||new Set(files.map(f=>f.path)).size!==files.length||files.some(f=>!Object.hasOwn(FILES,f.path)||FILES[f.path].before!==f.before||FILES[f.path].after!==f.after))fail('Repair file scope or digest mismatch');}
+        export function validateInstallation(i){if(i.app_id!==APP||i.account?.login!=='GLORIFIER7'||i.repository_selection!=='selected'||!Number.isSafeInteger(i.id)||i.id<=0||i.permissions?.contents!=='write'||i.permissions?.pull_requests!=='write')fail('App installation scope or required permission mismatch');}
+        const permissions={contents:'write',pull_requests:'write'};
+        export function validateToken(t){if(typeof t?.token!=='string'||!t.token||t.repository_selection!=='selected'||t.repositories?.length!==1||t.repositories[0].full_name!==REPO||Object.entries(permissions).some(([k,v])=>t.permissions?.[k]!==v)||Object.entries(t.permissions||{}).some(([k,v])=>!(k in permissions)&&!(k==='metadata'&&v==='read')))fail('Short-lived token scope mismatch');}
+        export function validateCommit(c,head,base){if(!sha(head)||!sha(base)||c.sha!==head||c.author?.login!==BOT||c.commit?.verification?.verified!==true||c.commit?.verification?.reason!=='valid'||c.parents?.length!==1||c.parents[0].sha!==base||c.files?.length!==Object.keys(FILES).length||Object.entries(FILES).some(([path,f])=>!c.files.some(x=>x.filename===path&&x.sha===f.after&&x.status===(f.before?'modified':'added'))))fail('Signed commit readback mismatch; no PR opened');}
+        const hash=(algo,b)=>createHash(algo).update(b).digest('hex');
+        const blob=b=>hash('sha1',Buffer.concat([Buffer.from(`blob ${b.length}\0`),b]));
+        const git=(...a)=>execFileSync('git',['-c','core.hooksPath=/dev/null','-c','core.fsmonitor=false',...a],{encoding:'utf8',maxBuffer:1024*1024,stdio:['ignore','pipe','pipe']});
+        export function preparePatch(base,patchPath){if(git('rev-parse','HEAD').trim()!==base||git('status','--porcelain','--untracked-files=all').trim())fail('Checkout is not a clean exact main');const patch=readFileSync(patchPath);if(hash('sha256',patch)!==PATCH_SHA256)fail('Patch digest mismatch');const before=Object.entries(FILES).map(([path,f])=>{const t=git('ls-tree',base,'--',path).trim();const m=t.match(/^100644 blob ([a-f0-9]{40})\t(.+)$/);const actual=t?(m&&m[2]===path?m[1]:'invalid'):null;if(actual!==f.before)fail('Original file does not match reviewed blob');return {path,before:actual};});git('apply','--index','--check','--whitespace=error',patchPath);git('apply','--index','--whitespace=error',patchPath);const changed=git('diff','--cached','--name-only','-z').split('\0').filter(Boolean);if(changed.length!==before.length||changed.some(p=>!Object.hasOwn(FILES,p)))fail('Unexpected changed paths');const files=before.map(f=>{const bytes=readFileSync(f.path);const after=blob(bytes);const index=git('ls-files','--stage','--',f.path).trim();if(index!==`100644 ${after} 0\t${f.path}`)fail('Unexpected index mode or blob');return {...f,after,contents:bytes.toString('base64')};});validateFiles(files);return files;}
+        function makeJwt(pem){const b=x=>Buffer.from(JSON.stringify(x)).toString('base64url');const now=Math.floor(Date.now()/1000);const msg=b({alg:'RS256',typ:'JWT'})+'.'+b({iss:String(APP),iat:now-30,exp:now+540});const signer=createSign('RSA-SHA256');signer.update(msg);signer.end();return msg+'.'+signer.sign(pem).toString('base64url');}
+        async function github(path,token,method='GET',body){const res=await fetch('https://api.github.com'+path,{method,redirect:'error',signal:AbortSignal.timeout(30000),headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'},...(body===undefined?{}:{body:JSON.stringify(body)})});if(!res.ok)fail(`GitHub ${method} HTTP ${res.status}`);if(res.status===204)return null;const data=await res.json();if(data?.errors?.length)fail('GitHub GraphQL rejected request');return data;}
+        export async function publish({api=github,jwt,base,runId,files}){if(!sha(base)||!/^\d{1,20}$/.test(runId))fail('Invalid publication scope');validateFiles(files);for(const f of files){if(typeof f.contents!=='string'||blob(Buffer.from(f.contents,'base64'))!==f.after)fail('Payload blob mismatch');}const installation=await api(R+'/installation',jwt);validateInstallation(installation);const t=await api('/app/installations/'+installation.id+'/access_tokens',jwt,'POST',{repositories:['GLORIFIER'],permissions});const token=t?.token;if(typeof token!=='string'||!token)fail('No installation token');try{validateToken(t);const main=await api(R+'/commits/main',token);if(main.sha!==base||main.commit?.verification?.verified!==true||main.commit.verification.reason!=='valid')fail('Main changed or unsigned');const branch='digital-me/frontend-e2e-'+runId,ref='refs/heads/'+branch;const created=await api(R+'/git/refs',token,'POST',{ref,sha:base});if(created.ref!==ref||created.object?.sha!==base)fail('Branch readback mismatch');const result=await api('/graphql',token,'POST',{query:'mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid}}}',variables:{input:{branch:{repositoryNameWithOwner:REPO,branchName:branch},expectedHeadOid:base,message:{headline:'fix(frontend): expand E2E navigation and safe authentication diagnostics'},fileChanges:{additions:files.map(({path,contents})=>({path,contents}))}}}});const head=result?.data?.createCommitOnBranch?.commit?.oid;if(!sha(head))fail('Missing signed commit ID');validateCommit(await api(R+'/commits/'+head,token),head,base);if((await api(R+'/commits/main',token)).sha!==base)fail('Main changed after signing; no PR opened');const pr=await api(R+'/pulls',token,'POST',{head:branch,base:'main',draft:true,title:'fix(frontend): expand E2E coverage and safe authentication diagnostics',body:'Refs #471. Exact reviewed five-file repair; no authentication bypass or skipped tests. Local contract and hosted preflight validation precede signed publication. Human review and required checks are mandatory; no automated approval, merge, deployment, or spending.'});if(!Number.isSafeInteger(pr.number)||pr.head?.sha!==head||pr.draft!==true||pr.user?.login!==BOT)fail('Draft PR readback mismatch');return {status:'SIGNED_DRAFT_CREATED',pr:pr.number,sha:head,branch,merged:false};}finally{try{await api('/installation/token',token,'DELETE')}catch{console.error('Short-lived token revocation failed; token will expire.')}}}
+        if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){try{const base=validateContext(process.env);const mode=process.argv[2];if(!['validate','publish'].includes(mode))fail('Unknown mode');const pem=process.env.DIGITAL_ME_APP_PRIVATE_KEY;delete process.env.DIGITAL_ME_APP_PRIVATE_KEY;if(mode==='validate'&&pem)fail('Unexpected private key in validation');const files=preparePatch(base,process.argv[3]);if(mode==='validate'){console.log('Exact reviewed patch scope and blobs validated.');}else{if(!pem)fail('App credential missing');console.log(JSON.stringify(await publish({jwt:makeJwt(pem),base,runId:process.env.GITHUB_RUN_ID,files})));}}catch(e){console.error('Publication stopped:',e instanceof Error&&/^(Invalid |Repair |App |Short-lived |Signed |Checkout |Patch |Original |Unexpected |Payload |No installation|Main |Branch |Missing signed|Draft |GitHub |Unknown |Publication)/.test(e.message)?e.message:'Validated repair operation failed; inspect safe preflight output.');process.exitCode=1;}}
+        PUBLISHER_JS
+        cat > "$RUNNER_TEMP/frontend-publisher/publisher.test.mjs" <<'PUBLISHER_TEST'
+        import {test} from 'node:test';
+        import assert from 'node:assert/strict';
+        import {validateContext,validateFiles,FILES,validateCommit,validateToken,validateInstallation} from './publisher.mjs';
+        const base='a'.repeat(40), head='b'.repeat(40);
+        const env={GITHUB_REPOSITORY:'GLORIFIER7/GLORIFIER',GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'workflow_dispatch',GITHUB_ACTOR:'GLORIFIER7',GITHUB_ACTOR_ID:'32674233',GITHUB_TRIGGERING_ACTOR:'GLORIFIER7',GITHUB_RUN_ATTEMPT:'1',CONFIRM_PUBLICATION:'true',EXPECTED_MAIN:base,GITHUB_SHA:base,GITHUB_RUN_ID:'123'};
+        const files=Object.entries(FILES).map(([path,f])=>({path,before:f.before,after:f.after}));
+        const goodCommit={sha:head,author:{login:'glorifier-digital-me[bot]'},commit:{verification:{verified:true,reason:'valid'}},parents:[{sha:base}],files:files.map(f=>({filename:f.path,sha:f.after,status:f.before?'modified':'added'}))};
+        const token={token:'short-lived-test-token',repository_selection:'selected',repositories:[{full_name:'GLORIFIER7/GLORIFIER'}],permissions:{contents:'write',pull_requests:'write',metadata:'read'}};
+        test('owner explicit exact main dispatch only',()=>{assert.equal(validateContext(env),base);for(const [k,v] of Object.entries({GITHUB_REPOSITORY:'other/repo',GITHUB_REF:'refs/heads/test',GITHUB_EVENT_NAME:'push',GITHUB_ACTOR:'other',GITHUB_ACTOR_ID:'1',GITHUB_TRIGGERING_ACTOR:'other',GITHUB_RUN_ATTEMPT:'2',CONFIRM_PUBLICATION:'false',EXPECTED_MAIN:head,GITHUB_RUN_ID:'x'}))assert.throws(()=>validateContext({...env,[k]:v}));});
+        test('exact five preimage and postimage blobs required',()=>{assert.doesNotThrow(()=>validateFiles(files));assert.throws(()=>validateFiles(files.slice(1)));assert.throws(()=>validateFiles([...files,{path:'.github/workflows/extra.yml',before:null,after:head}]));assert.throws(()=>validateFiles(files.map((f,i)=>i?f:{...f,before:head})));assert.throws(()=>validateFiles(files.map((f,i)=>i?f:{...f,after:head})));assert.throws(()=>validateFiles(files.map((f,i)=>i?f:{...f,path:files[1].path})));});
+        test('signed bot commit exact parent and file blobs',()=>{assert.doesNotThrow(()=>validateCommit(goodCommit,head,base));for(const c of [{...goodCommit,author:{login:'GLORIFIER7'}},{...goodCommit,commit:{verification:{verified:false}}},{...goodCommit,parents:[{sha:head}]},{...goodCommit,files:goodCommit.files.slice(1)},{...goodCommit,files:goodCommit.files.map((f,i)=>i?f:{...f,sha:head})}])assert.throws(()=>validateCommit(c,head,base));});
+        test('token restricted to one repo and only write capabilities needed',()=>{assert.doesNotThrow(()=>validateToken(token));for(const t of [{...token,repository_selection:'all'},{...token,repositories:[...token.repositories,{full_name:'other/repo'}]},{...token,permissions:{contents:'write',pull_requests:'read'}},{...token,permissions:{...token.permissions,workflows:'write'}}])assert.throws(()=>validateToken(t));});
+        test('installation identity and permissions checked before token mint',()=>{const i={app_id:5876036,id:1,account:{login:'GLORIFIER7'},repository_selection:'selected',permissions:{contents:'write',pull_requests:'write'}};assert.doesNotThrow(()=>validateInstallation(i));for(const bad of [{...i,app_id:1},{...i,account:{login:'other'}},{...i,repository_selection:'all'},{...i,permissions:{contents:'read',pull_requests:'write'}}])assert.throws(()=>validateInstallation(bad));});
+        PUBLISHER_TEST
+        cat > "$RUNNER_TEMP/frontend-publisher/patch.b64" <<'PATCH_DATA'
+        ZGlmZiAtLWdpdCBhL3Rlc3RzL2UyZS9wcm9kdWN0aW9uLnNwZWMudHMgYi90ZXN0cy9lMmUvcHJvZHVjdGlvbi5zcGVjLnRzCi0t
+        LSBhL3Rlc3RzL2UyZS9wcm9kdWN0aW9uLnNwZWMudHMKKysrIGIvdGVzdHMvZTJlL3Byb2R1Y3Rpb24uc3BlYy50cwpAQCAtMSw2
+        ICsxLDE2IEBACi1pbXBvcnQgeyB0ZXN0LCBleHBlY3QsIHR5cGUgUGFnZSB9IGZyb20gJ0BwbGF5d3JpZ2h0L3Rlc3QnOworaW1w
+        b3J0IHsgdGVzdCwgZXhwZWN0LCB0eXBlIFBhZ2UsIHR5cGUgUmVzcG9uc2UgfSBmcm9tICdAcGxheXdyaWdodC90ZXN0JzsKIAog
+        Y29uc3QgZnJvbnRlbmRVcmwgPSBwcm9jZXNzLmVudi5GUk9OVEVORF9VUkwgfHwgJ2h0dHBzOi8vZ2xvcmlmaWVyLnBhZ2VzLmRl
+        dic7Citjb25zdCBNT0RVTEVfSURTID0gWydvdmVydmlldycsJ3dvcmtzcGFjZScsJ2J1c2luZXNzX2ludGVsbGlnZW5jZScsJ2dl
+        YXNfYXJjaGl0ZWN0dXJlJywnYXV0b25vbW91c19jb3JlJywnYWlfY2VvJywnaW50ZWdyYXRpb25zJywnYWdlbnRfbmV0d29yaycs
+        J3Rva2VuX2JyYW5kaW5nJywnZGlzY292ZXJ5Jywnc2VudGluZWwnLCdjb25uZWN0aW9ucycsJ21vYmlsZScsJ3NjaWVudGlzdHMn
+        LCdhZ2VudF9taW5lcicsJ2NvbXBsaWFuY2UnLCdjb250cm9sJywnZm9vdHByaW50cycsJ2Jyb2tlciddOworY29uc3QgUFJJTUFS
+        WV9NT0RVTEVfSURTID0gbmV3IFNldChbJ292ZXJ2aWV3Jywnd29ya3NwYWNlJywnYWlfY2VvJywnaW50ZWdyYXRpb25zJywnZGlz
+        Y292ZXJ5J10pOworCithc3luYyBmdW5jdGlvbiBhc3NlcnRNb2R1bGVSZW5kZXJlZChwYWdlOiBQYWdlKSB7CisgIGNvbnN0IG1h
+        aW4gPSBwYWdlLmxvY2F0b3IoJ21haW4nKTsKKyAgYXdhaXQgZXhwZWN0KG1haW4pLnRvQmVWaXNpYmxlKCk7CisgIGF3YWl0IGV4
+        cGVjdChtYWluLmdldEJ5VGV4dCgnTG9hZGluZyBtb2R1bGXigKYnLCB7IGV4YWN0OiBmYWxzZSB9KSkubm90LnRvQmVWaXNpYmxl
+        KCk7CisgIGF3YWl0IGV4cGVjdChtYWluKS5ub3QudG9Db250YWluVGV4dCgnVGhlIENvbW1hbmQgQ2VudGVyIGNvdWxkIG5vdCBy
+        ZW5kZXIuJyk7CisgIGF3YWl0IGV4cGVjdChtYWluKS5ub3QudG9Db250YWluVGV4dCgnQXBwbGljYXRpb24gZXJyb3InKTsKK30K
+        IAogYXN5bmMgZnVuY3Rpb24gc2lnbkluV2l0aERlZGljYXRlZEFjY291bnQocGFnZTogUGFnZSkgewogICBjb25zdCBlbWFpbCA9
+        IHByb2Nlc3MuZW52LkUyRV9URVNUX0VNQUlMOwpAQCAtMTEsMTIgKzIxLDMxIEBACiAgIGF3YWl0IHBhZ2UuZ2V0QnlSb2xlKCdi
+        dXR0b24nLCB7IG5hbWU6IC9ec2lnbiBpbiQvaSB9KS5jbGljaygpOwogICBhd2FpdCBwYWdlLmxvY2F0b3IoJ2lucHV0W2F1dG9j
+        b21wbGV0ZT0iZW1haWwiXScpLmZpbGwoZW1haWwpOwogICBhd2FpdCBwYWdlLmxvY2F0b3IoJ2lucHV0W2F1dG9jb21wbGV0ZT0i
+        Y3VycmVudC1wYXNzd29yZCJdJykuZmlsbChwYXNzd29yZCk7Ci0gIGF3YWl0IHBhZ2UuZ2V0QnlSb2xlKCdidXR0b24nLCB7IG5h
+        bWU6ICdTaWduIGluIHRvIENvbW1hbmQgQ2VudGVyJywgZXhhY3Q6IHRydWUgfSkuY2xpY2soKTsKLSAgYXdhaXQgZXhwZWN0KHBh
+        Z2UuZ2V0QnlSb2xlKCdidXR0b24nLCB7IG5hbWU6IC9zaWduIG91dC9pIH0pKS50b0JlVmlzaWJsZSgpOworICBsZXQgZmlyZWJh
+        c2VTdGF0dXM6IG51bWJlciB8IHVuZGVmaW5lZDsKKyAgbGV0IHNlc3Npb25TdGF0dXM6IG51bWJlciB8IHVuZGVmaW5lZDsKKyAg
+        Y29uc3Qgb2JzZXJ2ZSA9IChyZXNwb25zZTogUmVzcG9uc2UpID0+IHsKKyAgICBjb25zdCB1cmwgPSBuZXcgVVJMKHJlc3BvbnNl
+        LnVybCgpKTsKKyAgICBpZiAodXJsLmhvc3RuYW1lID09PSAnaWRlbnRpdHl0b29sa2l0Lmdvb2dsZWFwaXMuY29tJyAmJiB1cmwu
+        cGF0aG5hbWUgPT09ICcvdjEvYWNjb3VudHM6c2lnbkluV2l0aFBhc3N3b3JkJykgeworICAgICAgZmlyZWJhc2VTdGF0dXMgPSBy
+        ZXNwb25zZS5zdGF0dXMoKTsKKyAgICB9CisgICAgaWYgKHVybC5vcmlnaW4gPT09IG5ldyBVUkwoZnJvbnRlbmRVcmwpLm9yaWdp
+        biAmJiB1cmwucGF0aG5hbWUgPT09ICcvYXBpL2F1dGgvc2Vzc2lvbicpIHsKKyAgICAgIHNlc3Npb25TdGF0dXMgPSByZXNwb25z
+        ZS5zdGF0dXMoKTsKKyAgICB9CisgIH07CisgIHBhZ2Uub24oJ3Jlc3BvbnNlJywgb2JzZXJ2ZSk7CisgIHRyeSB7CisgICAgYXdh
+        aXQgcGFnZS5nZXRCeVJvbGUoJ2J1dHRvbicsIHsgbmFtZTogJ1NpZ24gaW4gdG8gQ29tbWFuZCBDZW50ZXInLCBleGFjdDogdHJ1
+        ZSB9KS5jbGljaygpOworICAgIGF3YWl0IGV4cGVjdChwYWdlLmdldEJ5Um9sZSgnYnV0dG9uJywgeyBuYW1lOiAvc2lnbiBvdXQv
+        aSB9KSkudG9CZVZpc2libGUoKTsKKyAgfSBjYXRjaCB7CisgICAgdGhyb3cgbmV3IEVycm9yKGBBVVRIX0UyRV9GQUlMRUQ6IEZp
+        cmViYXNlIHNpZ24taW4gSFRUUCAke2ZpcmViYXNlU3RhdHVzID8/ICdub3Qgb2JzZXJ2ZWQnfTsgYXBwbGljYXRpb24gc2Vzc2lv
+        biBIVFRQICR7c2Vzc2lvblN0YXR1cyA/PyAnbm90IG9ic2VydmVkJ30uYCk7CisgIH0gZmluYWxseSB7CisgICAgcGFnZS5vZmYo
+        J3Jlc3BvbnNlJywgb2JzZXJ2ZSk7CisgIH0KIH0KIAogdGVzdC5kZXNjcmliZSgnR0xPUklGSUVSIHByb2R1Y3Rpb24gZW5kLXRv
+        LWVuZCcsICgpID0+IHsKICAgdGVzdCgnYXV0aGVudGljYXRlZCBzZXNzaW9uLCBBUEkgYnJpZGdlLCBwZXJzaXN0ZW5jZSwgYW5k
+        IG1ham9yIG1vZHVsZXMnLCBhc3luYyAoeyBwYWdlIH0pID0+IHsKKyAgICB0ZXN0LnNldFRpbWVvdXQoMTIwXzAwMCk7CiAgICAg
+        YXdhaXQgc2lnbkluV2l0aERlZGljYXRlZEFjY291bnQocGFnZSk7CiAKICAgICBjb25zdCBzZXNzaW9uID0gYXdhaXQgcGFnZS5l
+        dmFsdWF0ZShhc3luYyAoKSA9PiB7CkBAIC0zNCwxNyArNjMsMTUgQEAKICAgICBleHBlY3Qoc3RhdGUuc3RhdHVzKS50b0JlKDIw
+        MCk7CiAgICAgZXhwZWN0KHN0YXRlLmJvZHkub2spLnRvQmUodHJ1ZSk7CiAKLSAgICBjb25zdCB0YWJzID0gWydvdmVydmlldycs
+        J2dlYXNfYXJjaGl0ZWN0dXJlJywnYWlfY2VvJywnaW50ZWdyYXRpb25zJywnYWdlbnRfbmV0d29yaycsJ2Rpc2NvdmVyeScsJ3Nl
+        bnRpbmVsJywnY29ubmVjdGlvbnMnLCdtb2JpbGUnLCdzY2llbnRpc3RzJywnYWdlbnRfbWluZXInLCdjb21wbGlhbmNlJywnY29u
+        dHJvbCcsJ2Zvb3RwcmludHMnLCdicm9rZXInXTsKLSAgICBjb25zdCBwcmltYXJ5VGFicyA9IG5ldyBTZXQoWydvdmVydmlldycs
+        J2FpX2NlbycsJ2ludGVncmF0aW9ucycsJ2Rpc2NvdmVyeScsJ3NlbnRpbmVsJ10pOwotICAgIGZvciAoY29uc3QgdGFiIG9mIHRh
+        YnMpIHsKLSAgICAgIGlmICghcHJpbWFyeVRhYnMuaGFzKHRhYikpIHsKLSAgICAgICAgYXdhaXQgcGFnZS5nZXRCeVJvbGUoJ2J1
+        dHRvbicsIHsgbmFtZTogL21vZHVsZXMvaSB9KS5jbGljaygpOworICAgIGNvbnN0IG5hdmlnYXRpb24gPSBwYWdlLmdldEJ5Um9s
+        ZSgnbmF2aWdhdGlvbicsIHsgbmFtZTogJ1ByaW1hcnkgbmF2aWdhdGlvbicgfSk7CisgICAgZm9yIChjb25zdCB0YWIgb2YgTU9E
+        VUxFX0lEUykgeworICAgICAgaWYgKCFQUklNQVJZX01PRFVMRV9JRFMuaGFzKHRhYikpIHsKKyAgICAgICAgYXdhaXQgbmF2aWdh
+        dGlvbi5nZXRCeVJvbGUoJ2J1dHRvbicsIHsgbmFtZTogL15tb2R1bGVzJC9pIH0pLmNsaWNrKCk7CiAgICAgICB9Ci0gICAgICBj
+        b25zdCB0YWJCdXR0b24gPSBwYWdlLmxvY2F0b3IoJyN0YWItYnRuLScgKyB0YWIpOworICAgICAgY29uc3QgdGFiQnV0dG9uID0g
+        bmF2aWdhdGlvbi5sb2NhdG9yKCcjdGFiLWJ0bi0nICsgdGFiKTsKICAgICAgIGF3YWl0IGV4cGVjdCh0YWJCdXR0b24pLnRvQmVW
+        aXNpYmxlKCk7CiAgICAgICBhd2FpdCB0YWJCdXR0b24uY2xpY2soKTsKLSAgICAgIGF3YWl0IGV4cGVjdChwYWdlLmxvY2F0b3Io
+        J2JvZHknKSkubm90LnRvQ29udGFpblRleHQoJ1RoZSBDb21tYW5kIENlbnRlciBjb3VsZCBub3QgcmVuZGVyLicpOwotICAgICAg
+        YXdhaXQgZXhwZWN0KHBhZ2UubG9jYXRvcignYm9keScpKS5ub3QudG9Db250YWluVGV4dCgnQXBwbGljYXRpb24gZXJyb3InKTsK
+        KyAgICAgIGF3YWl0IGFzc2VydE1vZHVsZVJlbmRlcmVkKHBhZ2UpOwogICAgIH0KIAogICAgIGF3YWl0IHBhZ2UucmVsb2FkKHsg
+        d2FpdFVudGlsOiAnbmV0d29ya2lkbGUnIH0pOwpAQCAtNjcsMTIgKzk0LDE2IEBACiAgIH0pOwogCiAgIHRlc3QoJ21vYmlsZSBu
+        YXZpZ2F0aW9uIHJlbWFpbnMgdXNhYmxlJywgYXN5bmMgKHsgcGFnZSB9KSA9PiB7CisgICAgdGVzdC5zZXRUaW1lb3V0KDEyMF8w
+        MDApOwogICAgIGF3YWl0IHBhZ2Uuc2V0Vmlld3BvcnRTaXplKHsgd2lkdGg6IDM5MCwgaGVpZ2h0OiA4NDQgfSk7CiAgICAgYXdh
+        aXQgc2lnbkluV2l0aERlZGljYXRlZEFjY291bnQocGFnZSk7Ci0gICAgYXdhaXQgcGFnZS5nZXRCeVJvbGUoJ2J1dHRvbicsIHsg
+        bmFtZTogL15tZW51JC9pIH0pLmNsaWNrKCk7Ci0gICAgYXdhaXQgZXhwZWN0KHBhZ2UubG9jYXRvcignI21vYmlsZS1uYXZpZ2F0
+        aW9uJykpLnRvQmVWaXNpYmxlKCk7Ci0gICAgYXdhaXQgcGFnZS5nZXRCeVJvbGUoJ2J1dHRvbicsIHsgbmFtZTogL2JpbmFuY2Ug
+        XC8gbmZ0L2kgfSkuY2xpY2soKTsKLSAgICBhd2FpdCBleHBlY3QocGFnZS5sb2NhdG9yKCdib2R5JykpLm5vdC50b0NvbnRhaW5U
+        ZXh0KCdUaGUgQ29tbWFuZCBDZW50ZXIgY291bGQgbm90IHJlbmRlci4nKTsKKyAgICBmb3IgKGNvbnN0IHRhYiBvZiBNT0RVTEVf
+        SURTKSB7CisgICAgICBhd2FpdCBwYWdlLmdldEJ5Um9sZSgnYnV0dG9uJywgeyBuYW1lOiAvXm1lbnUkL2kgfSkuY2xpY2soKTsK
+        KyAgICAgIGNvbnN0IG5hdmlnYXRpb24gPSBwYWdlLmxvY2F0b3IoJyNtb2JpbGUtbmF2aWdhdGlvbicpOworICAgICAgYXdhaXQg
+        ZXhwZWN0KG5hdmlnYXRpb24pLnRvQmVWaXNpYmxlKCk7CisgICAgICBhd2FpdCBuYXZpZ2F0aW9uLmxvY2F0b3IoJyN0YWItYnRu
+        LScgKyB0YWIpLmNsaWNrKCk7CisgICAgICBhd2FpdCBhc3NlcnRNb2R1bGVSZW5kZXJlZChwYWdlKTsKKyAgICB9CiAgIH0pOwog
+        CiAgIHRlc3QoJ3VuYXV0aGVudGljYXRlZCBBUEkgcm91dGVzIHJlbWFpbiBwcm90ZWN0ZWQnLCBhc3luYyAoeyBicm93c2VyIH0p
+        ID0+IHsKZGlmZiAtLWdpdCBhL3NjcmlwdHMvZTJlLW5hdmlnYXRpb24tYXVkaXQudGVzdC5tanMgYi9zY3JpcHRzL2UyZS1uYXZp
+        Z2F0aW9uLWF1ZGl0LnRlc3QubWpzCm5ldyBmaWxlIG1vZGUgMTAwNjQ0Ci0tLSAvZGV2L251bGwKKysrIGIvc2NyaXB0cy9lMmUt
+        bmF2aWdhdGlvbi1hdWRpdC50ZXN0Lm1qcwpAQCAtMCwwICsxLDQwIEBACitpbXBvcnQgeyByZWFkRmlsZVN5bmMgfSBmcm9tICdu
+        b2RlOmZzJzsKK2ltcG9ydCB7IHRlc3QgfSBmcm9tICdub2RlOnRlc3QnOworaW1wb3J0IGFzc2VydCBmcm9tICdub2RlOmFzc2Vy
+        dC9zdHJpY3QnOworY29uc3QgaGVhZGVyID0gcmVhZEZpbGVTeW5jKG5ldyBVUkwoJy4uL3NyYy9jb21wb25lbnRzL0hlYWRlci50
+        c3gnLCBpbXBvcnQubWV0YS51cmwpLCAndXRmOCcpOworY29uc3Qgc3BlYyA9IHJlYWRGaWxlU3luYyhuZXcgVVJMKCcuLi90ZXN0
+        cy9lMmUvcHJvZHVjdGlvbi5zcGVjLnRzJywgaW1wb3J0Lm1ldGEudXJsKSwgJ3V0ZjgnKTsKK2NvbnN0IGV4dHJhY3QgPSAodGV4
+        dCkgPT4gWy4uLnRleHQubWF0Y2hBbGwoLycoW2Etel9dKyknL2cpXS5tYXAobSA9PiBtWzFdKTsKK2NvbnN0IG1vZHVsZXMgPSBb
+        Li4uaGVhZGVyLm1hdGNoQWxsKC9ceyBpZDogJyhbYS16X10rKScsIGxhYmVsOi9nKV0ubWFwKG0gPT4gbVsxXSk7Citjb25zdCBz
+        b3VyY2VQcmltYXJ5ID0gZXh0cmFjdChoZWFkZXIubWF0Y2goL2NvbnN0IHByaW1hcnlJZHMgPSBuZXcgU2V0XCgoXFtbXlxdXStc
+        XSlcKS8pPy5bMV0gPz8gJycpOworY29uc3QgdGVzdGVkID0gZXh0cmFjdChzcGVjLm1hdGNoKC9jb25zdCAoPzpNT0RVTEVfSURT
+        fHRhYnMpID0gKFxbW15cXV0rXF0pLyk/LlsxXSA/PyAnJyk7Citjb25zdCB0ZXN0ZWRQcmltYXJ5ID0gZXh0cmFjdChzcGVjLm1h
+        dGNoKC9jb25zdCAoPzpQUklNQVJZX01PRFVMRV9JRFN8cHJpbWFyeVRhYnMpID0gbmV3IFNldFwoKFxbW15cXV0rXF0pXCkvKT8u
+        WzFdID8/ICcnKTsKK3Rlc3QoJ2V2ZXJ5IEhlYWRlciBtb2R1bGUgb2NjdXJzIGV4YWN0bHkgb25jZSBpbiB0aGUgRTJFIGludmVu
+        dG9yeScsICgpID0+IHsKKyAgYXNzZXJ0Lm9rKG1vZHVsZXMubGVuZ3RoID4gMCk7CisgIGFzc2VydC5lcXVhbChuZXcgU2V0KHRl
+        c3RlZCkuc2l6ZSwgdGVzdGVkLmxlbmd0aCk7CisgIGFzc2VydC5kZWVwRXF1YWwoWy4uLnRlc3RlZF0uc29ydCgpLCBbLi4ubW9k
+        dWxlc10uc29ydCgpKTsKK30pOwordGVzdCgncHJpbWFyeSBuYXZpZ2F0aW9uIGNsYXNzaWZpY2F0aW9uIGFncmVlcyB3aXRoIHRo
+        ZSBIZWFkZXInLCAoKSA9PiB7CisgIGFzc2VydC5kZWVwRXF1YWwoWy4uLnRlc3RlZFByaW1hcnldLnNvcnQoKSwgWy4uLnNvdXJj
+        ZVByaW1hcnldLnNvcnQoKSk7Cit9KTsKK3Rlc3QoJ21vYmlsZSB1c2VzIGFsbCBtb2R1bGUgSURzIHJhdGhlciB0aGFuIG9ic29s
+        ZXRlIGxhYmVscycsICgpID0+IHsKKyAgY29uc3QgbW9iaWxlID0gc3BlYy5zcGxpdCgidGVzdCgnbW9iaWxlIG5hdmlnYXRpb24g
+        cmVtYWlucyB1c2FibGUnIilbMV0gPz8gJyc7CisgIGFzc2VydC5tYXRjaChtb2JpbGUsIC9mb3IgXChjb25zdCB0YWIgb2YgTU9E
+        VUxFX0lEU1wpLyk7CisgIGFzc2VydC5tYXRjaChtb2JpbGUsIC8jbW9iaWxlLW5hdmlnYXRpb24vKTsKKyAgYXNzZXJ0LmRvZXNO
+        b3RNYXRjaChtb2JpbGUsIC9iaW5hbmNlL2kpOworfSk7Cit0ZXN0KCdhdXRoZW50aWNhdGlvbiBmYWlsdXJlIGVtaXRzIHN0YXR1
+        cy1vbmx5IGRpYWdub3N0aWNzLCB3aXRoIG5vIHJhdyBuZXR3b3JrIHBheWxvYWQnLCAoKSA9PiB7CisgIGFzc2VydC5tYXRjaChz
+        cGVjLCAvQVVUSF9FMkVfRkFJTEVELyk7CisgIGFzc2VydC5tYXRjaChzcGVjLCAvaWRlbnRpdHl0b29sa2l0XC5nb29nbGVhcGlz
+        XC5jb20vKTsKKyAgYXNzZXJ0Lm1hdGNoKHNwZWMsIC9yZXNwb25zZVwuc3RhdHVzXChcKS8pOworICBhc3NlcnQuZG9lc05vdE1h
+        dGNoKHNwZWMsIC9yZXNwb25zZVwuKD86anNvbnx0ZXh0fGJvZHl8YWxsSGVhZGVyc3xoZWFkZXJzKVwoLyk7Cit9KTsKK2NvbnN0
+        IGF1dGhQYW5lbCA9IHJlYWRGaWxlU3luYyhuZXcgVVJMKCcuLi9zcmMvY29tcG9uZW50cy9BdXRoUGFuZWwudHN4JywgaW1wb3J0
+        Lm1ldGEudXJsKSwgJ3V0ZjgnKTsKK3Rlc3QoJ2F1dGhlbnRpY2F0aW9uIGljb24gY29udHJvbHMgaGF2ZSBhY2Nlc3NpYmxlIG5h
+        bWVzIGFuZCBlcnJvcnMgYXJlIGFubm91bmNlZCcsICgpID0+IHsKKyAgYXNzZXJ0Lm1hdGNoKGF1dGhQYW5lbCwgL2FyaWEtbGFi
+        ZWw9IkNsb3NlIHNpZ24taW4gcGFuZWwiLyk7CisgIGFzc2VydC5tYXRjaChhdXRoUGFuZWwsIC9hcmlhLWxhYmVsPVx7c2hvd1Bh
+        c3N3b3JkIFw/ICdIaWRlIHBhc3N3b3JkJyA6ICdTaG93IHBhc3N3b3JkJ1x9Lyk7CisgIGFzc2VydC5tYXRjaChhdXRoUGFuZWws
+        IC9yb2xlPVx7bWVzc2FnZS50eXBlID09PSAnZXJyb3InIFw/ICdhbGVydCcgOiAnc3RhdHVzJ1x9Lyk7Cit9KTsKK3Rlc3QoJ25h
+        dmlnYXRpb24gZXhwb3NlcyB0aGUgYWN0aXZlIGxvY2F0aW9uIGFuZCBicmFuZCB0ZXh0IGlzIG5vdCBhIHBhZ2UgaGVhZGluZycs
+        ICgpID0+IHsKKyAgYXNzZXJ0Lm1hdGNoKGhlYWRlciwgL2FyaWEtY3VycmVudD1ce2lzQWN0aXZlIFw/ICdwYWdlJyA6IHVuZGVm
+        aW5lZFx9Lyk7CisgIGFzc2VydC5kb2VzTm90TWF0Y2goaGVhZGVyLCAvPGgxXGIvKTsKK30pOwpkaWZmIC0tZ2l0IGEvc2NyaXB0
+        cy9lMmUtcHJvZHVjdGlvbi13b3JrZmxvdy1jb250cmFjdC50ZXN0Lm1qcyBiL3NjcmlwdHMvZTJlLXByb2R1Y3Rpb24td29ya2Zs
+        b3ctY29udHJhY3QudGVzdC5tanMKLS0tIGEvc2NyaXB0cy9lMmUtcHJvZHVjdGlvbi13b3JrZmxvdy1jb250cmFjdC50ZXN0Lm1q
+        cworKysgYi9zY3JpcHRzL2UyZS1wcm9kdWN0aW9uLXdvcmtmbG93LWNvbnRyYWN0LnRlc3QubWpzCkBAIC0xLDQgKzEsNSBAQAog
+        aW1wb3J0IHsgcmVhZEZpbGVTeW5jLCBta2R0ZW1wU3luYywgbWtkaXJTeW5jLCB3cml0ZUZpbGVTeW5jLCBybVN5bmMgfSBmcm9t
+        ICdub2RlOmZzJzsKK2ltcG9ydCAnLi9lMmUtbmF2aWdhdGlvbi1hdWRpdC50ZXN0Lm1qcyc7CiBpbXBvcnQgeyB0bXBkaXIgfSBm
+        cm9tICdub2RlOm9zJzsKIGltcG9ydCB7IGpvaW4gfSBmcm9tICdub2RlOnBhdGgnOwogaW1wb3J0IHsgc3Bhd25TeW5jIH0gZnJv
+        bSAnbm9kZTpjaGlsZF9wcm9jZXNzJzsKZGlmZiAtLWdpdCBhL3NyYy9jb21wb25lbnRzL0hlYWRlci50c3ggYi9zcmMvY29tcG9u
+        ZW50cy9IZWFkZXIudHN4Ci0tLSBhL3NyYy9jb21wb25lbnRzL0hlYWRlci50c3gKKysrIGIvc3JjL2NvbXBvbmVudHMvSGVhZGVy
+        LnRzeApAQCAtNjcsNiArNjcsNyBAQAogICAgICAgPGJ1dHRvbgogICAgICAgICBrZXk9e3RhYi5pZH0KICAgICAgICAgaWQ9e2B0
+        YWItYnRuLSR7dGFiLmlkfWB9CisgICAgICAgIGFyaWEtY3VycmVudD17aXNBY3RpdmUgPyAncGFnZScgOiB1bmRlZmluZWR9CiAg
+        ICAgICAgIG9uQ2xpY2s9eygpID0+IGhhbmRsZVRhYih0YWIuaWQpfQogICAgICAgICBjbGFzc05hbWU9e2BmbGV4IGl0ZW1zLWNl
+        bnRlciBnYXAtMiByb3VuZGVkLW1kIHdoaXRlc3BhY2Utbm93cmFwIHRyYW5zaXRpb24tY29sb3JzICR7CiAgICAgICAgICAgY29t
+        cGFjdCA/ICd3LWZ1bGwgcHgtMyBweS0yLjUgdGV4dC1sZWZ0IHRleHQteHMnIDogJ3B4LTMgcHktMiB0ZXh0LVsxMXB4XScKQEAg
+        LTExMCw5ICsxMTEsOSBAQAogICAgICAgICAgICAgPC9kaXY+CiAgICAgICAgICAgICA8ZGl2PgotICAgICAgICAgICAgICA8aDEg
+        Y2xhc3NOYW1lPSJ0ZXh0LVsxNXB4XSBmb250LXNlbWlib2xkIHRyYWNraW5nLVstMC4wM2VtXSB0ZXh0LXdoaXRlIGZsZXggaXRl
+        bXMtY2VudGVyIGdhcC0xLjUiPgorICAgICAgICAgICAgICA8cCBjbGFzc05hbWU9InRleHQtWzE1cHhdIGZvbnQtc2VtaWJvbGQg
+        dHJhY2tpbmctWy0wLjAzZW1dIHRleHQtd2hpdGUgZmxleCBpdGVtcy1jZW50ZXIgZ2FwLTEuNSI+CiAgICAgICAgICAgICAgICAg
+        R0xPUklGSUVSCiAgICAgICAgICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPSJ0ZXh0LVsxMHB4XSBweC0xLjUgcHktMC41IHJvdW5k
+        ZWQtc20gdGV4dC1lbWVyYWxkLTMwMCBib3JkZXIgYm9yZGVyLXNsYXRlLTcwMCBmb250LW1vbm8iPgogICAgICAgICAgICAgICAg
+        ICAgQVVUT05PTU9VUyBBSSBFTlRFUlBSSVNFCiAgICAgICAgICAgICAgICAgPC9zcGFuPgotICAgICAgICAgICAgICA8L2gxPgor
+        ICAgICAgICAgICAgICA8L3A+CiAgICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT0idGV4dC1bMTFweF0gdGV4dC1zbGF0ZS01MDAg
+        aGlkZGVuIHNtOmJsb2NrIG10LTAuNSI+CmRpZmYgLS1naXQgYS9zcmMvY29tcG9uZW50cy9BdXRoUGFuZWwudHN4IGIvc3JjL2Nv
+        bXBvbmVudHMvQXV0aFBhbmVsLnRzeAotLS0gYS9zcmMvY29tcG9uZW50cy9BdXRoUGFuZWwudHN4CisrKyBiL3NyYy9jb21wb25l
+        bnRzL0F1dGhQYW5lbC50c3gKQEAgLTE5Nyw1ICsxOTcsNSBAQAogICAgICAgICAgICAgICAgIDxoMiBjbGFzc05hbWU9Im10LTEg
+        dGV4dC14bCBmb250LWJvbGQgdGV4dC13aGl0ZSI+Q29tbWFuZCBDZW50ZXIgQWNjZXNzPC9oMj4KICAgICAgICAgICAgICAgICA8
+        cCBjbGFzc05hbWU9Im10LTEgdGV4dC14cyB0ZXh0LXNsYXRlLTQwMCI+T25lIGFjY291bnQgZm9yIHRoZSBmdWxsIEdMT1JJRklF
+        UiBBSSBDb21tYW5kIENlbnRlci48L3A+CiAgICAgICAgICAgICAgIDwvZGl2PgotICAgICAgICAgICAgICA8YnV0dG9uIG9uQ2xp
+        Y2s9eygpID0+IHNldE9wZW4oZmFsc2UpfSBjbGFzc05hbWU9InRleHQtc2xhdGUtNDAwIGhvdmVyOnRleHQtd2hpdGUiPjxYIGNs
+        YXNzTmFtZT0iaC01IHctNSIgLz48L2J1dHRvbj4KKyAgICAgICAgICAgICAgPGJ1dHRvbiB0eXBlPSJidXR0b24iIGFyaWEtbGFi
+        ZWw9IkNsb3NlIHNpZ24taW4gcGFuZWwiIG9uQ2xpY2s9eygpID0+IHNldE9wZW4oZmFsc2UpfSBjbGFzc05hbWU9InRleHQtc2xh
+        dGUtNDAwIGhvdmVyOnRleHQtd2hpdGUiPjxYIGNsYXNzTmFtZT0iaC01IHctNSIgLz48L2J1dHRvbj4KICAgICAgICAgICAgIDwv
+        ZGl2PgpAQCAtMjQyLDEyICsyNDIsMTIgQEAKICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT0icmVsYXRpdmUiPgogICAg
+        ICAgICAgICAgICAgICAgPGlucHV0IGlkPSJhdXRoLXBhc3N3b3JkIiB0eXBlPXtzaG93UGFzc3dvcmQgPyAndGV4dCcgOiAncGFz
+        c3dvcmQnfSB2YWx1ZT17cGFzc3dvcmR9IG9uQ2hhbmdlPXtlID0+IHNldFBhc3N3b3JkKGUudGFyZ2V0LnZhbHVlKX0gYXV0b0Nv
+        bXBsZXRlPXttb2RlID09PSAnbG9naW4nID8gJ2N1cnJlbnQtcGFzc3dvcmQnIDogJ25ldy1wYXNzd29yZCd9IGNsYXNzTmFtZT0i
+        dy1mdWxsIHJvdW5kZWQtbGcgYm9yZGVyIGJvcmRlci1zbGF0ZS03MDAgYmctc2xhdGUtOTUwIHB4LTMgcHktMi41IHByLTEwIHRl
+        eHQtc20gdGV4dC13aGl0ZSBvdXRsaW5lLW5vbmUgZm9jdXM6Ym9yZGVyLWVtZXJhbGQtNTAwIiBwbGFjZWhvbGRlcj0iQXQgbGVh
+        c3QgNiBjaGFyYWN0ZXJzIiAvPgotICAgICAgICAgICAgICAgICAgPGJ1dHRvbiB0eXBlPSJidXR0b24iIG9uQ2xpY2s9eygpID0+
+        IHNldFNob3dQYXNzd29yZCh2ID0+ICF2KX0gY2xhc3NOYW1lPSJhYnNvbHV0ZSByaWdodC0zIHRvcC0yLjUgdGV4dC1zbGF0ZS01
+        MDAgaG92ZXI6dGV4dC1zbGF0ZS0zMDAiPgorICAgICAgICAgICAgICAgICAgPGJ1dHRvbiB0eXBlPSJidXR0b24iIGFyaWEtbGFi
+        ZWw9e3Nob3dQYXNzd29yZCA/ICdIaWRlIHBhc3N3b3JkJyA6ICdTaG93IHBhc3N3b3JkJ30gb25DbGljaz17KCkgPT4gc2V0U2hv
+        d1Bhc3N3b3JkKHYgPT4gIXYpfSBjbGFzc05hbWU9ImFic29sdXRlIHJpZ2h0LTMgdG9wLTIuNSB0ZXh0LXNsYXRlLTUwMCBob3Zl
+        cjp0ZXh0LXNsYXRlLTMwMCI+CiAgICAgICAgICAgICAgICAgICAgIHtzaG93UGFzc3dvcmQgPyA8RXllT2ZmIGNsYXNzTmFtZT0i
+        aC00IHctNCIgLz4gOiA8RXllIGNsYXNzTmFtZT0iaC00IHctNCIgLz59CiAgICAgICAgICAgICAgICAgICA8L2J1dHRvbj4KICAg
+        ICAgICAgICAgICAgICA8L2Rpdj4KICAgICAgICAgICAgICAgPC9kaXY+CiAKICAgICAgICAgICAgICAge21lc3NhZ2UgJiYgKAot
+        ICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPXtgZmxleCBpdGVtcy1zdGFydCBnYXAtMiByb3VuZGVkLWxnIGJvcmRlciBw
+        LTMgdGV4dC14cyAke21lc3NhZ2UudHlwZSA9PT0gJ2Vycm9yJyA/ICdib3JkZXItcm9zZS01MDAvMjAgYmctcm9zZS01MDAvMTAg
+        dGV4dC1yb3NlLTMwMCcgOiAnYm9yZGVyLWVtZXJhbGQtNTAwLzIwIGJnLWVtZXJhbGQtNTAwLzEwIHRleHQtZW1lcmFsZC0zMDAn
+        fWB9PgorICAgICAgICAgICAgICAgIDxkaXYgcm9sZT17bWVzc2FnZS50eXBlID09PSAnZXJyb3InID8gJ2FsZXJ0JyA6ICdzdGF0
+        dXMnfSBjbGFzc05hbWU9e2BmbGV4IGl0ZW1zLXN0YXJ0IGdhcC0yIHJvdW5kZWQtbGcgYm9yZGVyIHAtMyB0ZXh0LXhzICR7bWVz
+        c2FnZS50eXBlID09PSAnZXJyb3InID8gJ2JvcmRlci1yb3NlLTUwMC8yMCBiZy1yb3NlLTUwMC8xMCB0ZXh0LXJvc2UtMzAwJyA6
+        ICdib3JkZXItZW1lcmFsZC01MDAvMjAgYmctZW1lcmFsZC01MDAvMTAgdGV4dC1lbWVyYWxkLTMwMCd9YH0+CiAgICAgICAgICAg
+        ICAgICAgICB7bWVzc2FnZS50eXBlID09PSAnZXJyb3InID8gPEFsZXJ0Q2lyY2xlIGNsYXNzTmFtZT0iaC00IHctNCBzaHJpbmst
+        MCIgLz4gOiA8Q2hlY2tDaXJjbGUyIGNsYXNzTmFtZT0iaC00IHctNCBzaHJpbmstMCIgLz59CiAgICAgICAgICAgICAgICAgICA8
+        c3Bhbj57bWVzc2FnZS50ZXh0fTwvc3Bhbj4K
+        PATCH_DATA
+        base64 --decode "$RUNNER_TEMP/frontend-publisher/patch.b64" > "$RUNNER_TEMP/frontend-publisher/repair.patch"
+    - name: Verify publisher controls
+      run: node --test "$RUNNER_TEMP/frontend-publisher/publisher.test.mjs"
+    - name: Apply only the five exact reviewed file blobs
+      run: node "$RUNNER_TEMP/frontend-publisher/publisher.mjs" validate "$RUNNER_TEMP/frontend-publisher/repair.patch"
+    - name: Verify E2E security and navigation contracts
+      run: node --test scripts/e2e-production-workflow-contract.test.mjs
+    - name: Install locked dependencies without lifecycle scripts
+      run: npm ci --ignore-scripts --no-audit --no-fund
+    - name: Type check and build candidate without production credentials
+      run: |
+        set -euo pipefail
+        npm run lint
+        npm run build:frontend
+  publish:
+    needs: validate
+    if: ${{ github.repository == 'GLORIFIER7/GLORIFIER' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch'
+      && github.actor_id == '32674233' && github.actor == 'GLORIFIER7' && github.triggering_actor == 'GLORIFIER7' && github.run_attempt
+      == 1 && inputs.confirm_publication == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      CONFIRM_PUBLICATION: ${{ inputs.confirm_publication }}
+      EXPECTED_MAIN: ${{ github.sha }}
+    steps:
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      with:
+        ref: ${{ github.sha }}
+        persist-credentials: false
+    - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+      with:
+        node-version: '24'
+    - name: Materialize reviewed fixed publisher and patch
+      shell: bash
+      run: |
+        set -euo pipefail
+        umask 077
+        mkdir -p "$RUNNER_TEMP/frontend-publisher"
+        cat > "$RUNNER_TEMP/frontend-publisher/publisher.mjs" <<'PUBLISHER_JS'
+        // Fixed, owner-confirmed frontend repair. This program never executes candidate source.
+        import {createHash,createSign} from 'node:crypto';
+        import {execFileSync} from 'node:child_process';
+        import {readFileSync} from 'node:fs';
+        import {pathToFileURL} from 'node:url';
+        const REPO='GLORIFIER7/GLORIFIER', R='/repos/'+REPO, APP=5876036, BOT='glorifier-digital-me[bot]';
+        const sha=s=>typeof s==='string'&&/^[a-f0-9]{40}$/.test(s);
+        export const FILES=Object.freeze({
+         'src/components/Header.tsx':{before:'47f32d9849a41b0ffc533913cb7c3b2bceacc488',after:'3f696ee721153c3e6d9ad2ef8700b5a61e2f9343'},
+         'src/components/AuthPanel.tsx':{before:'4dd11228cddc3cbba9486ec2f26fb44dd6eec5d5',after:'26faab5452022d61bfecfff12132913d9a9255e6'},
+         'tests/e2e/production.spec.ts':{before:'eb6ac935ab832d1f74ac8cc2bb050b55018817c5',after:'a96afa5d1602c206c11f8069927f3f6e34f3e633'},
+         'scripts/e2e-production-workflow-contract.test.mjs':{before:'3ce13bbb10588cbd76346f81ee43c91839607f39',after:'d0c58813bfc40a27ade04c5e84dc1a50fa682c7e'},
+         'scripts/e2e-navigation-audit.test.mjs':{before:null,after:'66173a625b18468b185a21bcb7da852dc9caf51c'}
+        });
+        export const PATCH_SHA256='c2eec38c9f57325ec942f29bf5b3e1d966399ff9004d6cba944a4b0e84ebf219';
+        const fail=s=>{throw Error(s)};
+        export function validateContext(e){const required={GITHUB_REPOSITORY:REPO,GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'workflow_dispatch',GITHUB_ACTOR:'GLORIFIER7',GITHUB_ACTOR_ID:'32674233',GITHUB_TRIGGERING_ACTOR:'GLORIFIER7',GITHUB_RUN_ATTEMPT:'1',CONFIRM_PUBLICATION:'true'};if(Object.entries(required).some(([k,v])=>e[k]!==v)||!sha(e.GITHUB_SHA)||e.EXPECTED_MAIN!==e.GITHUB_SHA||!/^\d{1,20}$/.test(e.GITHUB_RUN_ID||''))fail('Invalid owner/exact-main publication context');return e.GITHUB_SHA;}
+        export function validateFiles(files){if(!Array.isArray(files)||files.length!==Object.keys(FILES).length||new Set(files.map(f=>f.path)).size!==files.length||files.some(f=>!Object.hasOwn(FILES,f.path)||FILES[f.path].before!==f.before||FILES[f.path].after!==f.after))fail('Repair file scope or digest mismatch');}
+        export function validateInstallation(i){if(i.app_id!==APP||i.account?.login!=='GLORIFIER7'||i.repository_selection!=='selected'||!Number.isSafeInteger(i.id)||i.id<=0||i.permissions?.contents!=='write'||i.permissions?.pull_requests!=='write')fail('App installation scope or required permission mismatch');}
+        const permissions={contents:'write',pull_requests:'write'};
+        export function validateToken(t){if(typeof t?.token!=='string'||!t.token||t.repository_selection!=='selected'||t.repositories?.length!==1||t.repositories[0].full_name!==REPO||Object.entries(permissions).some(([k,v])=>t.permissions?.[k]!==v)||Object.entries(t.permissions||{}).some(([k,v])=>!(k in permissions)&&!(k==='metadata'&&v==='read')))fail('Short-lived token scope mismatch');}
+        export function validateCommit(c,head,base){if(!sha(head)||!sha(base)||c.sha!==head||c.author?.login!==BOT||c.commit?.verification?.verified!==true||c.commit?.verification?.reason!=='valid'||c.parents?.length!==1||c.parents[0].sha!==base||c.files?.length!==Object.keys(FILES).length||Object.entries(FILES).some(([path,f])=>!c.files.some(x=>x.filename===path&&x.sha===f.after&&x.status===(f.before?'modified':'added'))))fail('Signed commit readback mismatch; no PR opened');}
+        const hash=(algo,b)=>createHash(algo).update(b).digest('hex');
+        const blob=b=>hash('sha1',Buffer.concat([Buffer.from(`blob ${b.length}\0`),b]));
+        const git=(...a)=>execFileSync('git',['-c','core.hooksPath=/dev/null','-c','core.fsmonitor=false',...a],{encoding:'utf8',maxBuffer:1024*1024,stdio:['ignore','pipe','pipe']});
+        export function preparePatch(base,patchPath){if(git('rev-parse','HEAD').trim()!==base||git('status','--porcelain','--untracked-files=all').trim())fail('Checkout is not a clean exact main');const patch=readFileSync(patchPath);if(hash('sha256',patch)!==PATCH_SHA256)fail('Patch digest mismatch');const before=Object.entries(FILES).map(([path,f])=>{const t=git('ls-tree',base,'--',path).trim();const m=t.match(/^100644 blob ([a-f0-9]{40})\t(.+)$/);const actual=t?(m&&m[2]===path?m[1]:'invalid'):null;if(actual!==f.before)fail('Original file does not match reviewed blob');return {path,before:actual};});git('apply','--index','--check','--whitespace=error',patchPath);git('apply','--index','--whitespace=error',patchPath);const changed=git('diff','--cached','--name-only','-z').split('\0').filter(Boolean);if(changed.length!==before.length||changed.some(p=>!Object.hasOwn(FILES,p)))fail('Unexpected changed paths');const files=before.map(f=>{const bytes=readFileSync(f.path);const after=blob(bytes);const index=git('ls-files','--stage','--',f.path).trim();if(index!==`100644 ${after} 0\t${f.path}`)fail('Unexpected index mode or blob');return {...f,after,contents:bytes.toString('base64')};});validateFiles(files);return files;}
+        function makeJwt(pem){const b=x=>Buffer.from(JSON.stringify(x)).toString('base64url');const now=Math.floor(Date.now()/1000);const msg=b({alg:'RS256',typ:'JWT'})+'.'+b({iss:String(APP),iat:now-30,exp:now+540});const signer=createSign('RSA-SHA256');signer.update(msg);signer.end();return msg+'.'+signer.sign(pem).toString('base64url');}
+        async function github(path,token,method='GET',body){const res=await fetch('https://api.github.com'+path,{method,redirect:'error',signal:AbortSignal.timeout(30000),headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'},...(body===undefined?{}:{body:JSON.stringify(body)})});if(!res.ok)fail(`GitHub ${method} HTTP ${res.status}`);if(res.status===204)return null;const data=await res.json();if(data?.errors?.length)fail('GitHub GraphQL rejected request');return data;}
+        export async function publish({api=github,jwt,base,runId,files}){if(!sha(base)||!/^\d{1,20}$/.test(runId))fail('Invalid publication scope');validateFiles(files);for(const f of files){if(typeof f.contents!=='string'||blob(Buffer.from(f.contents,'base64'))!==f.after)fail('Payload blob mismatch');}const installation=await api(R+'/installation',jwt);validateInstallation(installation);const t=await api('/app/installations/'+installation.id+'/access_tokens',jwt,'POST',{repositories:['GLORIFIER'],permissions});const token=t?.token;if(typeof token!=='string'||!token)fail('No installation token');try{validateToken(t);const main=await api(R+'/commits/main',token);if(main.sha!==base||main.commit?.verification?.verified!==true||main.commit.verification.reason!=='valid')fail('Main changed or unsigned');const branch='digital-me/frontend-e2e-'+runId,ref='refs/heads/'+branch;const created=await api(R+'/git/refs',token,'POST',{ref,sha:base});if(created.ref!==ref||created.object?.sha!==base)fail('Branch readback mismatch');const result=await api('/graphql',token,'POST',{query:'mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid}}}',variables:{input:{branch:{repositoryNameWithOwner:REPO,branchName:branch},expectedHeadOid:base,message:{headline:'fix(frontend): expand E2E navigation and safe authentication diagnostics'},fileChanges:{additions:files.map(({path,contents})=>({path,contents}))}}}});const head=result?.data?.createCommitOnBranch?.commit?.oid;if(!sha(head))fail('Missing signed commit ID');validateCommit(await api(R+'/commits/'+head,token),head,base);if((await api(R+'/commits/main',token)).sha!==base)fail('Main changed after signing; no PR opened');const pr=await api(R+'/pulls',token,'POST',{head:branch,base:'main',draft:true,title:'fix(frontend): expand E2E coverage and safe authentication diagnostics',body:'Refs #471. Exact reviewed five-file repair; no authentication bypass or skipped tests. Local contract and hosted preflight validation precede signed publication. Human review and required checks are mandatory; no automated approval, merge, deployment, or spending.'});if(!Number.isSafeInteger(pr.number)||pr.head?.sha!==head||pr.draft!==true||pr.user?.login!==BOT)fail('Draft PR readback mismatch');return {status:'SIGNED_DRAFT_CREATED',pr:pr.number,sha:head,branch,merged:false};}finally{try{await api('/installation/token',token,'DELETE')}catch{console.error('Short-lived token revocation failed; token will expire.')}}}
+        if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){try{const base=validateContext(process.env);const mode=process.argv[2];if(!['validate','publish'].includes(mode))fail('Unknown mode');const pem=process.env.DIGITAL_ME_APP_PRIVATE_KEY;delete process.env.DIGITAL_ME_APP_PRIVATE_KEY;if(mode==='validate'&&pem)fail('Unexpected private key in validation');const files=preparePatch(base,process.argv[3]);if(mode==='validate'){console.log('Exact reviewed patch scope and blobs validated.');}else{if(!pem)fail('App credential missing');console.log(JSON.stringify(await publish({jwt:makeJwt(pem),base,runId:process.env.GITHUB_RUN_ID,files})));}}catch(e){console.error('Publication stopped:',e instanceof Error&&/^(Invalid |Repair |App |Short-lived |Signed |Checkout |Patch |Original |Unexpected |Payload |No installation|Main |Branch |Missing signed|Draft |GitHub |Unknown |Publication)/.test(e.message)?e.message:'Validated repair operation failed; inspect safe preflight output.');process.exitCode=1;}}
+        PUBLISHER_JS
+        cat > "$RUNNER_TEMP/frontend-publisher/publisher.test.mjs" <<'PUBLISHER_TEST'
+        import {test} from 'node:test';
+        import assert from 'node:assert/strict';
+        import {validateContext,validateFiles,FILES,validateCommit,validateToken,validateInstallation} from './publisher.mjs';
+        const base='a'.repeat(40), head='b'.repeat(40);
+        const env={GITHUB_REPOSITORY:'GLORIFIER7/GLORIFIER',GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'workflow_dispatch',GITHUB_ACTOR:'GLORIFIER7',GITHUB_ACTOR_ID:'32674233',GITHUB_TRIGGERING_ACTOR:'GLORIFIER7',GITHUB_RUN_ATTEMPT:'1',CONFIRM_PUBLICATION:'true',EXPECTED_MAIN:base,GITHUB_SHA:base,GITHUB_RUN_ID:'123'};
+        const files=Object.entries(FILES).map(([path,f])=>({path,before:f.before,after:f.after}));
+        const goodCommit={sha:head,author:{login:'glorifier-digital-me[bot]'},commit:{verification:{verified:true,reason:'valid'}},parents:[{sha:base}],files:files.map(f=>({filename:f.path,sha:f.after,status:f.before?'modified':'added'}))};
+        const token={token:'short-lived-test-token',repository_selection:'selected',repositories:[{full_name:'GLORIFIER7/GLORIFIER'}],permissions:{contents:'write',pull_requests:'write',metadata:'read'}};
+        test('owner explicit exact main dispatch only',()=>{assert.equal(validateContext(env),base);for(const [k,v] of Object.entries({GITHUB_REPOSITORY:'other/repo',GITHUB_REF:'refs/heads/test',GITHUB_EVENT_NAME:'push',GITHUB_ACTOR:'other',GITHUB_ACTOR_ID:'1',GITHUB_TRIGGERING_ACTOR:'other',GITHUB_RUN_ATTEMPT:'2',CONFIRM_PUBLICATION:'false',EXPECTED_MAIN:head,GITHUB_RUN_ID:'x'}))assert.throws(()=>validateContext({...env,[k]:v}));});
+        test('exact five preimage and postimage blobs required',()=>{assert.doesNotThrow(()=>validateFiles(files));assert.throws(()=>validateFiles(files.slice(1)));assert.throws(()=>validateFiles([...files,{path:'.github/workflows/extra.yml',before:null,after:head}]));assert.throws(()=>validateFiles(files.map((f,i)=>i?f:{...f,before:head})));assert.throws(()=>validateFiles(files.map((f,i)=>i?f:{...f,after:head})));assert.throws(()=>validateFiles(files.map((f,i)=>i?f:{...f,path:files[1].path})));});
+        test('signed bot commit exact parent and file blobs',()=>{assert.doesNotThrow(()=>validateCommit(goodCommit,head,base));for(const c of [{...goodCommit,author:{login:'GLORIFIER7'}},{...goodCommit,commit:{verification:{verified:false}}},{...goodCommit,parents:[{sha:head}]},{...goodCommit,files:goodCommit.files.slice(1)},{...goodCommit,files:goodCommit.files.map((f,i)=>i?f:{...f,sha:head})}])assert.throws(()=>validateCommit(c,head,base));});
+        test('token restricted to one repo and only write capabilities needed',()=>{assert.doesNotThrow(()=>validateToken(token));for(const t of [{...token,repository_selection:'all'},{...token,repositories:[...token.repositories,{full_name:'other/repo'}]},{...token,permissions:{contents:'write',pull_requests:'read'}},{...token,permissions:{...token.permissions,workflows:'write'}}])assert.throws(()=>validateToken(t));});
+        test('installation identity and permissions checked before token mint',()=>{const i={app_id:5876036,id:1,account:{login:'GLORIFIER7'},repository_selection:'selected',permissions:{contents:'write',pull_requests:'write'}};assert.doesNotThrow(()=>validateInstallation(i));for(const bad of [{...i,app_id:1},{...i,account:{login:'other'}},{...i,repository_selection:'all'},{...i,permissions:{contents:'read',pull_requests:'write'}}])assert.throws(()=>validateInstallation(bad));});
+        PUBLISHER_TEST
+        cat > "$RUNNER_TEMP/frontend-publisher/patch.b64" <<'PATCH_DATA'
+        ZGlmZiAtLWdpdCBhL3Rlc3RzL2UyZS9wcm9kdWN0aW9uLnNwZWMudHMgYi90ZXN0cy9lMmUvcHJvZHVjdGlvbi5zcGVjLnRzCi0t
+        LSBhL3Rlc3RzL2UyZS9wcm9kdWN0aW9uLnNwZWMudHMKKysrIGIvdGVzdHMvZTJlL3Byb2R1Y3Rpb24uc3BlYy50cwpAQCAtMSw2
+        ICsxLDE2IEBACi1pbXBvcnQgeyB0ZXN0LCBleHBlY3QsIHR5cGUgUGFnZSB9IGZyb20gJ0BwbGF5d3JpZ2h0L3Rlc3QnOworaW1w
+        b3J0IHsgdGVzdCwgZXhwZWN0LCB0eXBlIFBhZ2UsIHR5cGUgUmVzcG9uc2UgfSBmcm9tICdAcGxheXdyaWdodC90ZXN0JzsKIAog
+        Y29uc3QgZnJvbnRlbmRVcmwgPSBwcm9jZXNzLmVudi5GUk9OVEVORF9VUkwgfHwgJ2h0dHBzOi8vZ2xvcmlmaWVyLnBhZ2VzLmRl
+        dic7Citjb25zdCBNT0RVTEVfSURTID0gWydvdmVydmlldycsJ3dvcmtzcGFjZScsJ2J1c2luZXNzX2ludGVsbGlnZW5jZScsJ2dl
+        YXNfYXJjaGl0ZWN0dXJlJywnYXV0b25vbW91c19jb3JlJywnYWlfY2VvJywnaW50ZWdyYXRpb25zJywnYWdlbnRfbmV0d29yaycs
+        J3Rva2VuX2JyYW5kaW5nJywnZGlzY292ZXJ5Jywnc2VudGluZWwnLCdjb25uZWN0aW9ucycsJ21vYmlsZScsJ3NjaWVudGlzdHMn
+        LCdhZ2VudF9taW5lcicsJ2NvbXBsaWFuY2UnLCdjb250cm9sJywnZm9vdHByaW50cycsJ2Jyb2tlciddOworY29uc3QgUFJJTUFS
+        WV9NT0RVTEVfSURTID0gbmV3IFNldChbJ292ZXJ2aWV3Jywnd29ya3NwYWNlJywnYWlfY2VvJywnaW50ZWdyYXRpb25zJywnZGlz
+        Y292ZXJ5J10pOworCithc3luYyBmdW5jdGlvbiBhc3NlcnRNb2R1bGVSZW5kZXJlZChwYWdlOiBQYWdlKSB7CisgIGNvbnN0IG1h
+        aW4gPSBwYWdlLmxvY2F0b3IoJ21haW4nKTsKKyAgYXdhaXQgZXhwZWN0KG1haW4pLnRvQmVWaXNpYmxlKCk7CisgIGF3YWl0IGV4
+        cGVjdChtYWluLmdldEJ5VGV4dCgnTG9hZGluZyBtb2R1bGXigKYnLCB7IGV4YWN0OiBmYWxzZSB9KSkubm90LnRvQmVWaXNpYmxl
+        KCk7CisgIGF3YWl0IGV4cGVjdChtYWluKS5ub3QudG9Db250YWluVGV4dCgnVGhlIENvbW1hbmQgQ2VudGVyIGNvdWxkIG5vdCBy
+        ZW5kZXIuJyk7CisgIGF3YWl0IGV4cGVjdChtYWluKS5ub3QudG9Db250YWluVGV4dCgnQXBwbGljYXRpb24gZXJyb3InKTsKK30K
+        IAogYXN5bmMgZnVuY3Rpb24gc2lnbkluV2l0aERlZGljYXRlZEFjY291bnQocGFnZTogUGFnZSkgewogICBjb25zdCBlbWFpbCA9
+        IHByb2Nlc3MuZW52LkUyRV9URVNUX0VNQUlMOwpAQCAtMTEsMTIgKzIxLDMxIEBACiAgIGF3YWl0IHBhZ2UuZ2V0QnlSb2xlKCdi
+        dXR0b24nLCB7IG5hbWU6IC9ec2lnbiBpbiQvaSB9KS5jbGljaygpOwogICBhd2FpdCBwYWdlLmxvY2F0b3IoJ2lucHV0W2F1dG9j
+        b21wbGV0ZT0iZW1haWwiXScpLmZpbGwoZW1haWwpOwogICBhd2FpdCBwYWdlLmxvY2F0b3IoJ2lucHV0W2F1dG9jb21wbGV0ZT0i
+        Y3VycmVudC1wYXNzd29yZCJdJykuZmlsbChwYXNzd29yZCk7Ci0gIGF3YWl0IHBhZ2UuZ2V0QnlSb2xlKCdidXR0b24nLCB7IG5h
+        bWU6ICdTaWduIGluIHRvIENvbW1hbmQgQ2VudGVyJywgZXhhY3Q6IHRydWUgfSkuY2xpY2soKTsKLSAgYXdhaXQgZXhwZWN0KHBh
+        Z2UuZ2V0QnlSb2xlKCdidXR0b24nLCB7IG5hbWU6IC9zaWduIG91dC9pIH0pKS50b0JlVmlzaWJsZSgpOworICBsZXQgZmlyZWJh
+        c2VTdGF0dXM6IG51bWJlciB8IHVuZGVmaW5lZDsKKyAgbGV0IHNlc3Npb25TdGF0dXM6IG51bWJlciB8IHVuZGVmaW5lZDsKKyAg
+        Y29uc3Qgb2JzZXJ2ZSA9IChyZXNwb25zZTogUmVzcG9uc2UpID0+IHsKKyAgICBjb25zdCB1cmwgPSBuZXcgVVJMKHJlc3BvbnNl
+        LnVybCgpKTsKKyAgICBpZiAodXJsLmhvc3RuYW1lID09PSAnaWRlbnRpdHl0b29sa2l0Lmdvb2dsZWFwaXMuY29tJyAmJiB1cmwu
+        cGF0aG5hbWUgPT09ICcvdjEvYWNjb3VudHM6c2lnbkluV2l0aFBhc3N3b3JkJykgeworICAgICAgZmlyZWJhc2VTdGF0dXMgPSBy
+        ZXNwb25zZS5zdGF0dXMoKTsKKyAgICB9CisgICAgaWYgKHVybC5vcmlnaW4gPT09IG5ldyBVUkwoZnJvbnRlbmRVcmwpLm9yaWdp
+        biAmJiB1cmwucGF0aG5hbWUgPT09ICcvYXBpL2F1dGgvc2Vzc2lvbicpIHsKKyAgICAgIHNlc3Npb25TdGF0dXMgPSByZXNwb25z
+        ZS5zdGF0dXMoKTsKKyAgICB9CisgIH07CisgIHBhZ2Uub24oJ3Jlc3BvbnNlJywgb2JzZXJ2ZSk7CisgIHRyeSB7CisgICAgYXdh
+        aXQgcGFnZS5nZXRCeVJvbGUoJ2J1dHRvbicsIHsgbmFtZTogJ1NpZ24gaW4gdG8gQ29tbWFuZCBDZW50ZXInLCBleGFjdDogdHJ1
+        ZSB9KS5jbGljaygpOworICAgIGF3YWl0IGV4cGVjdChwYWdlLmdldEJ5Um9sZSgnYnV0dG9uJywgeyBuYW1lOiAvc2lnbiBvdXQv
+        aSB9KSkudG9CZVZpc2libGUoKTsKKyAgfSBjYXRjaCB7CisgICAgdGhyb3cgbmV3IEVycm9yKGBBVVRIX0UyRV9GQUlMRUQ6IEZp
+        cmViYXNlIHNpZ24taW4gSFRUUCAke2ZpcmViYXNlU3RhdHVzID8/ICdub3Qgb2JzZXJ2ZWQnfTsgYXBwbGljYXRpb24gc2Vzc2lv
+        biBIVFRQICR7c2Vzc2lvblN0YXR1cyA/PyAnbm90IG9ic2VydmVkJ30uYCk7CisgIH0gZmluYWxseSB7CisgICAgcGFnZS5vZmYo
+        J3Jlc3BvbnNlJywgb2JzZXJ2ZSk7CisgIH0KIH0KIAogdGVzdC5kZXNjcmliZSgnR0xPUklGSUVSIHByb2R1Y3Rpb24gZW5kLXRv
+        LWVuZCcsICgpID0+IHsKICAgdGVzdCgnYXV0aGVudGljYXRlZCBzZXNzaW9uLCBBUEkgYnJpZGdlLCBwZXJzaXN0ZW5jZSwgYW5k
+        IG1ham9yIG1vZHVsZXMnLCBhc3luYyAoeyBwYWdlIH0pID0+IHsKKyAgICB0ZXN0LnNldFRpbWVvdXQoMTIwXzAwMCk7CiAgICAg
+        YXdhaXQgc2lnbkluV2l0aERlZGljYXRlZEFjY291bnQocGFnZSk7CiAKICAgICBjb25zdCBzZXNzaW9uID0gYXdhaXQgcGFnZS5l
+        dmFsdWF0ZShhc3luYyAoKSA9PiB7CkBAIC0zNCwxNyArNjMsMTUgQEAKICAgICBleHBlY3Qoc3RhdGUuc3RhdHVzKS50b0JlKDIw
+        MCk7CiAgICAgZXhwZWN0KHN0YXRlLmJvZHkub2spLnRvQmUodHJ1ZSk7CiAKLSAgICBjb25zdCB0YWJzID0gWydvdmVydmlldycs
+        J2dlYXNfYXJjaGl0ZWN0dXJlJywnYWlfY2VvJywnaW50ZWdyYXRpb25zJywnYWdlbnRfbmV0d29yaycsJ2Rpc2NvdmVyeScsJ3Nl
+        bnRpbmVsJywnY29ubmVjdGlvbnMnLCdtb2JpbGUnLCdzY2llbnRpc3RzJywnYWdlbnRfbWluZXInLCdjb21wbGlhbmNlJywnY29u
+        dHJvbCcsJ2Zvb3RwcmludHMnLCdicm9rZXInXTsKLSAgICBjb25zdCBwcmltYXJ5VGFicyA9IG5ldyBTZXQoWydvdmVydmlldycs
+        J2FpX2NlbycsJ2ludGVncmF0aW9ucycsJ2Rpc2NvdmVyeScsJ3NlbnRpbmVsJ10pOwotICAgIGZvciAoY29uc3QgdGFiIG9mIHRh
+        YnMpIHsKLSAgICAgIGlmICghcHJpbWFyeVRhYnMuaGFzKHRhYikpIHsKLSAgICAgICAgYXdhaXQgcGFnZS5nZXRCeVJvbGUoJ2J1
+        dHRvbicsIHsgbmFtZTogL21vZHVsZXMvaSB9KS5jbGljaygpOworICAgIGNvbnN0IG5hdmlnYXRpb24gPSBwYWdlLmdldEJ5Um9s
+        ZSgnbmF2aWdhdGlvbicsIHsgbmFtZTogJ1ByaW1hcnkgbmF2aWdhdGlvbicgfSk7CisgICAgZm9yIChjb25zdCB0YWIgb2YgTU9E
+        VUxFX0lEUykgeworICAgICAgaWYgKCFQUklNQVJZX01PRFVMRV9JRFMuaGFzKHRhYikpIHsKKyAgICAgICAgYXdhaXQgbmF2aWdh
+        dGlvbi5nZXRCeVJvbGUoJ2J1dHRvbicsIHsgbmFtZTogL15tb2R1bGVzJC9pIH0pLmNsaWNrKCk7CiAgICAgICB9Ci0gICAgICBj
+        b25zdCB0YWJCdXR0b24gPSBwYWdlLmxvY2F0b3IoJyN0YWItYnRuLScgKyB0YWIpOworICAgICAgY29uc3QgdGFiQnV0dG9uID0g
+        bmF2aWdhdGlvbi5sb2NhdG9yKCcjdGFiLWJ0bi0nICsgdGFiKTsKICAgICAgIGF3YWl0IGV4cGVjdCh0YWJCdXR0b24pLnRvQmVW
+        aXNpYmxlKCk7CiAgICAgICBhd2FpdCB0YWJCdXR0b24uY2xpY2soKTsKLSAgICAgIGF3YWl0IGV4cGVjdChwYWdlLmxvY2F0b3Io
+        J2JvZHknKSkubm90LnRvQ29udGFpblRleHQoJ1RoZSBDb21tYW5kIENlbnRlciBjb3VsZCBub3QgcmVuZGVyLicpOwotICAgICAg
+        YXdhaXQgZXhwZWN0KHBhZ2UubG9jYXRvcignYm9keScpKS5ub3QudG9Db250YWluVGV4dCgnQXBwbGljYXRpb24gZXJyb3InKTsK
+        KyAgICAgIGF3YWl0IGFzc2VydE1vZHVsZVJlbmRlcmVkKHBhZ2UpOwogICAgIH0KIAogICAgIGF3YWl0IHBhZ2UucmVsb2FkKHsg
+        d2FpdFVudGlsOiAnbmV0d29ya2lkbGUnIH0pOwpAQCAtNjcsMTIgKzk0LDE2IEBACiAgIH0pOwogCiAgIHRlc3QoJ21vYmlsZSBu
+        YXZpZ2F0aW9uIHJlbWFpbnMgdXNhYmxlJywgYXN5bmMgKHsgcGFnZSB9KSA9PiB7CisgICAgdGVzdC5zZXRUaW1lb3V0KDEyMF8w
+        MDApOwogICAgIGF3YWl0IHBhZ2Uuc2V0Vmlld3BvcnRTaXplKHsgd2lkdGg6IDM5MCwgaGVpZ2h0OiA4NDQgfSk7CiAgICAgYXdh
+        aXQgc2lnbkluV2l0aERlZGljYXRlZEFjY291bnQocGFnZSk7Ci0gICAgYXdhaXQgcGFnZS5nZXRCeVJvbGUoJ2J1dHRvbicsIHsg
+        bmFtZTogL15tZW51JC9pIH0pLmNsaWNrKCk7Ci0gICAgYXdhaXQgZXhwZWN0KHBhZ2UubG9jYXRvcignI21vYmlsZS1uYXZpZ2F0
+        aW9uJykpLnRvQmVWaXNpYmxlKCk7Ci0gICAgYXdhaXQgcGFnZS5nZXRCeVJvbGUoJ2J1dHRvbicsIHsgbmFtZTogL2JpbmFuY2Ug
+        XC8gbmZ0L2kgfSkuY2xpY2soKTsKLSAgICBhd2FpdCBleHBlY3QocGFnZS5sb2NhdG9yKCdib2R5JykpLm5vdC50b0NvbnRhaW5U
+        ZXh0KCdUaGUgQ29tbWFuZCBDZW50ZXIgY291bGQgbm90IHJlbmRlci4nKTsKKyAgICBmb3IgKGNvbnN0IHRhYiBvZiBNT0RVTEVf
+        SURTKSB7CisgICAgICBhd2FpdCBwYWdlLmdldEJ5Um9sZSgnYnV0dG9uJywgeyBuYW1lOiAvXm1lbnUkL2kgfSkuY2xpY2soKTsK
+        KyAgICAgIGNvbnN0IG5hdmlnYXRpb24gPSBwYWdlLmxvY2F0b3IoJyNtb2JpbGUtbmF2aWdhdGlvbicpOworICAgICAgYXdhaXQg
+        ZXhwZWN0KG5hdmlnYXRpb24pLnRvQmVWaXNpYmxlKCk7CisgICAgICBhd2FpdCBuYXZpZ2F0aW9uLmxvY2F0b3IoJyN0YWItYnRu
+        LScgKyB0YWIpLmNsaWNrKCk7CisgICAgICBhd2FpdCBhc3NlcnRNb2R1bGVSZW5kZXJlZChwYWdlKTsKKyAgICB9CiAgIH0pOwog
+        CiAgIHRlc3QoJ3VuYXV0aGVudGljYXRlZCBBUEkgcm91dGVzIHJlbWFpbiBwcm90ZWN0ZWQnLCBhc3luYyAoeyBicm93c2VyIH0p
+        ID0+IHsKZGlmZiAtLWdpdCBhL3NjcmlwdHMvZTJlLW5hdmlnYXRpb24tYXVkaXQudGVzdC5tanMgYi9zY3JpcHRzL2UyZS1uYXZp
+        Z2F0aW9uLWF1ZGl0LnRlc3QubWpzCm5ldyBmaWxlIG1vZGUgMTAwNjQ0Ci0tLSAvZGV2L251bGwKKysrIGIvc2NyaXB0cy9lMmUt
+        bmF2aWdhdGlvbi1hdWRpdC50ZXN0Lm1qcwpAQCAtMCwwICsxLDQwIEBACitpbXBvcnQgeyByZWFkRmlsZVN5bmMgfSBmcm9tICdu
+        b2RlOmZzJzsKK2ltcG9ydCB7IHRlc3QgfSBmcm9tICdub2RlOnRlc3QnOworaW1wb3J0IGFzc2VydCBmcm9tICdub2RlOmFzc2Vy
+        dC9zdHJpY3QnOworY29uc3QgaGVhZGVyID0gcmVhZEZpbGVTeW5jKG5ldyBVUkwoJy4uL3NyYy9jb21wb25lbnRzL0hlYWRlci50
+        c3gnLCBpbXBvcnQubWV0YS51cmwpLCAndXRmOCcpOworY29uc3Qgc3BlYyA9IHJlYWRGaWxlU3luYyhuZXcgVVJMKCcuLi90ZXN0
+        cy9lMmUvcHJvZHVjdGlvbi5zcGVjLnRzJywgaW1wb3J0Lm1ldGEudXJsKSwgJ3V0ZjgnKTsKK2NvbnN0IGV4dHJhY3QgPSAodGV4
+        dCkgPT4gWy4uLnRleHQubWF0Y2hBbGwoLycoW2Etel9dKyknL2cpXS5tYXAobSA9PiBtWzFdKTsKK2NvbnN0IG1vZHVsZXMgPSBb
+        Li4uaGVhZGVyLm1hdGNoQWxsKC9ceyBpZDogJyhbYS16X10rKScsIGxhYmVsOi9nKV0ubWFwKG0gPT4gbVsxXSk7Citjb25zdCBz
+        b3VyY2VQcmltYXJ5ID0gZXh0cmFjdChoZWFkZXIubWF0Y2goL2NvbnN0IHByaW1hcnlJZHMgPSBuZXcgU2V0XCgoXFtbXlxdXStc
+        XSlcKS8pPy5bMV0gPz8gJycpOworY29uc3QgdGVzdGVkID0gZXh0cmFjdChzcGVjLm1hdGNoKC9jb25zdCAoPzpNT0RVTEVfSURT
+        fHRhYnMpID0gKFxbW15cXV0rXF0pLyk/LlsxXSA/PyAnJyk7Citjb25zdCB0ZXN0ZWRQcmltYXJ5ID0gZXh0cmFjdChzcGVjLm1h
+        dGNoKC9jb25zdCAoPzpQUklNQVJZX01PRFVMRV9JRFN8cHJpbWFyeVRhYnMpID0gbmV3IFNldFwoKFxbW15cXV0rXF0pXCkvKT8u
+        WzFdID8/ICcnKTsKK3Rlc3QoJ2V2ZXJ5IEhlYWRlciBtb2R1bGUgb2NjdXJzIGV4YWN0bHkgb25jZSBpbiB0aGUgRTJFIGludmVu
+        dG9yeScsICgpID0+IHsKKyAgYXNzZXJ0Lm9rKG1vZHVsZXMubGVuZ3RoID4gMCk7CisgIGFzc2VydC5lcXVhbChuZXcgU2V0KHRl
+        c3RlZCkuc2l6ZSwgdGVzdGVkLmxlbmd0aCk7CisgIGFzc2VydC5kZWVwRXF1YWwoWy4uLnRlc3RlZF0uc29ydCgpLCBbLi4ubW9k
+        dWxlc10uc29ydCgpKTsKK30pOwordGVzdCgncHJpbWFyeSBuYXZpZ2F0aW9uIGNsYXNzaWZpY2F0aW9uIGFncmVlcyB3aXRoIHRo
+        ZSBIZWFkZXInLCAoKSA9PiB7CisgIGFzc2VydC5kZWVwRXF1YWwoWy4uLnRlc3RlZFByaW1hcnldLnNvcnQoKSwgWy4uLnNvdXJj
+        ZVByaW1hcnldLnNvcnQoKSk7Cit9KTsKK3Rlc3QoJ21vYmlsZSB1c2VzIGFsbCBtb2R1bGUgSURzIHJhdGhlciB0aGFuIG9ic29s
+        ZXRlIGxhYmVscycsICgpID0+IHsKKyAgY29uc3QgbW9iaWxlID0gc3BlYy5zcGxpdCgidGVzdCgnbW9iaWxlIG5hdmlnYXRpb24g
+        cmVtYWlucyB1c2FibGUnIilbMV0gPz8gJyc7CisgIGFzc2VydC5tYXRjaChtb2JpbGUsIC9mb3IgXChjb25zdCB0YWIgb2YgTU9E
+        VUxFX0lEU1wpLyk7CisgIGFzc2VydC5tYXRjaChtb2JpbGUsIC8jbW9iaWxlLW5hdmlnYXRpb24vKTsKKyAgYXNzZXJ0LmRvZXNO
+        b3RNYXRjaChtb2JpbGUsIC9iaW5hbmNlL2kpOworfSk7Cit0ZXN0KCdhdXRoZW50aWNhdGlvbiBmYWlsdXJlIGVtaXRzIHN0YXR1
+        cy1vbmx5IGRpYWdub3N0aWNzLCB3aXRoIG5vIHJhdyBuZXR3b3JrIHBheWxvYWQnLCAoKSA9PiB7CisgIGFzc2VydC5tYXRjaChz
+        cGVjLCAvQVVUSF9FMkVfRkFJTEVELyk7CisgIGFzc2VydC5tYXRjaChzcGVjLCAvaWRlbnRpdHl0b29sa2l0XC5nb29nbGVhcGlz
+        XC5jb20vKTsKKyAgYXNzZXJ0Lm1hdGNoKHNwZWMsIC9yZXNwb25zZVwuc3RhdHVzXChcKS8pOworICBhc3NlcnQuZG9lc05vdE1h
+        dGNoKHNwZWMsIC9yZXNwb25zZVwuKD86anNvbnx0ZXh0fGJvZHl8YWxsSGVhZGVyc3xoZWFkZXJzKVwoLyk7Cit9KTsKK2NvbnN0
+        IGF1dGhQYW5lbCA9IHJlYWRGaWxlU3luYyhuZXcgVVJMKCcuLi9zcmMvY29tcG9uZW50cy9BdXRoUGFuZWwudHN4JywgaW1wb3J0
+        Lm1ldGEudXJsKSwgJ3V0ZjgnKTsKK3Rlc3QoJ2F1dGhlbnRpY2F0aW9uIGljb24gY29udHJvbHMgaGF2ZSBhY2Nlc3NpYmxlIG5h
+        bWVzIGFuZCBlcnJvcnMgYXJlIGFubm91bmNlZCcsICgpID0+IHsKKyAgYXNzZXJ0Lm1hdGNoKGF1dGhQYW5lbCwgL2FyaWEtbGFi
+        ZWw9IkNsb3NlIHNpZ24taW4gcGFuZWwiLyk7CisgIGFzc2VydC5tYXRjaChhdXRoUGFuZWwsIC9hcmlhLWxhYmVsPVx7c2hvd1Bh
+        c3N3b3JkIFw/ICdIaWRlIHBhc3N3b3JkJyA6ICdTaG93IHBhc3N3b3JkJ1x9Lyk7CisgIGFzc2VydC5tYXRjaChhdXRoUGFuZWws
+        IC9yb2xlPVx7bWVzc2FnZS50eXBlID09PSAnZXJyb3InIFw/ICdhbGVydCcgOiAnc3RhdHVzJ1x9Lyk7Cit9KTsKK3Rlc3QoJ25h
+        dmlnYXRpb24gZXhwb3NlcyB0aGUgYWN0aXZlIGxvY2F0aW9uIGFuZCBicmFuZCB0ZXh0IGlzIG5vdCBhIHBhZ2UgaGVhZGluZycs
+        ICgpID0+IHsKKyAgYXNzZXJ0Lm1hdGNoKGhlYWRlciwgL2FyaWEtY3VycmVudD1ce2lzQWN0aXZlIFw/ICdwYWdlJyA6IHVuZGVm
+        aW5lZFx9Lyk7CisgIGFzc2VydC5kb2VzTm90TWF0Y2goaGVhZGVyLCAvPGgxXGIvKTsKK30pOwpkaWZmIC0tZ2l0IGEvc2NyaXB0
+        cy9lMmUtcHJvZHVjdGlvbi13b3JrZmxvdy1jb250cmFjdC50ZXN0Lm1qcyBiL3NjcmlwdHMvZTJlLXByb2R1Y3Rpb24td29ya2Zs
+        b3ctY29udHJhY3QudGVzdC5tanMKLS0tIGEvc2NyaXB0cy9lMmUtcHJvZHVjdGlvbi13b3JrZmxvdy1jb250cmFjdC50ZXN0Lm1q
+        cworKysgYi9zY3JpcHRzL2UyZS1wcm9kdWN0aW9uLXdvcmtmbG93LWNvbnRyYWN0LnRlc3QubWpzCkBAIC0xLDQgKzEsNSBAQAog
+        aW1wb3J0IHsgcmVhZEZpbGVTeW5jLCBta2R0ZW1wU3luYywgbWtkaXJTeW5jLCB3cml0ZUZpbGVTeW5jLCBybVN5bmMgfSBmcm9t
+        ICdub2RlOmZzJzsKK2ltcG9ydCAnLi9lMmUtbmF2aWdhdGlvbi1hdWRpdC50ZXN0Lm1qcyc7CiBpbXBvcnQgeyB0bXBkaXIgfSBm
+        cm9tICdub2RlOm9zJzsKIGltcG9ydCB7IGpvaW4gfSBmcm9tICdub2RlOnBhdGgnOwogaW1wb3J0IHsgc3Bhd25TeW5jIH0gZnJv
+        bSAnbm9kZTpjaGlsZF9wcm9jZXNzJzsKZGlmZiAtLWdpdCBhL3NyYy9jb21wb25lbnRzL0hlYWRlci50c3ggYi9zcmMvY29tcG9u
+        ZW50cy9IZWFkZXIudHN4Ci0tLSBhL3NyYy9jb21wb25lbnRzL0hlYWRlci50c3gKKysrIGIvc3JjL2NvbXBvbmVudHMvSGVhZGVy
+        LnRzeApAQCAtNjcsNiArNjcsNyBAQAogICAgICAgPGJ1dHRvbgogICAgICAgICBrZXk9e3RhYi5pZH0KICAgICAgICAgaWQ9e2B0
+        YWItYnRuLSR7dGFiLmlkfWB9CisgICAgICAgIGFyaWEtY3VycmVudD17aXNBY3RpdmUgPyAncGFnZScgOiB1bmRlZmluZWR9CiAg
+        ICAgICAgIG9uQ2xpY2s9eygpID0+IGhhbmRsZVRhYih0YWIuaWQpfQogICAgICAgICBjbGFzc05hbWU9e2BmbGV4IGl0ZW1zLWNl
+        bnRlciBnYXAtMiByb3VuZGVkLW1kIHdoaXRlc3BhY2Utbm93cmFwIHRyYW5zaXRpb24tY29sb3JzICR7CiAgICAgICAgICAgY29t
+        cGFjdCA/ICd3LWZ1bGwgcHgtMyBweS0yLjUgdGV4dC1sZWZ0IHRleHQteHMnIDogJ3B4LTMgcHktMiB0ZXh0LVsxMXB4XScKQEAg
+        LTExMCw5ICsxMTEsOSBAQAogICAgICAgICAgICAgPC9kaXY+CiAgICAgICAgICAgICA8ZGl2PgotICAgICAgICAgICAgICA8aDEg
+        Y2xhc3NOYW1lPSJ0ZXh0LVsxNXB4XSBmb250LXNlbWlib2xkIHRyYWNraW5nLVstMC4wM2VtXSB0ZXh0LXdoaXRlIGZsZXggaXRl
+        bXMtY2VudGVyIGdhcC0xLjUiPgorICAgICAgICAgICAgICA8cCBjbGFzc05hbWU9InRleHQtWzE1cHhdIGZvbnQtc2VtaWJvbGQg
+        dHJhY2tpbmctWy0wLjAzZW1dIHRleHQtd2hpdGUgZmxleCBpdGVtcy1jZW50ZXIgZ2FwLTEuNSI+CiAgICAgICAgICAgICAgICAg
+        R0xPUklGSUVSCiAgICAgICAgICAgICAgICAgPHNwYW4gY2xhc3NOYW1lPSJ0ZXh0LVsxMHB4XSBweC0xLjUgcHktMC41IHJvdW5k
+        ZWQtc20gdGV4dC1lbWVyYWxkLTMwMCBib3JkZXIgYm9yZGVyLXNsYXRlLTcwMCBmb250LW1vbm8iPgogICAgICAgICAgICAgICAg
+        ICAgQVVUT05PTU9VUyBBSSBFTlRFUlBSSVNFCiAgICAgICAgICAgICAgICAgPC9zcGFuPgotICAgICAgICAgICAgICA8L2gxPgor
+        ICAgICAgICAgICAgICA8L3A+CiAgICAgICAgICAgICAgIDxwIGNsYXNzTmFtZT0idGV4dC1bMTFweF0gdGV4dC1zbGF0ZS01MDAg
+        aGlkZGVuIHNtOmJsb2NrIG10LTAuNSI+CmRpZmYgLS1naXQgYS9zcmMvY29tcG9uZW50cy9BdXRoUGFuZWwudHN4IGIvc3JjL2Nv
+        bXBvbmVudHMvQXV0aFBhbmVsLnRzeAotLS0gYS9zcmMvY29tcG9uZW50cy9BdXRoUGFuZWwudHN4CisrKyBiL3NyYy9jb21wb25l
+        bnRzL0F1dGhQYW5lbC50c3gKQEAgLTE5Nyw1ICsxOTcsNSBAQAogICAgICAgICAgICAgICAgIDxoMiBjbGFzc05hbWU9Im10LTEg
+        dGV4dC14bCBmb250LWJvbGQgdGV4dC13aGl0ZSI+Q29tbWFuZCBDZW50ZXIgQWNjZXNzPC9oMj4KICAgICAgICAgICAgICAgICA8
+        cCBjbGFzc05hbWU9Im10LTEgdGV4dC14cyB0ZXh0LXNsYXRlLTQwMCI+T25lIGFjY291bnQgZm9yIHRoZSBmdWxsIEdMT1JJRklF
+        UiBBSSBDb21tYW5kIENlbnRlci48L3A+CiAgICAgICAgICAgICAgIDwvZGl2PgotICAgICAgICAgICAgICA8YnV0dG9uIG9uQ2xp
+        Y2s9eygpID0+IHNldE9wZW4oZmFsc2UpfSBjbGFzc05hbWU9InRleHQtc2xhdGUtNDAwIGhvdmVyOnRleHQtd2hpdGUiPjxYIGNs
+        YXNzTmFtZT0iaC01IHctNSIgLz48L2J1dHRvbj4KKyAgICAgICAgICAgICAgPGJ1dHRvbiB0eXBlPSJidXR0b24iIGFyaWEtbGFi
+        ZWw9IkNsb3NlIHNpZ24taW4gcGFuZWwiIG9uQ2xpY2s9eygpID0+IHNldE9wZW4oZmFsc2UpfSBjbGFzc05hbWU9InRleHQtc2xh
+        dGUtNDAwIGhvdmVyOnRleHQtd2hpdGUiPjxYIGNsYXNzTmFtZT0iaC01IHctNSIgLz48L2J1dHRvbj4KICAgICAgICAgICAgIDwv
+        ZGl2PgpAQCAtMjQyLDEyICsyNDIsMTIgQEAKICAgICAgICAgICAgICAgICA8ZGl2IGNsYXNzTmFtZT0icmVsYXRpdmUiPgogICAg
+        ICAgICAgICAgICAgICAgPGlucHV0IGlkPSJhdXRoLXBhc3N3b3JkIiB0eXBlPXtzaG93UGFzc3dvcmQgPyAndGV4dCcgOiAncGFz
+        c3dvcmQnfSB2YWx1ZT17cGFzc3dvcmR9IG9uQ2hhbmdlPXtlID0+IHNldFBhc3N3b3JkKGUudGFyZ2V0LnZhbHVlKX0gYXV0b0Nv
+        bXBsZXRlPXttb2RlID09PSAnbG9naW4nID8gJ2N1cnJlbnQtcGFzc3dvcmQnIDogJ25ldy1wYXNzd29yZCd9IGNsYXNzTmFtZT0i
+        dy1mdWxsIHJvdW5kZWQtbGcgYm9yZGVyIGJvcmRlci1zbGF0ZS03MDAgYmctc2xhdGUtOTUwIHB4LTMgcHktMi41IHByLTEwIHRl
+        eHQtc20gdGV4dC13aGl0ZSBvdXRsaW5lLW5vbmUgZm9jdXM6Ym9yZGVyLWVtZXJhbGQtNTAwIiBwbGFjZWhvbGRlcj0iQXQgbGVh
+        c3QgNiBjaGFyYWN0ZXJzIiAvPgotICAgICAgICAgICAgICAgICAgPGJ1dHRvbiB0eXBlPSJidXR0b24iIG9uQ2xpY2s9eygpID0+
+        IHNldFNob3dQYXNzd29yZCh2ID0+ICF2KX0gY2xhc3NOYW1lPSJhYnNvbHV0ZSByaWdodC0zIHRvcC0yLjUgdGV4dC1zbGF0ZS01
+        MDAgaG92ZXI6dGV4dC1zbGF0ZS0zMDAiPgorICAgICAgICAgICAgICAgICAgPGJ1dHRvbiB0eXBlPSJidXR0b24iIGFyaWEtbGFi
+        ZWw9e3Nob3dQYXNzd29yZCA/ICdIaWRlIHBhc3N3b3JkJyA6ICdTaG93IHBhc3N3b3JkJ30gb25DbGljaz17KCkgPT4gc2V0U2hv
+        d1Bhc3N3b3JkKHYgPT4gIXYpfSBjbGFzc05hbWU9ImFic29sdXRlIHJpZ2h0LTMgdG9wLTIuNSB0ZXh0LXNsYXRlLTUwMCBob3Zl
+        cjp0ZXh0LXNsYXRlLTMwMCI+CiAgICAgICAgICAgICAgICAgICAgIHtzaG93UGFzc3dvcmQgPyA8RXllT2ZmIGNsYXNzTmFtZT0i
+        aC00IHctNCIgLz4gOiA8RXllIGNsYXNzTmFtZT0iaC00IHctNCIgLz59CiAgICAgICAgICAgICAgICAgICA8L2J1dHRvbj4KICAg
+        ICAgICAgICAgICAgICA8L2Rpdj4KICAgICAgICAgICAgICAgPC9kaXY+CiAKICAgICAgICAgICAgICAge21lc3NhZ2UgJiYgKAot
+        ICAgICAgICAgICAgICAgIDxkaXYgY2xhc3NOYW1lPXtgZmxleCBpdGVtcy1zdGFydCBnYXAtMiByb3VuZGVkLWxnIGJvcmRlciBw
+        LTMgdGV4dC14cyAke21lc3NhZ2UudHlwZSA9PT0gJ2Vycm9yJyA/ICdib3JkZXItcm9zZS01MDAvMjAgYmctcm9zZS01MDAvMTAg
+        dGV4dC1yb3NlLTMwMCcgOiAnYm9yZGVyLWVtZXJhbGQtNTAwLzIwIGJnLWVtZXJhbGQtNTAwLzEwIHRleHQtZW1lcmFsZC0zMDAn
+        fWB9PgorICAgICAgICAgICAgICAgIDxkaXYgcm9sZT17bWVzc2FnZS50eXBlID09PSAnZXJyb3InID8gJ2FsZXJ0JyA6ICdzdGF0
+        dXMnfSBjbGFzc05hbWU9e2BmbGV4IGl0ZW1zLXN0YXJ0IGdhcC0yIHJvdW5kZWQtbGcgYm9yZGVyIHAtMyB0ZXh0LXhzICR7bWVz
+        c2FnZS50eXBlID09PSAnZXJyb3InID8gJ2JvcmRlci1yb3NlLTUwMC8yMCBiZy1yb3NlLTUwMC8xMCB0ZXh0LXJvc2UtMzAwJyA6
+        ICdib3JkZXItZW1lcmFsZC01MDAvMjAgYmctZW1lcmFsZC01MDAvMTAgdGV4dC1lbWVyYWxkLTMwMCd9YH0+CiAgICAgICAgICAg
+        ICAgICAgICB7bWVzc2FnZS50eXBlID09PSAnZXJyb3InID8gPEFsZXJ0Q2lyY2xlIGNsYXNzTmFtZT0iaC00IHctNCBzaHJpbmst
+        MCIgLz4gOiA8Q2hlY2tDaXJjbGUyIGNsYXNzTmFtZT0iaC00IHctNCBzaHJpbmstMCIgLz59CiAgICAgICAgICAgICAgICAgICA8
+        c3Bhbj57bWVzc2FnZS50ZXh0fTwvc3Bhbj4K
+        PATCH_DATA
+        base64 --decode "$RUNNER_TEMP/frontend-publisher/patch.b64" > "$RUNNER_TEMP/frontend-publisher/repair.patch"
+    - name: Sign exact verified source and open draft PR only
+      env:
+        DIGITAL_ME_APP_PRIVATE_KEY: ${{ secrets.DIGITAL_ME_APP_PRIVATE_KEY }}
+      run: node "$RUNNER_TEMP/frontend-publisher/publisher.mjs" publish "$RUNNER_TEMP/frontend-publisher/repair.patch"
