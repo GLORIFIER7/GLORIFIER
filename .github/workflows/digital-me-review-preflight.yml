@@ -1,0 +1,29 @@
+name: GLORIFIER Digital Me — review preflight
+on:
+  workflow_dispatch:
+    inputs:
+      pull_request_number:
+        description: 'PR number to inspect (read-only; no approval)'
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  review-preflight:
+    if: ${{ github.repository == 'GLORIFIER7/GLORIFIER' && github.ref == 'refs/heads/main' && github.actor == 'GLORIFIER7' && github.triggering_actor == 'GLORIFIER7' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+      - run: node --test digital-me/test/*.test.mjs
+      - name: Collect scoped review evidence
+        env:
+          DIGITAL_ME_REVIEW_PR: ${{ inputs.pull_request_number }}
+          DIGITAL_ME_APP_ID: '5876036'
+          DIGITAL_ME_APP_PRIVATE_KEY: ${{ secrets.DIGITAL_ME_APP_PRIVATE_KEY }}
+        run: node digital-me/src/review-preflight.mjs
