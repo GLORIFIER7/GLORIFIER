@@ -25,6 +25,8 @@ const definitions: ProviderDefinition[] = [
  {id:'ollama',name:'Ollama / self-hosted',kind:'self-hosted',endpoint:'http://localhost:11434',keyEnv:'OLLAMA_AUTH_TOKEN',baseUrlEnv:'OLLAMA_BASE_URL',modelEnv:'OLLAMA_MODELS',capabilities:['chat','reasoning','code','self-hosted']}
 ];
 const snapshot = new Map<string, DiscoveredProvider>();
+// Bind successful discovery to the exact server-side configuration, never expose these hashes.
+const snapshotConfiguration = new Map<string, string>();
 const inferenceVerifiedConfiguration = new Map<string, string>();
 const inferenceVerifiedAt = new Map<string, number>();
 const NVIDIA_INFERENCE_VERIFICATION_TTL_MS = 15 * 60 * 1000;
@@ -78,7 +80,7 @@ function redactProviderDiagnostic(value: string): string {
  return safe.slice(0, 300);
 }
 function providerConfigurationFingerprint(d: ProviderDefinition): string {
- const material = [endpointFor(d), d.keyEnv ? env(d.keyEnv) : '', d.id === 'nvidia' ? env('NVIDIA_AUTHORIZED') : ''].join('\u0000');
+ const material = [endpointFor(d), d.keyEnv ? env(d.keyEnv) : '', env((d.id === 'huggingface' ? 'HF' : d.id.toUpperCase()) + '_AUTHORIZED'), env(d.workspaceIdEnv), env(d.modelEnv)].join('\u0000');
  return createHash('sha256').update(material).digest('hex');
 }
 function isNvidiaInferenceVerificationFresh(definition: ProviderDefinition): boolean {
@@ -187,6 +189,7 @@ export async function recordProviderInferenceVerification(providerId: string, mo
  const verifiedAt = new Date().toISOString();
  inferenceVerifiedAt.set(providerId, Date.parse(verifiedAt));
  inferenceVerifiedConfiguration.set(providerId, providerConfigurationFingerprint(definition));
+ snapshotConfiguration.set(providerId, providerConfigurationFingerprint(definition));
  const normalizedModel = typeof modelId === 'string' ? modelId.trim() : '';
  const models = normalizedModel
   ? [...new Set([...current.models, normalizedModel])]
@@ -274,14 +277,23 @@ export function getGlobalProviderDiscoverySnapshot():DiscoveredProvider[] {
       : 'NVIDIA provider credential or endpoint is not configured.',
    };
   }
+  if (!configured || snapshotConfiguration.get(d.id) !== providerConfigurationFingerprint(d)) {
+   return {
+    ...stored, endpoint, configured, authenticated:false,
+    availability:configured?'unreachable':'unconfigured',
+    authorization:configured?'pending':'not-configured', models:[],
+    reason:'Provider configuration changed; fresh discovery required.',
+   };
+  }
   return stored;
  });
 }
-export function getEligibleGlobalProviders(capability?:string) { return getGlobalProviderDiscoverySnapshot().filter(p=>p.configured&&p.authenticated&&p.availability==='available'&&(!capability||p.capabilities.includes(capability))); }
+export function getEligibleGlobalProviders(capability?:string) { return getGlobalProviderDiscoverySnapshot().filter(p=>p.configured&&p.authenticated&&p.authorization==='configured'&&p.availability==='available'&&(!capability||p.capabilities.includes(capability))); }
 export async function discoverGlobalProviders(
   actor = 'provider-discovery',
   options: { persistConnections?: boolean } = {},
 ) {
+  const probeConfigurations = new Map(definitions.map(d => [d.id, providerConfigurationFingerprint(d)]));
   const results = await Promise.all(definitions.map(probe));
   const reconciledResults: DiscoveredProvider[] = [];
   for (const discoveredProvider of results) {
@@ -293,7 +305,11 @@ export async function discoverGlobalProviders(
       previous.authorization === 'configured' &&
       discoveredProvider.availability !== 'auth_failure' &&
       isNvidiaInferenceVerificationFresh(definition!);
-    const provider: DiscoveredProvider = sameVerifiedNvidiaConfiguration && previous
+    const configurationChanged = !definition || probeConfigurations.get(discoveredProvider.id) !== providerConfigurationFingerprint(definition);
+    const provider: DiscoveredProvider = configurationChanged ? {
+      ...discoveredProvider, authenticated:false, availability:'unreachable', authorization:'pending', models:[],
+      reason:'Provider configuration changed during discovery; fresh discovery required.',
+    } : sameVerifiedNvidiaConfiguration && previous
       ? {
           ...discoveredProvider,
           authenticated: true,
@@ -304,6 +320,7 @@ export async function discoverGlobalProviders(
         }
       : discoveredProvider;
     snapshot.set(provider.id, provider);
+    snapshotConfiguration.set(provider.id, probeConfigurations.get(provider.id)!);
     reconciledResults.push(provider);
     if (options.persistConnections === false) continue;
     const connectionId = 'provider-' + provider.id;
