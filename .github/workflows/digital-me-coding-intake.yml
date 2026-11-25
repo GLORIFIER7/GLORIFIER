@@ -22,8 +22,33 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
         with:
           node-version: '24'
-      - run: node --test digital-me/test/coding-intake.test.mjs digital-me/test/coding-target.test.mjs
+      - run: node --test digital-me/test/coding-intake.test.mjs digital-me/test/coding-target.test.mjs digital-me/test/coding-mission-admission.test.mjs digital-me/test/coding-admission-actions.test.mjs
       - name: Revalidate command and target (read only)
         env:
           GITHUB_TOKEN: ${{ github.token }}
         run: node digital-me/src/coding-target.mjs
+  admit:
+    needs: intake
+    if: >-
+      github.repository == 'GLORIFIER7/GLORIFIER' && github.ref == 'refs/heads/main' &&
+      github.actor_id == '32674233' && github.event.sender.type == 'User' &&
+      vars.DIGITAL_ME_ADMISSION_ENABLED == 'true' &&
+      contains(fromJSON('["/glorifier plan","/glorifier explain","/glorifier fix","/glorifier review"]'), github.event.comment.body)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: digital-me-admission
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Admit verified command as blocked mission only
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DIGITAL_ME_ADMISSION_ENABLED: ${{ vars.DIGITAL_ME_ADMISSION_ENABLED }}
+          DIGITAL_ME_ADMISSION_DATABASE_URL: ${{ secrets.DIGITAL_ME_ADMISSION_DATABASE_URL }}
+        run: ./node_modules/.bin/tsx digital-me/src/coding-admission-actions.mjs
