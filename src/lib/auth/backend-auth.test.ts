@@ -4,6 +4,7 @@ import type { Request } from 'express';
 import {
   authenticationStatus,
   createRequireAuthentication,
+  createRequireOwner,
   createRequireOwnerOrInternalService,
   initializeAuthenticationBackend,
   isInternalServiceRequest,
@@ -39,6 +40,35 @@ const runMiddleware = async (
 
 assert.equal(isOwner(undefined), false, 'internal-service identities without user claims must not be treated as owners');
 assert.equal(isOwner(null), false, 'missing user identity must fail closed for owner checks');
+
+// Email-based owner authorization requires a verified email in both authorization paths.
+const ownerBindingKeys = ['GLORIFIER_OWNER_UID', 'GLORIFIER_OWNER_EMAIL'] as const;
+const priorOwnerBindings = Object.fromEntries(ownerBindingKeys.map(key => [key, process.env[key]]));
+try {
+  delete process.env.GLORIFIER_OWNER_UID;
+  process.env.GLORIFIER_OWNER_EMAIL = 'owner@example.invalid';
+  for (const email_verified of [false, undefined, 'true', true]) {
+    const principal = { uid: 'synthetic-user', email: 'OWNER@example.invalid', email_verified } as any;
+    const allowed = email_verified === true;
+    assert.equal(isOwner(principal), allowed, 'owner email match requires literal verified=true');
+    const result = await runMiddleware(createRequireOwner(async () => principal), {});
+    assert.equal(result.nextCalled, allowed, 'owner middleware must use the same predicate');
+    assert.equal(result.statusCode, allowed ? 200 : 403);
+  }
+  assert.equal(isOwner({ uid: 'other', email: 123, email_verified: true } as any), false);
+  assert.equal(isOwner({ uid: 'other', email: 'different@example.invalid', email_verified: true } as any), false);
+  process.env.GLORIFIER_OWNER_UID = 'configured-owner';
+  assert.equal(isOwner({ uid: 'configured-owner' } as any), true, 'explicit UID binding remains supported');
+  for (const claim of [{ owner: true }, { admin: true }, { role: 'owner' }]) {
+    assert.equal(isOwner({ uid: 'other', ...claim } as any), true, 'existing trusted claim semantics are retained');
+  }
+} finally {
+  for (const key of ownerBindingKeys) {
+    const prior = priorOwnerBindings[key];
+    if (prior === undefined) delete process.env[key];
+    else process.env[key] = prior;
+  }
+}
 
 const fakeVerifier: TokenVerifier = async (req) => {
   const header = req.get('authorization');
