@@ -1,0 +1,76 @@
+diff --git a/src/lib/auth/backend-auth.ts b/src/lib/auth/backend-auth.ts
+--- a/src/lib/auth/backend-auth.ts
++++ b/src/lib/auth/backend-auth.ts
+@@ -118,7 +118,8 @@
+     claims.admin === true ||
+     claims.role === 'owner' ||
+     (ownerUid && decoded.uid === ownerUid) ||
+-    (ownerEmail && decoded.email?.toLowerCase() === ownerEmail)
++    (ownerEmail && decoded.email_verified === true &&
++      typeof decoded.email === 'string' && decoded.email.toLowerCase() === ownerEmail)
+   );
+ }
+ 
+@@ -126,17 +127,7 @@
+   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+     verify(req).then((decoded) => {
+       if (!decoded) return res.status(401).json({ ok: false, error: 'Authentication required' });
+-      const ownerUid = process.env.GLORIFIER_OWNER_UID?.trim();
+-      const ownerEmail = process.env.GLORIFIER_OWNER_EMAIL?.trim().toLowerCase();
+-      const claims = decoded as DecodedIdToken & { owner?: boolean; admin?: boolean; role?: string };
+-      const matchesOwner = Boolean(
+-        claims.owner === true ||
+-        claims.admin === true ||
+-        claims.role === 'owner' ||
+-        (ownerUid && decoded.uid === ownerUid) ||
+-        (ownerEmail && decoded.email?.toLowerCase() === ownerEmail)
+-      );
+-      if (!matchesOwner) return res.status(403).json({ ok: false, error: 'Owner authorization required' });
++      if (!isOwner(decoded)) return res.status(403).json({ ok: false, error: 'Owner authorization required' });
+       req.auth = decoded;
+       next();
+     }).catch(() => res.status(401).json({ ok: false, error: 'Authentication unavailable' }));
+diff --git a/src/lib/auth/backend-auth.test.ts b/src/lib/auth/backend-auth.test.ts
+--- a/src/lib/auth/backend-auth.test.ts
++++ b/src/lib/auth/backend-auth.test.ts
+@@ -5,4 +5,5 @@
+   authenticationStatus,
+   createRequireAuthentication,
++  createRequireOwner,
+   createRequireOwnerOrInternalService,
+   initializeAuthenticationBackend,
+@@ -44,5 +44,34 @@
+ assert.equal(isOwner(undefined), false, 'internal-service identities without user claims must not be treated as owners');
+ assert.equal(isOwner(null), false, 'missing user identity must fail closed for owner checks');
++
++// Email-based owner authorization requires a verified email in both authorization paths.
++const ownerBindingKeys = ['GLORIFIER_OWNER_UID', 'GLORIFIER_OWNER_EMAIL'] as const;
++const priorOwnerBindings = Object.fromEntries(ownerBindingKeys.map(key => [key, process.env[key]]));
++try {
++  delete process.env.GLORIFIER_OWNER_UID;
++  process.env.GLORIFIER_OWNER_EMAIL = 'owner@example.invalid';
++  for (const email_verified of [false, undefined, 'true', true]) {
++    const principal = { uid: 'synthetic-user', email: 'OWNER@example.invalid', email_verified } as any;
++    const allowed = email_verified === true;
++    assert.equal(isOwner(principal), allowed, 'owner email match requires literal verified=true');
++    const result = await runMiddleware(createRequireOwner(async () => principal), {});
++    assert.equal(result.nextCalled, allowed, 'owner middleware must use the same predicate');
++    assert.equal(result.statusCode, allowed ? 200 : 403);
++  }
++  assert.equal(isOwner({ uid: 'other', email: 123, email_verified: true } as any), false);
++  assert.equal(isOwner({ uid: 'other', email: 'different@example.invalid', email_verified: true } as any), false);
++  process.env.GLORIFIER_OWNER_UID = 'configured-owner';
++  assert.equal(isOwner({ uid: 'configured-owner' } as any), true, 'explicit UID binding remains supported');
++  for (const claim of [{ owner: true }, { admin: true }, { role: 'owner' }]) {
++    assert.equal(isOwner({ uid: 'other', ...claim } as any), true, 'existing trusted claim semantics are retained');
++  }
++} finally {
++  for (const key of ownerBindingKeys) {
++    const prior = priorOwnerBindings[key];
++    if (prior === undefined) delete process.env[key];
++    else process.env[key] = prior;
++  }
++}
+ 
+ const fakeVerifier: TokenVerifier = async (req) => {
+   const header = req.get('authorization');
