@@ -1,5 +1,7 @@
 name: GLORIFIER Digital Me — reviewed patch publisher
 on:
+  # Scheduled execution intentionally disabled until the existing GEAS mission ledger
+  # supplies authenticated lease, cancellation, retry and reconciliation evidence.
   workflow_dispatch:
     inputs:
       expected_main:
@@ -39,7 +41,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publish-reviewed:
-    if: github.repository == 'GLORIFIER7/GLORIFIER' && github.ref == 'refs/heads/main' && github.actor_id == '32674233' && github.triggering_actor == 'GLORIFIER7' && inputs.confirm_reviewed == true
+    if: github.repository == 'GLORIFIER7/GLORIFIER' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && github.actor_id == '32674233' && github.triggering_actor == 'GLORIFIER7' && inputs.confirm_reviewed == true
     runs-on: ubuntu-latest
     timeout-minutes: 10
     environment: digital-me-publish
@@ -74,13 +76,57 @@ jobs:
           const blob=b=>hash('sha1',Buffer.concat([Buffer.from(`blob ${b.length}\0`),b]));
           const safePath=p=>typeof p==='string'&&p.length<=180&&p.split('/').every(s=>/^[A-Za-z0-9_-][A-Za-z0-9_.-]*$/.test(s)&&s!=='.'&&s!=='..');
           const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+          const QUEUE=1034, OWNER_ID=32674233, MAX_AGE=24*60*60*1000;
+          const SCHEDULED_PREVIEW_PATHS=new Set(['src/lib/use-accessible-dialog.ts']);
+          const riskPath=p=>!SCHEDULED_PREVIEW_PATHS.has(p);
+          function scheduleContext(e){if(e.GITHUB_REPOSITORY!==REPO||e.GITHUB_REF!=='refs/heads/main'||e.GITHUB_EVENT_NAME!=='schedule'||e.GITHUB_RUN_ATTEMPT!=='1'||e.AUTO_ENABLED!=='true'||!sha(e.GITHUB_SHA)||!/^\d{1,20}$/.test(e.GITHUB_RUN_ID??''))throw Error('Invalid or disabled scheduled dispatcher');}
           export function validate(e){
-           const required={GITHUB_REPOSITORY:REPO,GITHUB_REF:'refs/heads/main',GITHUB_ACTOR:'GLORIFIER7',GITHUB_ACTOR_ID:'32674233',GITHUB_TRIGGERING_ACTOR:'GLORIFIER7',GITHUB_EVENT_NAME:'workflow_dispatch',GITHUB_RUN_ATTEMPT:'1',CONFIRM:'true'};
-           if(Object.entries(required).some(([k,v])=>e[k]!==v)||!sha(e.EXPECTED_MAIN)||e.EXPECTED_MAIN!==e.GITHUB_SHA||!sha(e.SOURCE_SHA)||!/^\d{1,20}$/.test(e.GITHUB_RUN_ID??'')||!/^[a-f0-9]{64}$/.test(e.PATCH_SHA256??''))throw Error('Invalid owner, workflow, confirmation or immutable revision');
+           const scheduled=e.GITHUB_EVENT_NAME==='schedule';
+           if(scheduled){scheduleContext(e);if(!/^[1-9]\d{0,15}$/.test(e.MISSION_ID??'')||!Number.isSafeInteger(Number(e.MISSION_ID)))throw Error('Missing mission authorization');}
+           else {const required={GITHUB_REPOSITORY:REPO,GITHUB_REF:'refs/heads/main',GITHUB_ACTOR:'GLORIFIER7',GITHUB_ACTOR_ID:'32674233',GITHUB_TRIGGERING_ACTOR:'GLORIFIER7',GITHUB_EVENT_NAME:'workflow_dispatch',GITHUB_RUN_ATTEMPT:'1'};if(e.MISSION_ID||Object.entries(required).some(([k,v])=>e[k]!==v))throw Error('Invalid owner workflow');}
+           if(e.CONFIRM!=='true'||!sha(e.EXPECTED_MAIN)||e.EXPECTED_MAIN!==e.GITHUB_SHA||!sha(e.SOURCE_SHA)||!/^\d{1,20}$/.test(e.GITHUB_RUN_ID??'')||!/^[a-f0-9]{64}$/.test(e.PATCH_SHA256??''))throw Error('Invalid confirmation or immutable revision');
            if(!safePath(e.PATCH_PATH)||!e.PATCH_PATH.endsWith('.patch')||e.PATCH_PATH.startsWith('.'))throw Error('Invalid patch path');
            const paths=(e.ALLOWED_PATHS??'').split(',').map(x=>x.trim()).sort();
-           if(!paths.length||paths.length>8||new Set(paths).size!==paths.length||paths.some(p=>!safePath(p)||! /^(src|tests)\//.test(p)||! /\.(ts|tsx|js|jsx|mjs|py)$/.test(p)))throw Error('Invalid approved source path list');
-           return {base:e.EXPECTED_MAIN,source:e.SOURCE_SHA,patchPath:e.PATCH_PATH,digest:e.PATCH_SHA256,paths,branch:'digital-me/repair-'+e.GITHUB_RUN_ID};
+           if(!paths.length||paths.length>8||new Set(paths).size!==paths.length||paths.some(p=>!safePath(p)||! /^(src|tests)\//.test(p)||! /\.(ts|tsx|js|jsx|mjs|py)$/.test(p)||(scheduled&&riskPath(p))))throw Error('Invalid approved source path list');
+           const cfg={base:e.EXPECTED_MAIN,source:e.SOURCE_SHA,patchPath:e.PATCH_PATH,digest:e.PATCH_SHA256,paths};
+           // One durable branch key for the same base, exact patch digest and normalized paths, even if queued twice.
+           return scheduled?{...cfg,missionId:Number(e.MISSION_ID),branch:'digital-me/repair-mission-'+hash('sha256',JSON.stringify([cfg.base,cfg.digest,paths]))}:{...cfg,branch:'digital-me/repair-'+e.GITHUB_RUN_ID};
+          }
+          function parseMission(c,e,now){
+           if(!c||c.user?.id!==OWNER_ID||c.user.login!=='GLORIFIER7'||c.user.type!=='User'||c.author_association!=='OWNER'||c.issue_url!=='https://api.github.com'+R+'/issues/'+QUEUE||!Number.isSafeInteger(c.id)||c.id<1||c.created_at!==c.updated_at||typeof c.body!=='string'||c.body.length>1800)return null;
+           const created=Date.parse(c.created_at);if(!Number.isFinite(created)||created>now||now-created>MAX_AGE)return null;
+           const m=/^\/glorifier publish-reviewed ([a-f0-9]{40}) ([a-f0-9]{40}) ([A-Za-z0-9_./-]+) ([a-f0-9]{64}) ([A-Za-z0-9_./,-]+)$/.exec(c.body);
+           if(!m||m[0]!==c.body)return null;
+           const q={MISSION_ID:String(c.id),EXPECTED_MAIN:m[1],SOURCE_SHA:m[2],PATCH_PATH:m[3],PATCH_SHA256:m[4],ALLOWED_PATHS:m[5],CONFIRM:'true'};
+           try{validate({...e,...q});return q;}catch{return null;}
+          }
+          async function checkQueue(api,token,cfg){
+           checkMain(await api(R+'/commits/main',token),cfg);
+           const issue=await api(R+'/issues/'+QUEUE,token);if(issue?.number!==QUEUE||issue.state!=='open'||issue.pull_request)throw Error('Mission queue is not open');
+          }
+          async function unusedMission(cfg,api,token){
+           const history=await api(R+'/pulls?state=all&head='+encodeURIComponent('GLORIFIER7:'+cfg.branch)+'&per_page=1',token);if(!Array.isArray(history))throw Error('Invalid PR history');if(history.length)return false;
+           const refs=await api(R+'/git/matching-refs/heads/'+cfg.branch,token);if(!Array.isArray(refs))throw Error('Invalid branch inventory');if(refs.some(r=>r.ref==='refs/heads/'+cfg.branch))throw Error('Incomplete mission claim; reconcile exact branch '+cfg.branch+' before retry');
+           const open=await api(R+'/pulls?state=open&per_page=100',token);if(!Array.isArray(open)||open.length>=100)throw Error('Incomplete open PR inventory');
+           if(open.some(pr=>!pr?.head?.repo?.full_name||typeof pr.head.ref!=='string'))throw Error('Invalid open PR inventory');
+           return !open.some(pr=>pr.head.repo.full_name===REPO&&/^digital-me\/repair-/.test(pr.head.ref));
+          }
+          export async function selectMission(e,api,token,now=Date.now()){
+           scheduleContext(e);await checkQueue(api,token,{base:e.GITHUB_SHA});
+           const list=await api(R+'/issues/'+QUEUE+'/comments?per_page=100&since='+encodeURIComponent(new Date(now-MAX_AGE).toISOString()),token);
+           if(!Array.isArray(list)||list.length>=100)throw Error('Incomplete bounded mission inventory');
+           const candidates=list.map(c=>parseMission(c,e,now)).filter(Boolean);
+           if(!candidates.length)return null;
+           if(candidates.length!==1)throw Error('Multiple authorized missions; retain one exact owner authorization');
+           const q=candidates[0],cfg=validate({...e,...q});return await unusedMission(cfg,api,token)?q:null;
+          }
+          export async function assertAuthorizedMission(cfg,api,token,now=Date.now()){
+           if(!cfg.missionId)return;
+           await checkQueue(api,token,cfg);
+           const c=await api(R+'/issues/comments/'+cfg.missionId,token);
+           const e={GITHUB_REPOSITORY:REPO,GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'schedule',GITHUB_RUN_ATTEMPT:'1',AUTO_ENABLED:'true',GITHUB_SHA:cfg.base,GITHUB_RUN_ID:'1'};
+           const q=parseMission(c,e,now);if(!q||!same(validate({...e,...q}),cfg))throw Error('Mission authorization changed, expired or revoked');
+           const selected=await selectMission(e,api,token,now);if(!selected||!same(validate({...e,...selected}),cfg))throw Error('Mission authorization changed, claimed or blocked');
           }
           async function github(path,token,method='GET',body){
            const r=await fetch('https://api.github.com'+path,{method,redirect:'error',signal:AbortSignal.timeout(30000),headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'},...(body===undefined?{}:{body:JSON.stringify(body)})});
@@ -128,6 +174,7 @@ jobs:
            if(closed?.number!==n||closed.state!=='closed'||!exactDraft({...closed,state:'open'},cfg,head))throw Error('Close readback mismatch');
           }
           export async function publish(cfg,m,api,jwt){
+           if(cfg.missionId)throw Error('GEAS ledger integration required before scheduled publication');
            checkManifest(cfg,m);
            const i=await api(R+'/installation',jwt);if(i?.app_id!==APP||i.account?.login!=='GLORIFIER7'||i.repository_selection!=='selected'||!Number.isSafeInteger(i.id)||Object.entries(PERMS).some(([k,v])=>i.permissions?.[k]!==v))throw Error('Wrong App or installation scope');
            const t=await api('/app/installations/'+i.id+'/access_tokens',jwt,'POST',{repositories:['GLORIFIER'],permissions:PERMS});if(typeof t?.token!=='string'||!t.token)throw Error('Installation token unavailable');const token=t.token;
@@ -152,14 +199,21 @@ jobs:
             return {status:'SIGNED_DRAFT_CREATED',pr:pr.number,sha:head,url:pr.html_url,merged:false};
            }finally{try{await api('/installation/token',token,'DELETE');}catch{console.error('Short-lived token revocation unavailable; token expires automatically.');}}
           }
-          async function main(){const cfg=validate(process.env), manifest=join(process.env.RUNNER_TEMP,'digital-me-reviewed-manifest.json');if(process.argv[2]==='prepare'){const t=process.env.GITHUB_TOKEN;if(!t)throw Error('Read token missing');const m=await materialize(cfg,github,t);writeFileSync(manifest,JSON.stringify(m),{mode:0o600,flag:'wx'});console.log('Prepared approved patch as inert data. No write performed.');}else if(process.argv[2]==='publish'){const pem=process.env.DIGITAL_ME_APP_PRIVATE_KEY;delete process.env.DIGITAL_ME_APP_PRIVATE_KEY;if(!pem)throw Error('App secret missing');const m=JSON.parse(readFileSync(manifest,'utf8'));const result=await publish(cfg,m,github,jwtFor(pem));console.log(JSON.stringify(result,null,2));}else throw Error('Unsupported mode');}
+          async function main(){
+           if(process.env.GITHUB_EVENT_NAME==='schedule')throw Error('GEAS ledger integration required; scheduled execution disabled');
+           const mode=process.argv[2],manifest=join(process.env.RUNNER_TEMP,'digital-me-reviewed-manifest.json');
+           const cfg=validate(process.env);
+           if(mode==='prepare'){const t=process.env.GITHUB_TOKEN;if(!t)throw Error('Read token missing');await assertAuthorizedMission(cfg,github,t);const m=await materialize(cfg,github,t);writeFileSync(manifest,JSON.stringify(m),{mode:0o600,flag:'wx'});console.log('Prepared approved patch as inert data. No write performed.');}
+           else if(mode==='publish'){const pem=process.env.DIGITAL_ME_APP_PRIVATE_KEY;delete process.env.DIGITAL_ME_APP_PRIVATE_KEY;if(!pem)throw Error('App secret missing');if(cfg.missionId){const t=process.env.GITHUB_TOKEN;if(!t)throw Error('Read token missing');await assertAuthorizedMission(cfg,github,t);}const m=JSON.parse(readFileSync(manifest,'utf8'));const result=await publish(cfg,m,github,jwtFor(pem));console.log(JSON.stringify(result,null,2));}
+           else throw Error('Unsupported mode');
+          }
           if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){try{await main();}catch(e){console.error('Publisher stopped:',e?.message?.startsWith('Command failed')?'Patch application rejected':e.message);process.exitCode=1;}}
           PUBLISHER_JS
           cat > "$RUNNER_TEMP/glorifier-reviewed-publisher/publisher.test.mjs" <<'PUBLISHER_TEST'
           import test from 'node:test';
           import assert from 'node:assert/strict';
           import {createHash} from 'node:crypto';
-          import {validate, materialize, publish} from './publisher.mjs';
+          import {validate, materialize, publish, selectMission, assertAuthorizedMission} from './publisher.mjs';
           const base='a'.repeat(40), source='b'.repeat(40), path='src/example.ts', old=Buffer.from('export const value = 1;\n'), updated=Buffer.from('export const value = 2;\n');
           const patch=Buffer.from('diff --git a/src/example.ts b/src/example.ts\n--- a/src/example.ts\n+++ b/src/example.ts\n@@ -1 +1 @@\n-export const value = 1;\n+export const value = 2;\n');
           const digest=b=>createHash('sha256').update(b).digest('hex');
@@ -206,6 +260,28 @@ jobs:
           test('invalid creation readback recovers exact App draft',async()=>{const f=fake({response:{head:{sha:source}}}),cfg=validate(env),m=await materialize(cfg,f.api,'read-token');await assert.rejects(publish(cfg,m,f.api,'jwt'),/draft closed/i);assert.ok(f.calls.some(c=>c.m==='PATCH'&&c.p.endsWith('/pulls/1')));});
           test('unexpected head never closed and cleanup failure reported',async()=>{const f=fake({actualPr:{head:{sha:source,ref:'digital-me/repair-1234',repo:{full_name:'GLORIFIER7/GLORIFIER'}}}}),cfg=validate(env),m=await materialize(cfg,f.api,'read-token');await assert.rejects(publish(cfg,m,f.api,'jwt'),/cleanup not verified/i);assert.ok(!f.calls.some(c=>c.m==='PATCH'));});
           test('ambiguous lookup with no matching draft reports unverified cleanup',async()=>{const f=fake({ambiguous:true,list:[]}),cfg=validate(env),m=await materialize(cfg,f.api,'read-token');await assert.rejects(publish(cfg,m,f.api,'jwt'),/cleanup not verified/i);assert.ok(!f.calls.some(c=>c.m==='PATCH'));});
+
+          const missionId=12345, now=Date.parse('2026-11-25T04:00:00Z'), stamp='2026-11-25T03:00:00Z';
+          const scheduled={...env,GITHUB_EVENT_NAME:'schedule',GITHUB_ACTOR:'github-actions[bot]',GITHUB_ACTOR_ID:'41898282',GITHUB_TRIGGERING_ACTOR:'github-actions[bot]',AUTO_ENABLED:'true'};
+          const scheduledPath='src/lib/use-accessible-dialog.ts';
+          const command=`/glorifier publish-reviewed ${base} ${source} repair.patch ${digest(patch)} ${scheduledPath}`;
+          const comment={id:missionId,body:command,user:{id:32674233,login:'GLORIFIER7',type:'User'},author_association:'OWNER',issue_url:'https://api.github.com/repos/GLORIFIER7/GLORIFIER/issues/1034',created_at:stamp,updated_at:stamp};
+          function queueFake(overrides={}){const calls=[];return {calls,api:async(p,t,m='GET')=>{calls.push({p,m});if(p.endsWith('/commits/main'))return overrides.main??main;if(p.endsWith('/issues/1034'))return {number:1034,state:'open'};if(p.includes('/issues/1034/comments?'))return overrides.list??[comment];if(p.endsWith('/issues/comments/'+missionId))return overrides.comment??comment;if(p.includes('/git/matching-refs/'))return overrides.refs??[];if(p.includes('/pulls?state=all'))return overrides.history??[];if(p.includes('/pulls?state=open'))return overrides.open??[];throw Error('unexpected queue API');}};}
+          test('scheduled mission selects immutable owner authorization without writes',async()=>{const f=queueFake();const q=await selectMission(scheduled,f.api,'read',now);assert.equal(q.MISSION_ID,String(missionId));assert.equal(q.EXPECTED_MAIN,base);assert.equal(q.PATCH_SHA256,digest(patch));assert.match(validate({...scheduled,...q}).branch,/^digital-me\/repair-mission-[a-f0-9]{64}$/);assert.ok(f.calls.every(c=>c.m==='GET'));});
+          test('disabled dispatcher and rerun cannot select',async()=>{for(const e of [{AUTO_ENABLED:'false'},{GITHUB_RUN_ATTEMPT:'2'},{GITHUB_REF:'refs/heads/untrusted'},{GITHUB_EVENT_NAME:'issue_comment'}]){const f=queueFake();await assert.rejects(selectMission({...scheduled,...e},f.api,'read',now));assert.equal(f.calls.length,0);}});
+          test('reject nonowner, edited, expired, multiline and sensitive missions',async()=>{for(const c of [{...comment,user:{...comment.user,id:2}},{...comment,updated_at:'2026-11-25T03:30:00Z'},{...comment,created_at:'2026-11-23T03:00:00Z',updated_at:'2026-11-23T03:00:00Z'},{...comment,body:command+'\nmore'},{...comment,body:command.replace(scheduledPath,'src/lib/auth/backend-auth.ts')}]){assert.equal(await selectMission(scheduled,queueFake({list:[c]}).api,'read',now),null);}});
+          test('prior exact PR history suppresses duplicate execution',async()=>{assert.equal(await selectMission(scheduled,queueFake({history:[{number:44}]}).api,'read',now),null);});
+          test('branch without PR history reports an incomplete claim',async()=>{const q=await selectMission(scheduled,queueFake().api,'read',now), cfg=validate({...scheduled,...q});await assert.rejects(selectMission(scheduled,queueFake({refs:[{ref:'refs/heads/'+cfg.branch}]}).api,'read',now),/incomplete mission claim/i);});
+          test('unrelated open PR does not block a mission',async()=>{assert.ok(await selectMission(scheduled,queueFake({open:[{number:45,head:{ref:'feature/other',repo:{full_name:'GLORIFIER7/GLORIFIER'}}}]}).api,'read',now));});
+          test('another in-flight publisher PR blocks selection',async()=>{assert.equal(await selectMission(scheduled,queueFake({open:[{number:45,head:{ref:'digital-me/repair-9999',repo:{full_name:'GLORIFIER7/GLORIFIER'}}}]}).api,'read',now),null);});
+          test('stale main, oversized inventory and multiple missions fail closed',async()=>{for(const o of [{main:{...main,sha:source}},{list:Array(100).fill(comment)},{list:[comment,{...comment,id:12346,body:command.replace(source,'d'.repeat(40))}]}])await assert.rejects(selectMission(scheduled,queueFake(o).api,'read',now));});
+          test('same approved payload yields same durable branch despite run or comment ID',()=>{const q={EXPECTED_MAIN:base,SOURCE_SHA:source,PATCH_PATH:'repair.patch',PATCH_SHA256:digest(patch),ALLOWED_PATHS:scheduledPath,CONFIRM:'true',MISSION_ID:'12345'};assert.equal(validate({...scheduled,...q}).branch,validate({...scheduled,...q,GITHUB_RUN_ID:'9999',MISSION_ID:'12346'}).branch);});
+          test('revalidate exact approval before publication and deny changed authorization',async()=>{const q=await selectMission(scheduled,queueFake().api,'read',now),cfg=validate({...scheduled,...q});await assertAuthorizedMission(cfg,queueFake().api,'read',now);await assert.rejects(assertAuthorizedMission(cfg,queueFake({comment:{...comment,body:command.replace(source,'d'.repeat(40))}}).api,'read',now));await assert.rejects(assertAuthorizedMission(cfg,queueFake({comment:{...comment,updated_at:'2026-11-25T03:30:00Z'}}).api,'read',now));});
+          test('manual path retains exact owner gate and rejects mission ID injection',()=>{assert.throws(()=>validate({...env,MISSION_ID:'12345'}));assert.throws(()=>validate({...env,GITHUB_ACTOR_ID:'2'}));assert.equal(validate(env).branch,'digital-me/repair-1234');});
+
+          test('scheduled path allowlist rejects all identified sensitive and unknown files',async()=>{for(const p of ['src/lib/a2a-v1.ts','src/lib/binance-readonly.ts','src/lib/autopilot-github-write.ts','src/unknown.ts']){const f=queueFake({list:[{...comment,body:command.replace(scheduledPath,p)}]});assert.equal(await selectMission(scheduled,f.api,'read',now),null);}});
+          test('second authorization appearing after selection blocks final authorization',async()=>{const q=await selectMission(scheduled,queueFake().api,'read',now),cfg=validate({...scheduled,...q});await assert.rejects(assertAuthorizedMission(cfg,queueFake({list:[comment,{...comment,id:12346,body:command.replace(source,'d'.repeat(40))}]}).api,'read',now),/multiple authorized missions/i);});
+          test('scheduled publication is blocked until GEAS integration, even with a valid mission',async()=>{const q=await selectMission(scheduled,queueFake().api,'read',now),cfg=validate({...scheduled,...q});const f=fake();await assert.rejects(publish(cfg,null,f.api,'jwt'),/GEAS ledger integration required/i);assert.equal(f.calls.length,0);});
           PUBLISHER_TEST
           node --test "$RUNNER_TEMP/glorifier-reviewed-publisher/publisher.test.mjs"
       - name: Validate approved patch as data (no App secret)
@@ -214,8 +290,9 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: node "$RUNNER_TEMP/glorifier-reviewed-publisher/publisher.mjs" prepare
       - name: Publish signed draft only
-        if: inputs.publish == true
+        if: github.event_name == 'workflow_dispatch' && inputs.publish == true
         shell: bash
         env:
+          GITHUB_TOKEN: ${{ github.token }}
           DIGITAL_ME_APP_PRIVATE_KEY: ${{ secrets.DIGITAL_ME_APP_PRIVATE_KEY }}
         run: node "$RUNNER_TEMP/glorifier-reviewed-publisher/publisher.mjs" publish
