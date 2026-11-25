@@ -13,3 +13,26 @@ test('unsigned or stale main rejected',async()=>{for(const v of [{sha:base,verif
 test('independent approval proof must bind exact immutable authorization',async()=>{for(const v of [{verified:false},{verified:true,principal:'owner-uid',authorizationDigest:'wrong',expiresAt:'2026-11-25T04:40:00.000Z'},{verified:true,principal:'owner-uid',authorizationDigest:publicationDigest(fixture()),expiresAt:now}])await assert.rejects(setup(()=>{},{verifyApproval:async()=>v}).run());});
 test('revocation or concurrent ledger mutation during proof check blocks preflight',async()=>{let count=0;const f=setup(()=>{},{getMission:async()=>{const m=fixture();if(++count===2)m.status='cancelled';return m}});await assert.rejects(f.run());});
 test('digest changes when immutable patch or approval identity changes',()=>{const a=fixture(),b=fixture();b.steps[0].toolArguments.patchSha256='d'.repeat(64);assert.notEqual(publicationDigest(a),publicationDigest(b));b.steps[0].toolArguments.patchSha256=digest;b.steps[0].approval.evidenceRef='approval-2';assert.notEqual(publicationDigest(a),publicationDigest(b));});
+
+test('immutable argument key validation does not rely on default alphabetical sorting', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const sourceText = await readFile(new URL('../src/ledger-publication-preflight.mjs', import.meta.url), 'utf8');
+  assert.doesNotMatch(sourceText, /Object\.keys\([^)]*\)\.sort\(\s*\)/);
+});
+test('authorization digest is invariant to insertion order of approved argument keys', () => {
+  const first = fixture();
+  const second = fixture();
+  const original = second.steps[0].toolArguments;
+  second.steps[0].toolArguments = { source: original.source, repository: original.repository, paths: original.paths, patchSha256: original.patchSha256, patchPath: original.patchPath, base: original.base };
+  assert.equal(publicationDigest(first), publicationDigest(second));
+});
+test('exact argument schema rejects missing or substituted keys and hidden required keys', async () => {
+  for (const modify of [
+    a => { delete a.source; },
+    a => { delete a.source; a.unexpected = source; },
+    a => { a.unexpected = true; },
+    a => { Object.defineProperty(a, 'source', { enumerable: false }); a.unexpected = source; },
+  ]) {
+    await assert.rejects(setup(m => modify(m.steps[0].toolArguments)).run(), /invalid immutable target/);
+  }
+});
