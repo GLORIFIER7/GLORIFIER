@@ -92,18 +92,8 @@ jobs:
            const files=[];for(const p of cfg.paths){const f=c.files.find(x=>x.filename===p),before=await entry(api,cfg.base,p),after=await entry(api,cfg.source,p);requireThat(after===f.sha&&before!==after&&((f.status==='added'&&before===null)||(f.status==='modified'&&sha(before))),'Source tree does not match declared changes');files.push({path:p,before,sha:after,status:f.status,contents:await contents(api,cfg.source,p,after)});}
            await mainCheck(cfg,api);return {cfg,files};
           }
-          function draftIdentity(pr,cfg,head,number,state='open'){
-           return Number.isSafeInteger(number)&&number>0&&pr?.number===number&&pr.state===state&&pr.draft===true&&pr.user?.login===BOT&&pr.head?.sha===head&&pr.head?.ref===cfg.branch&&pr.head?.repo?.full_name===REPO&&pr.base?.ref==='main'&&pr.base?.repo?.full_name===REPO;
-          }
-          async function reconcileDraft(cfg,api,head,number){
-           const path=R+'/pulls/'+number;
-           try{
-            // PR updates are not atomic compare-and-set: verify exact identity immediately before and after closure.
-            requireThat(draftIdentity(await api(path),cfg,head,number),'Draft identity changed');
-            await api(path,'PATCH',{state:'closed'});
-            requireThat(draftIdentity(await api(path),cfg,head,number,'closed'),'Closure not verified');
-           }catch{throw Error('Draft #'+number+' requires reconciliation; cleanup not verified');}
-           throw Error('Draft #'+number+' closed and verified; reconcile scope before retry');
+          function draftIdentity(pr,cfg,head,number){
+           return Number.isSafeInteger(number)&&number>0&&pr?.number===number&&pr.state==='open'&&pr.draft===true&&pr.user?.login===BOT&&pr.head?.sha===head&&pr.head?.ref===cfg.branch&&pr.head?.repo?.full_name===REPO&&pr.base?.ref==='main'&&pr.base?.repo?.full_name===REPO;
           }
           export async function publish(cfg,manifest,api){
            // Repeat the immutable source checks with the installation token. Never execute the candidate.
@@ -125,7 +115,10 @@ jobs:
             const current=await api(R+'/pulls/'+number);
             requireThat(draftIdentity(current,cfg,head,number)&&current.base.sha===cfg.base,'Draft readback mismatch');
             await mainCheck(cfg,api);
-           }catch{return await reconcileDraft(cfg,api,head,number);}
+           }catch{
+            // GitHub has no documented atomic conditional draft closure here. Preserve the PR.
+            throw Error('Draft #'+number+' requires reconciliation: stale or unverified; no automatic closure');
+           }
            return {status:'SIGNED_DRAFT_CREATED',pr:number,head,merged:false};
           }
           function github(token){return async(path,method='GET',body)=>{const r=await fetch('https://api.github.com'+path,{method,redirect:'error',signal:AbortSignal.timeout(30000),headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'},...(body===undefined?{}:{body:JSON.stringify(body)})});requireThat(r.ok,`GitHub HTTP ${r.status}; reconcile before retry`);if(r.status===204)return null;const j=await r.json();requireThat(!j?.errors?.length,'GitHub rejected request');return j;};}
@@ -147,7 +140,7 @@ jobs:
            const calls=[];const cfg=validate(cfgEnv);const pr={number:17,state:'open',draft:true,user:{login:'glorifier-digital-me[bot]'},head:{sha:signed,ref:cfg.branch,repo:{full_name:'GLORIFIER7/GLORIFIER'}},base:{sha:base,ref:'main',repo:{full_name:'GLORIFIER7/GLORIFIER'}}};
            let created=false,reads=0;
            const api=async(p,method='GET',body)=>{calls.push({p,method,body});
-           if(p.endsWith('/commits/main')) {if(created&&o.staleAfterCreate){pr.base.sha=head;return commit(head);}return commit(o.stale?head:base);}
+           if(p.endsWith('/commits/main')) {if(created&&o.mainReadError)throw Error('simulated main GET timeout');if(created&&o.staleAfterCreate){pr.base.sha=head;return commit(head);}return commit(o.stale?head:base);}
            if(p.includes('/compare/')) return {status:'ahead',ahead_by:1,behind_by:0,total_commits:1,base_commit:{sha:base},merge_base_commit:{sha:base},commits:[o.unsigned?{sha:head,commit:{verification:{verified:false}}}:commit(head)],files:[{filename:o.extra?'src/extra.ts':path,status:o.added?'added':'modified',sha:gitBlob(next)}]};
            if(p.endsWith('/git/commits/'+base)||p.endsWith('/git/commits/'+head)||p.endsWith('/git/commits/'+signed)){let sha=p.split('/').at(-1);return {sha,tree:{sha:sha===base?tree:sub}};}
            if(p.endsWith('/git/trees/'+tree)||p.endsWith('/git/trees/'+sub)){let sha=p.split('/').at(-1);return {sha,truncated:false,tree:[{path:'digital-me',type:'tree',mode:'040000',sha:sha===tree?'1'.repeat(40):'2'.repeat(40)}]};}
@@ -162,7 +155,8 @@ jobs:
            if(p.endsWith('/pulls')&&method==='POST'){created=true;if(o.staleAtCreate)pr.base.sha=head;return structuredClone(pr);}
            if(p.endsWith('/pulls/17')){
             if(method==='PATCH'){assert.deepEqual(body,{state:'closed'});if(o.closeError)throw Error('simulated close failure');if(!o.closeUnconfirmed)pr.state='closed';return structuredClone(pr);}
-            if(++reads===1&&o.staleAtRead)pr.base.sha=head;
+            if(++reads===1&&o.readError)throw Error('simulated PR GET timeout');
+            if(reads===1&&o.staleAtRead)pr.base.sha=head;
             if(o.changedHead)pr.head.sha=head;
             if(o.changedAuthor)pr.user.login='other';
             if(o.ready)pr.draft=false;
@@ -180,25 +174,26 @@ jobs:
           test('wrong signing identity never opens a PR',async()=>{let f=fake({wrongAuthor:true}),cfg=validate(cfgEnv);await assert.rejects(publish(cfg,await inspect(cfg,f.api),f.api));assert.ok(!f.calls.some(c=>c.method==='POST'&&c.p.endsWith('/pulls')));});
           
           test('added source files are allowed only when absent from the base tree',async()=>{let f=fake({added:true}),cfg=validate(cfgEnv),m=await inspect(cfg,f.api);assert.equal(m.files[0].before,null);assert.equal(m.files[0].status,'added');assert.equal((await publish(cfg,m,f.api)).pr,17);});
-          test('stale base at creation, readback or final check closes only the exact draft',async()=>{
+          test('stale base at creation, readback or final check preserves draft for explicit reconciliation',async()=>{
            for(const o of [{staleAtCreate:true},{staleAtRead:true},{staleAfterCreate:true}]){
             const f=fake(o),cfg=validate(cfgEnv);
-            await assert.rejects(publish(cfg,await inspect(cfg,f.api),f.api),/Draft #17 closed and verified/);
-            const writes=f.calls.filter(c=>c.method==='PATCH');assert.equal(writes.length,1);assert.ok(writes[0].p.endsWith('/pulls/17'));assert.deepEqual(writes[0].body,{state:'closed'});
-            assert.ok(f.calls.at(-1).p.endsWith('/pulls/17'));assert.equal(f.calls.at(-1).method,'GET');
+            await assert.rejects(publish(cfg,await inspect(cfg,f.api),f.api),/Draft #17 requires reconciliation: stale or unverified/);
+            assert.ok(!f.calls.some(c=>c.method==='PATCH'||c.method==='DELETE'));
            }
           });
           test('changed head, author, draft status or PR number never triggers closure',async()=>{
            for(const o of [{changedHead:true},{changedAuthor:true},{ready:true},{changedNumber:true}]){
             const f=fake(o),cfg=validate(cfgEnv);
             await assert.rejects(publish(cfg,await inspect(cfg,f.api),f.api),/Draft #17 requires reconciliation/);
-            assert.ok(!f.calls.some(c=>c.method==='PATCH'));
+            assert.ok(!f.calls.some(c=>c.method==='PATCH'||c.method==='DELETE'));
            }
           });
-          test('closure errors and unconfirmed closure preserve the exact reconciliation ID',async()=>{
-           for(const o of [{closeError:true},{closeUnconfirmed:true}]){
-            const f=fake({...o,staleAfterCreate:true}),cfg=validate(cfgEnv);
-            await assert.rejects(publish(cfg,await inspect(cfg,f.api),f.api),/Draft #17 requires reconciliation/);
+          test('transient post-creation PR or main read error never closes a valid draft',async()=>{
+           for(const o of [{readError:true},{mainReadError:true}]){
+            const f=fake(o),cfg=validate(cfgEnv);
+            await assert.rejects(publish(cfg,await inspect(cfg,f.api),f.api),/Draft #17 requires reconciliation: stale or unverified/);
+            assert.ok(!f.calls.some(c=>c.method==='PATCH'||c.method==='DELETE'));
+            assert.equal((await f.api('/repos/GLORIFIER7/GLORIFIER/pulls/17')).state,'open');
            }
           });
           test('token revocation failure preserves success or original error and reports uncertainty',async()=>{
