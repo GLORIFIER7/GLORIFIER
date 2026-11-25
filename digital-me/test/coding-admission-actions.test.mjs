@@ -15,3 +15,22 @@ test('forged actor and stale verification cannot open database',async()=>{const 
 test('rejects missing or insecure dedicated connection before store use',async()=>{const f=setup();for(const url of ['', 'postgresql://example.invalid/db?sslmode=disable','postgresql://example.invalid/db','postgresql://example.invalid/db?sslmode=verify-full&sslmode=disable'])await assert.rejects(runAdmission({env:{...env,DIGITAL_ME_ADMISSION_DATABASE_URL:url},event},f.deps));assert.equal(f.opened,0);});
 test('ledger failure is not reported as admitted',async()=>{const f=setup();await assert.rejects(runAdmission({env,event},{...f.deps,openStore:async()=>({create:async()=>{throw Error('offline')}})}));});
 test('workflow executes admission only behind opt-in and dedicated environment',()=>{const y=readFileSync(new URL('../../.github/workflows/digital-me-coding-intake.yml',import.meta.url),'utf8');assert.match(y,/vars\.DIGITAL_ME_ADMISSION_ENABLED == 'true'/);assert.match(y,/environment: digital-me-admission/);assert.match(y,/secrets\.DIGITAL_ME_ADMISSION_DATABASE_URL/);assert.match(y,/tsx digital-me\/src\/coding-admission-actions\.mjs/);assert.doesNotMatch(y,/DIGITAL_ME_APP_PRIVATE_KEY|secrets\.DATABASE_URL/);});
+
+test('admission failure diagnostics distinguish configuration, target, store and safe ledger error categories',async()=>{
+  const f=setup();
+  const cases=[
+    [{...env,DIGITAL_ME_ADMISSION_DATABASE_URL:'postgresql://hidden:secret@example.invalid/db?sslmode=require'},f.deps,'ADMISSION_DSN_INVALID'],
+    [env,{...f.deps,verifyTarget:async()=>{throw Error('secret target data')}},'ADMISSION_TARGET_FAILED'],
+    [env,{...f.deps,openStore:async()=>{throw Error('secret module data')}},'ADMISSION_STORE_OPEN_FAILED'],
+  ];
+  for(const [code,expected] of [['28P01','ADMISSION_DB_AUTH_FAILED'],['42501','ADMISSION_DB_PERMISSION_DENIED'],['23514','ADMISSION_DB_CONSTRAINT_FAILED'],['CERT_HAS_EXPIRED','ADMISSION_DB_TLS_FAILED'],['ECONNREFUSED','ADMISSION_DB_NETWORK_FAILED'],['secret arbitrary code','ADMISSION_DB_WRITE_FAILED']]){
+    cases.push([env,{...f.deps,openStore:async()=>({create:async()=>{throw Object.assign(Error('secret database URL'),{code})}})},expected]);
+  }
+  for(const [e,deps,expected] of cases){
+    await assert.rejects(runAdmission({env:e,event},deps),error=>{
+      assert.equal(error.message,expected);
+      assert.equal(error.cause,undefined);
+      return true;
+    });
+  }
+});
