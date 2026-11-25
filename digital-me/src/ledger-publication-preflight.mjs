@@ -11,6 +11,18 @@ const sha = v => typeof v === 'string' && /^[a-f0-9]{40}$/.test(v);
 const sha256 = v => typeof v === 'string' && /^[a-f0-9]{64}$/.test(v);
 const id = v => typeof v === 'string' && /^[A-Za-z0-9._:-]{1,256}$/.test(v);
 const iso = v => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(v) && Number.isFinite(Date.parse(v)) && new Date(v).toISOString() === v;
+// PostgreSQL JSONB timestamptz may use an explicit offset and omit trailing
+// fractional zeroes. Require a real calendar date and an unambiguous zone.
+function leaseInstant(value) {
+  if (typeof value !== 'string' || value.length > 32) return NaN;
+  const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,6}))?(Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.exec(value);
+  if (!match || match[3] === '-00:00') return NaN;
+  const fraction = (match[2] ?? '').padEnd(3, '0').slice(0, 3);
+  // Validate wall-clock components before applying the explicit offset.
+  if (!iso(`${match[1]}.${fraction}Z`)) return NaN;
+  // Truncate sub-millisecond precision conservatively for lease expiry.
+  return Date.parse(`${match[1]}.${fraction}${match[3]}`);
+}
 const fail = reason => { throw new Error('Publication preflight denied: '+reason); };
 function normalize(m) {
   if (!isRecord(m) || !id(m.id) || !id(m.requester) || !Array.isArray(m.steps) || m.steps.length !== 1) fail('invalid mission shape');
@@ -29,7 +41,9 @@ export function publicationDigest(mission) {
 function inspect(m,intent) {
   const normalized=normalize(m);
   if (m.id!==intent.missionId || m.requester!==intent.requester || normalized.stepId!==intent.stepId || m.version!==intent.version || m.status!=='executing' || m.leaseOwner!==intent.workerId) fail('lease or mission identity changed');
-  if (!iso(m.leaseExpiresAt) || Date.parse(m.leaseExpiresAt)<=Date.parse(intent.now) || Date.parse(m.leaseExpiresAt)-Date.parse(intent.now)>30*60_000) fail('lease expired or invalid');
+  const expiry = leaseInstant(m.leaseExpiresAt);
+  const now = Date.parse(intent.now);
+  if (!Number.isFinite(expiry) || expiry<=now || expiry-now>30*60_000) fail('lease expired or invalid');
   if (m.steps[0].status!=='running' || m.steps[0].attemptCount!==1) fail('step not on its first claimed attempt; reconcile before retry');
   if (Date.parse(normalized.approvedAt)>Date.parse(intent.now)) fail('approval from future');
   return normalized;
