@@ -1,0 +1,166 @@
+name: GLORIFIER Digital Me — reviewed patch publisher
+on:
+  workflow_dispatch:
+    inputs:
+      expected_main:
+        description: Exact current signed main SHA
+        required: true
+        type: string
+      source_sha:
+        description: Reviewed immutable commit containing patch data
+        required: true
+        type: string
+      patch_path:
+        description: Path to reviewed .patch file
+        required: true
+        type: string
+      patch_sha256:
+        description: Exact reviewed patch SHA-256
+        required: true
+        type: string
+      allowed_paths:
+        description: Comma-separated existing src/tests source paths
+        required: true
+        type: string
+      confirm_reviewed:
+        description: I reviewed the exact patch and approved public draft publication scope
+        type: boolean
+        required: true
+        default: false
+      publish:
+        description: Create App-signed draft PR (false is read-only preflight)
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: glorifier-digital-me-reviewed-publication
+  cancel-in-progress: false
+jobs:
+  publish-reviewed:
+    if: github.repository == 'GLORIFIER7/GLORIFIER' && github.ref == 'refs/heads/main' && github.actor_id == '32674233' && github.triggering_actor == 'GLORIFIER7' && inputs.confirm_reviewed == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: digital-me-publish
+    env:
+      EXPECTED_MAIN: ${{ inputs.expected_main }}
+      SOURCE_SHA: ${{ inputs.source_sha }}
+      PATCH_PATH: ${{ inputs.patch_path }}
+      PATCH_SHA256: ${{ inputs.patch_sha256 }}
+      ALLOWED_PATHS: ${{ inputs.allowed_paths }}
+      CONFIRM: ${{ inputs.confirm_reviewed }}
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+      - name: Install trusted workflow code and run isolated regression tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir "$RUNNER_TEMP/glorifier-reviewed-publisher"
+          cat > "$RUNNER_TEMP/glorifier-reviewed-publisher/publisher.mjs" <<'PUBLISHER_JS'
+          import {createHash, createSign} from 'node:crypto';
+          import {readFileSync, writeFileSync, mkdirSync, mkdtempSync, rmSync, lstatSync, readdirSync} from 'node:fs';
+          import {tmpdir} from 'node:os';
+          import {join, dirname} from 'node:path';
+          import {pathToFileURL} from 'node:url';
+          import {execFileSync} from 'node:child_process';
+          const REPO='GLORIFIER7/GLORIFIER', R='/repos/'+REPO, APP=5876036, BOT='glorifier-digital-me[bot]';
+          const PERMS={contents:'write',pull_requests:'write'};
+          const sha=s=>typeof s==='string'&&/^[a-f0-9]{40}$/.test(s);
+          const hash=(alg,b)=>createHash(alg).update(b).digest('hex');
+          const blob=b=>hash('sha1',Buffer.concat([Buffer.from(`blob ${b.length}\0`),b]));
+          const safePath=p=>typeof p==='string'&&p.length<=180&&p.split('/').every(s=>/^[A-Za-z0-9_-][A-Za-z0-9_.-]*$/.test(s)&&s!=='.'&&s!=='..');
+          const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+          export function validate(e){
+           const required={GITHUB_REPOSITORY:REPO,GITHUB_REF:'refs/heads/main',GITHUB_ACTOR:'GLORIFIER7',GITHUB_ACTOR_ID:'32674233',GITHUB_TRIGGERING_ACTOR:'GLORIFIER7',GITHUB_EVENT_NAME:'workflow_dispatch',GITHUB_RUN_ATTEMPT:'1',CONFIRM:'true'};
+           if(Object.entries(required).some(([k,v])=>e[k]!==v)||!sha(e.EXPECTED_MAIN)||e.EXPECTED_MAIN!==e.GITHUB_SHA||!sha(e.SOURCE_SHA)||!/^\d{1,20}$/.test(e.GITHUB_RUN_ID??'')||!/^[a-f0-9]{64}$/.test(e.PATCH_SHA256??''))throw Error('Invalid owner, workflow, confirmation or immutable revision');
+           if(!safePath(e.PATCH_PATH)||!e.PATCH_PATH.endsWith('.patch')||e.PATCH_PATH.startsWith('.'))throw Error('Invalid patch path');
+           const paths=(e.ALLOWED_PATHS??'').split(',').map(x=>x.trim()).sort();
+           if(!paths.length||paths.length>8||new Set(paths).size!==paths.length||paths.some(p=>!safePath(p)||! /^(src|tests)\//.test(p)||! /\.(ts|tsx|js|jsx|mjs|py)$/.test(p)))throw Error('Invalid approved source path list');
+           return {base:e.EXPECTED_MAIN,source:e.SOURCE_SHA,patchPath:e.PATCH_PATH,digest:e.PATCH_SHA256,paths,branch:'digital-me/repair-'+e.GITHUB_RUN_ID};
+          }
+          async function github(path,token,method='GET',body){
+           const r=await fetch('https://api.github.com'+path,{method,redirect:'error',signal:AbortSignal.timeout(30000),headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'},...(body===undefined?{}:{body:JSON.stringify(body)})});
+           if(!r.ok)throw Error(`GitHub request failed: HTTP ${r.status}`);if(r.status===204)return null;const j=await r.json();if(j?.errors?.length)throw Error('GitHub rejected request');return j;
+          }
+          const checkMain=(m,cfg)=>{if(m?.sha!==cfg.base||m.commit?.verification?.verified!==true||m.commit?.verification?.reason!=='valid')throw Error('Stale or unsigned main');};
+          async function getFile(api,token,path,ref){const f=await api(R+'/contents/'+path+'?ref='+ref,token);if(f?.path!==path||f.type!=='file'||f.encoding!=='base64'||typeof f.content!=='string'||f.content.length>800000)throw Error('Invalid file metadata');const b=Buffer.from(f.content,'base64');if(blob(b)!==f.sha||b.length>500000||b.includes(0)||!Buffer.from(b.toString('utf8')).equals(b))throw Error('File digest, size or text validation failed');return b;}
+          function walk(dir,root=''){return readdirSync(dir,{withFileTypes:true}).flatMap(e=>{const p=root+e.name;if(e.isDirectory())return walk(join(dir,e.name),p+'/');if(!e.isFile())throw Error('Unexpected nonregular file');return [p];}).sort();}
+          export async function materialize(cfg,api,token){
+           checkMain(await api(R+'/commits/main',token),cfg);
+           const patch=await getFile(api,token,cfg.patchPath,cfg.source);if(hash('sha256',patch)!==cfg.digest)throw Error('Patch digest mismatch');
+           const lines=patch.toString('utf8').split('\n');const headers=lines.filter(l=>l.startsWith('diff --git ')).map(l=>{const m=/^diff --git a\/([A-Za-z0-9_./-]+) b\/([A-Za-z0-9_./-]+)$/.exec(l);if(!m||m[1]!==m[2])throw Error('Unsupported patch path');return m[1];}).sort();
+           if(!same(headers,cfg.paths)||lines.some(l=>/^(old mode |new mode |new file mode |deleted file mode |rename (from|to) |copy (from|to) |GIT binary patch|Binary files |--- \/dev\/null|\+\+\+ \/dev\/null)/.test(l)))throw Error('Patch path or operation outside scope');
+           const dir=mkdtempSync(join(tmpdir(),'glorifier-patch-')), work=join(dir,'files'), patchFile=join(dir,'input.patch');
+           try{mkdirSync(work);writeFileSync(patchFile,patch,{mode:0o600});const originals={};
+            for(const p of cfg.paths){const b=await getFile(api,token,p,cfg.base);originals[p]=blob(b);const target=join(work,p);mkdirSync(dirname(target),{recursive:true});writeFileSync(target,b,{mode:0o600});}
+            const gitEnv={PATH:process.env.PATH??'/usr/bin:/bin',HOME:dir,GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null',LC_ALL:'C'};
+            // The patch is inert data; no checkout, hooks, tests or candidate code are executed.
+            const apply=args=>execFileSync('git',['-c','core.hooksPath=/dev/null','apply',...args,patchFile],{cwd:work,env:gitEnv,stdio:'pipe',timeout:15000,maxBuffer:1000000});
+            const stats=apply(['--numstat','-z']).toString().split('\0').filter(Boolean).map(x=>{const m=/^\d+\t\d+\t(.+)$/.exec(x);if(!m)throw Error('Unsupported patch statistics');return m[1];}).sort();if(!same(stats,cfg.paths))throw Error('Patch statistics path mismatch');
+            apply(['--check','--whitespace=error']);apply(['--whitespace=error']);if(!same(walk(work),cfg.paths))throw Error('Unexpected materialized path');
+            const files=cfg.paths.map(path=>{const f=join(work,path),st=lstatSync(f);if(!st.isFile()||st.size>500000)throw Error('Unexpected file type or size');const b=readFileSync(f);if(b.includes(0)||!Buffer.from(b.toString('utf8')).equals(b)||blob(b)===originals[path])throw Error('Unexpected patched content');return {path,before:originals[path],after:blob(b),contents:b.toString('base64')};});
+            return {cfg,files};
+           }finally{rmSync(dir,{recursive:true,force:true});}
+          }
+          function checkManifest(cfg,m){if(!m||!same(m.cfg,cfg)||!Array.isArray(m.files)||!same(m.files.map(f=>f.path),cfg.paths)||m.files.some(f=>!sha(f.before)||!sha(f.after)||f.before===f.after||typeof f.contents!=='string'||f.contents.length>700000||blob(Buffer.from(f.contents,'base64'))!==f.after))throw Error('Invalid prepared manifest');}
+          function jwtFor(pem){const enc=x=>Buffer.from(JSON.stringify(x)).toString('base64url');const now=Math.floor(Date.now()/1000);const message=enc({alg:'RS256',typ:'JWT'})+'.'+enc({iss:String(APP),iat:now-30,exp:now+540});return message+'.'+createSign('RSA-SHA256').update(message).sign(pem).toString('base64url');}
+          export async function publish(cfg,m,api,jwt){
+           checkManifest(cfg,m);
+           const i=await api(R+'/installation',jwt);if(i?.app_id!==APP||i.account?.login!=='GLORIFIER7'||i.repository_selection!=='selected'||!Number.isSafeInteger(i.id)||Object.entries(PERMS).some(([k,v])=>i.permissions?.[k]!==v))throw Error('Wrong App or installation scope');
+           const t=await api('/app/installations/'+i.id+'/access_tokens',jwt,'POST',{repositories:['GLORIFIER'],permissions:PERMS});if(typeof t?.token!=='string'||!t.token)throw Error('Installation token unavailable');const token=t.token;
+           try{if(t.repository_selection!=='selected'||t.repositories?.length!==1||t.repositories[0].full_name!==REPO||Object.entries(PERMS).some(([k,v])=>t.permissions?.[k]!==v)||Object.entries(t.permissions).some(([k,v])=>!(k in PERMS)&&!(k==='metadata'&&v==='read')))throw Error('Token scope mismatch');
+            checkMain(await api(R+'/commits/main',token),cfg);
+            for(const f of m.files){if(blob(await getFile(api,token,f.path,cfg.base))!==f.before)throw Error('Original file changed');}
+            const ref='refs/heads/'+cfg.branch;const created=await api(R+'/git/refs',token,'POST',{ref,sha:cfg.base});if(created?.ref!==ref||created.object?.sha!==cfg.base)throw Error('Branch readback mismatch');
+            const result=await api('/graphql',token,'POST',{query:'mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid}}}',variables:{input:{branch:{repositoryNameWithOwner:REPO,branchName:cfg.branch},expectedHeadOid:cfg.base,message:{headline:'fix: governed reviewed source repair'},fileChanges:{additions:m.files.map(({path,contents})=>({path,contents}))}}}});
+            const head=result?.data?.createCommitOnBranch?.commit?.oid;if(!sha(head))throw Error('Commit not returned');
+            const c=await api(R+'/commits/'+head,token);if(c?.sha!==head||c.author?.login!==BOT||c.commit?.verification?.verified!==true||c.commit?.verification?.reason!=='valid'||c.parents?.length!==1||c.parents[0].sha!==cfg.base||c.files?.length!==m.files.length||m.files.some(f=>!c.files.some(x=>x.filename===f.path&&x.status==='modified'&&x.sha===f.after)))throw Error('Signed commit evidence mismatch; no PR opened');
+            for(const f of m.files){if(!(await getFile(api,token,f.path,head)).equals(Buffer.from(f.contents,'base64')))throw Error('File readback mismatch; no PR opened');}
+            checkMain(await api(R+'/commits/main',token),cfg);
+            const pr=await api(R+'/pulls',token,'POST',{head:cfg.branch,base:'main',draft:true,title:'fix: governed reviewed source repair',body:'Reviewed patch digest: '+cfg.digest+'\nPinned base: '+cfg.base+'\nIndependent review and required CI remain mandatory. No merge or deployment authorized.'});
+            if(!Number.isSafeInteger(pr?.number)||pr.head?.sha!==head||pr.base?.ref!=='main'||pr.draft!==true||pr.user?.login!==BOT)throw Error('PR readback mismatch; inspect manually');
+            return {status:'SIGNED_DRAFT_CREATED',pr:pr.number,sha:head,url:pr.html_url,merged:false};
+           }finally{try{await api('/installation/token',token,'DELETE');}catch{console.error('Short-lived token revocation unavailable; token expires automatically.');}}
+          }
+          async function main(){const cfg=validate(process.env), manifest=join(process.env.RUNNER_TEMP,'digital-me-reviewed-manifest.json');if(process.argv[2]==='prepare'){const t=process.env.GITHUB_TOKEN;if(!t)throw Error('Read token missing');const m=await materialize(cfg,github,t);writeFileSync(manifest,JSON.stringify(m),{mode:0o600,flag:'wx'});console.log('Prepared approved patch as inert data. No write performed.');}else if(process.argv[2]==='publish'){const pem=process.env.DIGITAL_ME_APP_PRIVATE_KEY;delete process.env.DIGITAL_ME_APP_PRIVATE_KEY;if(!pem)throw Error('App secret missing');const m=JSON.parse(readFileSync(manifest,'utf8'));const result=await publish(cfg,m,github,jwtFor(pem));console.log(JSON.stringify(result,null,2));}else throw Error('Unsupported mode');}
+          if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){try{await main();}catch(e){console.error('Publisher stopped:',e?.message?.startsWith('Command failed')?'Patch application rejected':e.message);process.exitCode=1;}}
+          PUBLISHER_JS
+          cat > "$RUNNER_TEMP/glorifier-reviewed-publisher/publisher.test.mjs" <<'PUBLISHER_TEST'
+          import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import {createHash} from 'node:crypto';
+          import {validate, materialize, publish} from './publisher.mjs';
+          const base='a'.repeat(40), source='b'.repeat(40), path='src/example.ts', old=Buffer.from('export const value = 1;\n'), updated=Buffer.from('export const value = 2;\n');
+          const patch=Buffer.from('diff --git a/src/example.ts b/src/example.ts\n--- a/src/example.ts\n+++ b/src/example.ts\n@@ -1 +1 @@\n-export const value = 1;\n+export const value = 2;\n');
+          const digest=b=>createHash('sha256').update(b).digest('hex');
+          const blob=b=>createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${b.length}\0`),b])).digest('hex');
+          const env={GITHUB_REPOSITORY:'GLORIFIER7/GLORIFIER',GITHUB_REF:'refs/heads/main',GITHUB_ACTOR:'GLORIFIER7',GITHUB_ACTOR_ID:'32674233',GITHUB_TRIGGERING_ACTOR:'GLORIFIER7',GITHUB_EVENT_NAME:'workflow_dispatch',GITHUB_RUN_ATTEMPT:'1',GITHUB_RUN_ID:'1234',GITHUB_SHA:base,EXPECTED_MAIN:base,SOURCE_SHA:source,PATCH_PATH:'repair.patch',PATCH_SHA256:digest(patch),ALLOWED_PATHS:path,CONFIRM:'true'};
+          const apiFile=(p,b)=>({path:p,type:'file',encoding:'base64',content:b.toString('base64'),sha:blob(b)});
+          const main={sha:base,commit:{verification:{verified:true,reason:'valid'}}};
+          function fake(overrides={}){const calls=[]; const api=async(p,t,m='GET',body)=>{calls.push({p,m,body}); if(p.endsWith('/commits/main'))return overrides.main??main; if(p.includes('/contents/repair.patch?'))return apiFile('repair.patch',overrides.patch??patch);if(p.includes('/contents/src/example.ts?'))return apiFile(path,p.endsWith(base)?old:updated); if(p.endsWith('/installation'))return {app_id:5876036,account:{login:'GLORIFIER7'},repository_selection:'selected',id:12,permissions:{contents:'write',pull_requests:'write'}};if(p.endsWith('/access_tokens'))return {token:'fake',repository_selection:'selected',repositories:[{full_name:'GLORIFIER7/GLORIFIER'}],permissions:{contents:'write',pull_requests:'write'}}; if(p.endsWith('/git/refs'))return {ref:body.ref,object:{sha:base}};if(p==='/graphql')return {data:{createCommitOnBranch:{commit:{oid:'c'.repeat(40)}}}};if(p.endsWith('/commits/'+ 'c'.repeat(40)))return {sha:'c'.repeat(40),author:{login:'glorifier-digital-me[bot]'},commit:{verification:{verified:true,reason:'valid'}},parents:[{sha:base}],files:[{filename:path,status:'modified',sha:blob(updated)}]};if(p.endsWith('/pulls'))return {number:1,head:{sha:'c'.repeat(40)},base:{ref:'main'},draft:true,user:{login:'glorifier-digital-me[bot]'},html_url:'https://github.com/GLORIFIER7/GLORIFIER/pull/1'};if(p==='/installation/token')return null;throw Error('unexpected API');};return {api,calls};}
+          test('owner and immutable input scope accepted',()=>assert.deepEqual(validate(env).paths,[path]));
+          test('reject untrusted actor, ref, rerun and stale base',()=>{for(const e of [{GITHUB_ACTOR_ID:'1'},{GITHUB_REF:'refs/heads/other'},{GITHUB_RUN_ATTEMPT:'2'},{EXPECTED_MAIN:source},{CONFIRM:'false'}])assert.throws(()=>validate({...env,...e}));});
+          test('reject workflow paths, traversal, duplicate paths and shell syntax',()=>{for(const p of ['.github/workflows/x.yml','src/../x.ts','src/x.ts,src/x.ts','src/x.ts;echo','src/a.ts,README.md'])assert.throws(()=>validate({...env,ALLOWED_PATHS:p}));});
+          test('materialize an exact reviewed patch without writes or code execution',async()=>{const f=fake();const m=await materialize(validate(env),f.api,'read-token');assert.equal(m.files[0].after,blob(updated));assert.equal(Buffer.from(m.files[0].contents,'base64').toString(),updated.toString());assert.ok(f.calls.every(c=>c.m==='GET'));});
+          test('wrong patch digest fails closed',async()=>{const f=fake({patch:Buffer.from('wrong')});await assert.rejects(materialize(validate(env),f.api,'read-token'),/digest/);});
+          test('wrong approved file list fails closed',async()=>{const f=fake();await assert.rejects(materialize(validate({...env,ALLOWED_PATHS:'src/other.ts'}),f.api,'read-token'),/path/);});
+          test('stale or unsigned main fails before materializing',async()=>{const f=fake({main:{sha:source}});await assert.rejects(materialize(validate(env),f.api,'read-token'),/main/);assert.equal(f.calls.length,1);});
+          test('publish signs and opens only a draft PR then revokes token',async()=>{const f=fake(), cfg=validate(env), m=await materialize(cfg,f.api,'read-token');const result=await publish(cfg,m,f.api,'jwt');assert.equal(result.status,'SIGNED_DRAFT_CREATED');assert.equal(result.merged,false);assert.equal(f.calls.at(-1).m,'DELETE');assert.equal(f.calls.filter(c=>c.p.endsWith('/pulls')).length,1);assert.ok(!f.calls.some(c=>c.p.includes('/merge')));});
+          test('manifest alteration fails before App authentication',async()=>{const f=fake(), cfg=validate(env), m=await materialize(cfg,f.api,'read-token');m.files[0].contents='aW52YWxpZA==';f.calls.length=0;await assert.rejects(publish(cfg,m,f.api,'jwt'),/manifest/);assert.equal(f.calls.length,0);});
+          PUBLISHER_TEST
+          node --test "$RUNNER_TEMP/glorifier-reviewed-publisher/publisher.test.mjs"
+      - name: Validate approved patch as data (no App secret)
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node "$RUNNER_TEMP/glorifier-reviewed-publisher/publisher.mjs" prepare
+      - name: Publish signed draft only
+        if: inputs.publish == true
+        shell: bash
+        env:
+          DIGITAL_ME_APP_PRIVATE_KEY: ${{ secrets.DIGITAL_ME_APP_PRIVATE_KEY }}
+        run: node "$RUNNER_TEMP/glorifier-reviewed-publisher/publisher.mjs" publish
