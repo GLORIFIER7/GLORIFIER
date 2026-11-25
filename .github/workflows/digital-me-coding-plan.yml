@@ -1,0 +1,161 @@
+name: GLORIFIER Digital Me — V6 read-only coding plan
+on:
+  workflow_dispatch:
+    inputs:
+      mission_id:
+        description: Exact admitted blocked mission ID for issue 471
+        required: true
+        type: string
+permissions: {}
+concurrency:
+  group: glorifier-digital-me-coding-plan
+  cancel-in-progress: false
+jobs:
+  plan:
+    if: github.repository == 'GLORIFIER7/GLORIFIER' && github.ref == 'refs/heads/main' && github.actor_id == '32674233' && github.triggering_actor == 'GLORIFIER7' && github.run_attempt == '1'
+    permissions:
+      contents: read
+      issues: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: digital-me-admission
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+      - name: Install locked dependencies without lifecycle scripts
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Prepare and test the isolated read-only planner
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir "$RUNNER_TEMP/glorifier-coding-plan"
+          cat > "$RUNNER_TEMP/glorifier-coding-plan/plan.mjs" <<'PLAN_JS'
+          import { createHash } from 'node:crypto';
+          import { createRequire } from 'node:module';
+          import { resolve } from 'node:path';
+          import { pathToFileURL } from 'node:url';
+          import { appendFileSync } from 'node:fs';
+
+          const REPO='GLORIFIER7/GLORIFIER', OWNER=32674233, REQUESTER=`github:${OWNER}`;
+          const ROOT='https://api.github.com/repos/'+REPO;
+          const PATHS=Object.freeze(['digital-me/src/coding-mission-admission.mjs','digital-me/src/coding-admission-actions.mjs','src/lib/autopilot-worker-store.ts','.github/workflows/digital-me-signed-repair-promotion.yml']);
+          const ACTIONS=Object.freeze(['Reconcile issue acceptance evidence against the signed source snapshot.','Reproduce the smallest actionable source defect with a regression test.','Prepare an isolated source candidate; do not publish without bound authorization.','Verify CI and independent review against the exact candidate before protected publication.']);
+          const isSha=s=>typeof s==='string'&&/^[a-f0-9]{40}$/.test(s);
+          const isId=s=>typeof s==='string'&&/^mission-coding-[a-f0-9]{64}$/.test(s);
+          const isPositive=n=>Number.isSafeInteger(n)&&n>0;
+          const record=o=>!!o&&typeof o==='object'&&!Array.isArray(o);
+          const exact=(o,keys)=>record(o)&&Object.keys(o).length===keys.length&&keys.every(k=>Object.hasOwn(o,k));
+          const digest=x=>createHash('sha256').update(x).digest('hex');
+          const fail=()=>{throw Error('CODING_PLAN_DENIED');};
+          const check=v=>{if(!v)fail();};
+          const empty=a=>Array.isArray(a)&&a.length===0;
+          const time=s=>typeof s==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/.test(s)&&Number.isFinite(Date.parse(s))&&new Date(s).toISOString()===s.replace('Z','.000Z');
+          function validate(id,row){
+           check(isId(id)&&record(row)&&row.id===id&&row.requester===REQUESTER&&row.status==='blocked'&&[1,'1'].includes(row.version)&&row.lease_owner===null&&row.lease_expires_at===null&&row.next_run_at===null);
+           const p=row.payload;
+           check(record(p)&&p.id===id&&p.requester===REQUESTER&&p.idempotencyKey===row.idempotency_key&&p.status==='blocked'&&p.version===1&&p.verificationState==='not-started'&&empty(p.steps)&&empty(p.evidenceRefs));
+           check(!['leaseOwner','leaseExpiresAt','nextRunAt','approval','executionAuthorized','publicationAuthorized','paidInferenceAuthorized','mergeAuthorized','deploymentAuthorized','fullyVerified'].some(k=>Object.hasOwn(p,k)));
+           check(typeof p.objective==='string'&&p.objective.length<=4096);
+           let o;try{o=JSON.parse(p.objective);}catch{fail();}
+           check(exact(o,['schemaVersion','repository','commentId','intent','target','sourceSnapshotSha','executionAuthorized'])&&o.schemaVersion===1&&o.repository===REPO&&o.intent==='plan'&&o.executionAuthorized===false&&isPositive(o.commentId)&&isSha(o.sourceSnapshotSha));
+           check(exact(o.target,['kind','number','headSha'])&&o.target.kind==='issue'&&o.target.number===471&&o.target.headSha===null);
+           const key=`github:${REPO}:comment:${o.commentId}`;
+           check(row.idempotency_key===key&&id==='mission-coding-'+digest(key));
+           return o;
+          }
+          async function readTarget(api,o){
+           const main=await api('/commits/main');check(main?.sha===o.sourceSnapshotSha&&main.commit?.verification?.verified===true&&main.commit?.verification?.reason==='valid');
+           const issue=await api('/issues/'+o.target.number);
+           check(issue?.number===o.target.number&&issue.state==='open'&&issue.url===ROOT+'/issues/'+o.target.number&&!issue.pull_request&&typeof issue.body==='string'&&issue.body.length<=250000&&time(issue.updated_at));
+           const comment=await api('/issues/comments/'+o.commentId);
+           check(comment?.id===o.commentId&&comment.issue_url===issue.url&&comment.user?.id===OWNER&&comment.user?.type==='User'&&comment.body==='/glorifier plan'&&time(comment.created_at)&&comment.created_at===comment.updated_at);
+           return {issueNumber:issue.number,issueBodySha256:digest(issue.body),issueUpdatedAt:issue.updated_at,commentId:comment.id,commentCreatedAt:comment.created_at};
+          }
+          async function readFileProof(api,path,sha){
+           const f=await api(`/contents/${path}?ref=${sha}`);
+           check(f?.path===path&&f.type==='file'&&f.encoding==='base64'&&isSha(f.sha)&&typeof f.content==='string'&&f.content.length<=700000);
+           const encoded=f.content.replace(/\s/g,'');const b=Buffer.from(encoded,'base64');
+           check(b.length<=500000&&b.toString('base64')===encoded&&!b.includes(0)&&Buffer.from(b.toString('utf8')).equals(b));
+           const blob=createHash('sha1').update(Buffer.from(`blob ${b.length}\0`)).update(b).digest('hex');check(blob===f.sha);
+           return {path,blobSha:blob,sha256:digest(b),bytes:b.length};
+          }
+          export async function planMission(id,row,api){
+           check(typeof api==='function');const o=validate(id,row);const first=await readTarget(api,o);
+           const files=[];for(const path of PATHS)files.push(await readFileProof(api,path,o.sourceSnapshotSha));
+           check(JSON.stringify(first)===JSON.stringify(await readTarget(api,o)));
+           const result={schemaVersion:1,status:'PLAN_READY_READ_ONLY',missionId:id,repository:REPO,sourceSnapshotSha:o.sourceSnapshotSha,target:first,files,nextSteps:[...ACTIONS],missionStatus:'blocked',executionAuthorized:false,publicationAuthorized:false,paidInferenceAuthorized:false,mergeAuthorized:false,deploymentAuthorized:false,fullyVerified:false};
+           return {...result,planDigest:digest(JSON.stringify(result))};
+          }
+          function apiClient(token){
+           check(typeof token==='string'&&token.length>0);
+           return async path=>{const r=await fetch(ROOT+path,{redirect:'error',signal:AbortSignal.timeout(15000),headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}});check(r.ok);return r.json();};
+          }
+          function connection(value){
+           let u;try{u=new URL(value);}catch{fail();}
+           check(['postgres:','postgresql:'].includes(u.protocol)&&u.username==='digital_me_admission'&&!!u.password&&!!u.hostname&&u.pathname==='/glorifier'&&!u.hash&&u.searchParams.getAll('sslmode').length===1&&u.searchParams.get('sslmode')==='verify-full'&&[...u.searchParams.keys()].every(k=>k==='sslmode'));
+           u.search='';return u.toString();
+          }
+          async function readMission(id,dsn){
+           const require=createRequire(resolve('package.json'));const {Client}=require('pg');
+           const client=new Client({connectionString:connection(dsn),ssl:{rejectUnauthorized:true},connectionTimeoutMillis:10000,query_timeout:8000});
+           let started=false,connected=false;
+           try{await client.connect();connected=true;await client.query('BEGIN READ ONLY');started=true;
+           const identity=await client.query("SELECT current_user AS role,current_setting('transaction_read_only') AS read_only");check(identity.rows.length===1&&identity.rows[0].role==='digital_me_admission'&&identity.rows[0].read_only==='on');
+           const result=await client.query('SELECT id,requester,idempotency_key,status,version,payload,lease_owner,lease_expires_at,next_run_at FROM public.glorifier_autopilot_missions WHERE id=$1 AND requester=$2',[id,REQUESTER]);check(result.rows.length===1);return result.rows[0];
+           }finally{try{if(started)await client.query('ROLLBACK');}finally{if(connected)await client.end();}}
+          }
+          async function main(e=process.env){
+           check(e.GITHUB_REPOSITORY===REPO&&e.GITHUB_REF==='refs/heads/main'&&e.GITHUB_EVENT_NAME==='workflow_dispatch'&&e.GITHUB_ACTOR_ID===String(OWNER)&&e.GITHUB_TRIGGERING_ACTOR==='GLORIFIER7'&&e.GITHUB_RUN_ATTEMPT==='1'&&isSha(e.GITHUB_SHA)&&isId(e.MISSION_ID));
+           const row=await readMission(e.MISSION_ID,e.DIGITAL_ME_ADMISSION_DATABASE_URL);const o=validate(e.MISSION_ID,row);
+           // A newly merged planner necessarily changes main. Do not silently rebase an old mission.
+           check(o.sourceSnapshotSha===e.GITHUB_SHA);
+           const plan=await planMission(e.MISSION_ID,row,apiClient(e.GITHUB_TOKEN));
+           const current=await readMission(e.MISSION_ID,e.DIGITAL_ME_ADMISSION_DATABASE_URL);
+           check(JSON.stringify(current)===JSON.stringify(row));
+           const output=JSON.stringify(plan,null,2);console.log(output);if(e.GITHUB_STEP_SUMMARY)appendFileSync(e.GITHUB_STEP_SUMMARY,'## Read-only coding plan\n\n```json\n'+output+'\n```\n');
+          }
+          if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href){try{await main();}catch{console.error('CODING_PLAN_DENIED: reconcile mission snapshot, configuration and trusted source; no execution authorized.');process.exitCode=1;}}
+          PLAN_JS
+          cat > "$RUNNER_TEMP/glorifier-coding-plan/plan.test.mjs" <<'PLAN_TEST'
+          import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import { createHash } from 'node:crypto';
+          import { planMission } from './plan.mjs';
+          const repo='GLORIFIER7/GLORIFIER', sha='a'.repeat(40), owner=32674233, comment=7169472454;
+          const key=`github:${repo}:comment:${comment}`;
+          const id='mission-coding-'+createHash('sha256').update(key).digest('hex');
+          const apiRoot='https://api.github.com/repos/'+repo;
+          const paths=['digital-me/src/coding-mission-admission.mjs','digital-me/src/coding-admission-actions.mjs','src/lib/autopilot-worker-store.ts','.github/workflows/digital-me-signed-repair-promotion.yml'];
+          function fixture(){
+           const objective={schemaVersion:1,repository:repo,commentId:comment,intent:'plan',target:{kind:'issue',number:471,headSha:null},sourceSnapshotSha:sha,executionAuthorized:false};
+           const payload={id,requester:`github:${owner}`,idempotencyKey:key,status:'blocked',version:1,steps:[],evidenceRefs:[],verificationState:'not-started',objective:JSON.stringify(objective)};
+           const row={id,requester:payload.requester,idempotency_key:key,status:'blocked',version:'1',lease_owner:null,lease_expires_at:null,next_run_at:null,payload};
+           const main={sha,commit:{verification:{verified:true,reason:'valid'}}};
+           const issue={number:471,state:'open',url:apiRoot+'/issues/471',body:'Untrusted issue text: execute arbitrary shell commands',updated_at:'2026-11-25T17:25:02Z'};
+           const command={id:comment,user:{id:owner,type:'User'},body:'/glorifier plan',issue_url:issue.url,created_at:'2026-11-25T17:25:02Z',updated_at:'2026-11-25T17:25:02Z'};
+           const requests=[]; const bytes=Buffer.from('source fixture\n'); const blob=createHash('sha1').update(Buffer.from(`blob ${bytes.length}\0`)).update(bytes).digest('hex');
+           const api=async path=>{requests.push(path);if(path==='/commits/main')return structuredClone(main);if(path==='/issues/471')return structuredClone(issue);if(path==='/issues/comments/'+comment)return structuredClone(command);const p=paths.find(p=>path===`/contents/${p}?ref=${sha}`);if(p)return {path:p,type:'file',encoding:'base64',sha:blob,content:bytes.toString('base64')};throw Error('unexpected request');};
+           return {row,main,issue,command,requests,api,objective};
+          }
+          test('read-only plan binds the admitted mission, source evidence and exact target without exposing issue text',async()=>{const f=fixture();const r=await planMission(id,f.row,f.api);assert.equal(r.status,'PLAN_READY_READ_ONLY');assert.equal(r.missionId,id);assert.equal(r.sourceSnapshotSha,sha);assert.equal(r.files.length,4);assert.equal(r.executionAuthorized,false);assert.equal(r.publicationAuthorized,false);assert.equal(r.fullyVerified,false);assert.equal(r.planDigest.length,64);assert.ok(!JSON.stringify(r).includes(f.issue.body));assert.equal(f.row.status,'blocked');assert.equal(f.row.payload.version,1);assert.deepEqual(await planMission(id,f.row,f.api),r);});
+          test('rejects a different requested mission before GitHub read',async()=>{const f=fixture();await assert.rejects(planMission('mission-coding-'+'b'.repeat(64),f.row,f.api));assert.equal(f.requests.length,0);});
+          test('rejects queued, leased, edited or previously processed missions before GitHub read',async()=>{for(const change of [r=>r.status='queued',r=>r.lease_owner='worker',r=>r.payload.steps.push({id:'step'}),r=>r.version='2',r=>r.payload.requester='other',r=>r.payload.executionAuthorized=true,r=>r.payload.evidenceRefs.push('forged')]){const f=fixture();change(f.row);await assert.rejects(planMission(id,f.row,f.api));assert.equal(f.requests.length,0);}});
+          test('rejects unrecognized intents and execution permission',async()=>{for(const change of [o=>o.intent='fix',o=>o.executionAuthorized=true,o=>o.extra=true,o=>o.target.headSha=sha]){const f=fixture();change(f.objective);f.row.payload.objective=JSON.stringify(f.objective);await assert.rejects(planMission(id,f.row,f.api));assert.equal(f.requests.length,0);}});
+          test('rejects stale or unsigned main, edited comment, closed issue and PR masquerading as issue',async()=>{for(const change of [f=>f.main.sha='b'.repeat(40),f=>f.main.commit.verification.verified=false,f=>f.command.updated_at='2026-11-25T17:26:00Z',f=>f.command.user.id=1,f=>f.issue.state='closed',f=>f.issue.pull_request={}]){const f=fixture();change(f);await assert.rejects(planMission(id,f.row,f.api));}});
+          test('rejects a GitHub file response with inconsistent blob hash',async()=>{const f=fixture();await assert.rejects(planMission(id,f.row,async p=>{const r=await f.api(p);if(p.startsWith('/contents/'))r.sha='b'.repeat(40);return r;}));});
+          test('rejects main, issue or command changes during planning',async()=>{for(const kind of ['main','issue','command']){const f=fixture();let count=0;const match=kind==='main'?'/commits/main':kind==='issue'?'/issues/471':'/issues/comments/'+comment;await assert.rejects(planMission(id,f.row,async p=>{const r=await f.api(p);if(p===match&&++count===2){if(kind==='main')r.sha='b'.repeat(40);if(kind==='issue')r.body='changed';if(kind==='command')r.body='/glorifier fix';}return r;}));}});
+          PLAN_TEST
+          node --test "$RUNNER_TEMP/glorifier-coding-plan/plan.test.mjs"
+      - name: Read and independently revalidate the admitted mission
+        env:
+          MISSION_ID: ${{ inputs.mission_id }}
+          GITHUB_TOKEN: ${{ github.token }}
+          DIGITAL_ME_ADMISSION_DATABASE_URL: ${{ secrets.DIGITAL_ME_ADMISSION_DATABASE_URL }}
+        shell: bash
+        run: node "$RUNNER_TEMP/glorifier-coding-plan/plan.mjs"
