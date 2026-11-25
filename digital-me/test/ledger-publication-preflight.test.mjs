@@ -65,3 +65,24 @@ test('fresh final time within lease and approval windows preserves digest and no
   assert.equal(result.authorizationDigest, publicationDigest(f.m));
   assert.equal(result.publicationAuthorized,false);
 });
+
+test('PostgreSQL lease timestamps with explicit offsets and variable precision pass both reads', async () => {
+  for (const lease of ['2026-11-25T04:35:00+00:00','2026-11-25T11:35:00+07:00','2026-11-25T04:35:00.123456Z','2026-11-25T04:35:00.1+00:00']) {
+    const f=setup(m=>m.leaseExpiresAt=lease);
+    assert.equal((await f.run()).publicationAuthorized,false);
+    assert.equal(f.calls.length,2);
+  }
+});
+test('ledger timestamps reject missing zones, impossible calendar dates and invalid offsets', async () => {
+  for (const lease of ['2026-11-25T04:35:00','2026-02-30T04:35:00+00:00','2026-11-25T04:35:00+24:00','2026-11-25T04:35:00-00:00','2026-11-25T04:35:60Z']) {
+    await assert.rejects(setup(m=>m.leaseExpiresAt=lease).run(),/lease expired or invalid/);
+  }
+});
+test('offset lease expires at final trusted time and changed lease is rejected', async () => {
+  const lease='2026-11-25T11:35:00+07:00';
+  await assert.rejects(setup(m=>m.leaseExpiresAt=lease,{now:()=> '2026-11-25T04:35:00.000Z'}).run(),/lease expired/);
+  let reads=0;
+  await assert.rejects(setup(()=>{}, {getMission:async()=>{
+    const m=fixture(); m.leaseExpiresAt=++reads===1?lease:'2026-11-25T11:36:00+07:00'; return m;
+  }}).run(),/lease changed/);
+});
