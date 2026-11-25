@@ -133,7 +133,8 @@ export function isOwner(decoded: DecodedIdToken | null | undefined): boolean {
     claims.admin === true ||
     claims.role === 'owner' ||
     (ownerUid && decoded.uid === ownerUid) ||
-    (ownerEmail && decoded.email?.toLowerCase() === ownerEmail)
+    (ownerEmail && decoded.email_verified === true &&
+      typeof decoded.email === 'string' && decoded.email.toLowerCase() === ownerEmail)
   );
 }
 
@@ -141,17 +142,7 @@ export function createRequireOwner(verify: TokenVerifier = verifyBearerToken) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
     verify(req).then((decoded) => {
       if (!decoded) return res.status(401).json({ ok: false, error: 'Authentication required' });
-      const ownerUid = process.env.GLORIFIER_OWNER_UID?.trim();
-      const ownerEmail = process.env.GLORIFIER_OWNER_EMAIL?.trim().toLowerCase();
-      const claims = decoded as DecodedIdToken & { owner?: boolean; admin?: boolean; role?: string };
-      const matchesOwner = Boolean(
-        claims.owner === true ||
-        claims.admin === true ||
-        claims.role === 'owner' ||
-        (ownerUid && decoded.uid === ownerUid) ||
-        (ownerEmail && decoded.email?.toLowerCase() === ownerEmail)
-      );
-      if (!matchesOwner) return res.status(403).json({ ok: false, error: 'Owner authorization required' });
+      if (!isOwner(decoded)) return res.status(403).json({ ok: false, error: 'Owner authorization required' });
       req.auth = decoded;
       next();
     }).catch(() => res.status(401).json({ ok: false, error: 'Authentication unavailable' }));
