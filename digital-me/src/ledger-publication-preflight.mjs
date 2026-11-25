@@ -38,7 +38,7 @@ function inspect(m,intent) {
 // returned proof is not a signer capability. This only validates a snapshot.
 export async function inspectPublicationLease(intent,deps) {
   if (!isRecord(intent) || ![intent.missionId,intent.stepId,intent.requester,intent.workerId].every(id) || !Number.isSafeInteger(intent.version) || intent.version<1 || !iso(intent.now)) fail('invalid trusted lease context');
-  if (!isRecord(deps) || !['getMission','getSignedMain','verifyApproval'].every(k=>typeof deps[k]==='function')) fail('trusted adapters unavailable');
+  if (!isRecord(deps) || !['getMission','getSignedMain','verifyApproval','now'].every(k=>typeof deps[k]==='function')) fail('trusted adapters unavailable');
   const first=await deps.getMission(intent.missionId);
   const normalized=inspect(first,intent);
   const authorizationDigest=publicationDigest(first);
@@ -47,7 +47,10 @@ export async function inspectPublicationLease(intent,deps) {
   const proof=await deps.verifyApproval({authorizationDigest,principal:normalized.approvedBy,evidenceRef:normalized.evidenceRef,missionId:normalized.missionId});
   if (proof?.verified!==true || proof.principal!==normalized.approvedBy || proof.authorizationDigest!==authorizationDigest || !iso(proof.expiresAt) || Date.parse(proof.expiresAt)<=Date.parse(intent.now)) fail('independent approval proof missing, expired or mismatched');
   const current=await deps.getMission(intent.missionId);
-  inspect(current,intent);
+  const finalNow=deps.now();
+  if (!iso(finalNow) || Date.parse(finalNow)<Date.parse(intent.now)) fail('invalid or regressing trusted clock');
+  inspect(current,{...intent,now:finalNow});
+  if (Date.parse(proof.expiresAt)<=Date.parse(finalNow)) fail('independent approval proof expired');
   if (publicationDigest(current)!==authorizationDigest || current.leaseExpiresAt!==first.leaseExpiresAt) fail('authorization or lease changed');
   return Object.freeze({status:'preflight-passed',authorizationDigest,missionId:intent.missionId,version:intent.version,publicationAuthorized:false});
 }
