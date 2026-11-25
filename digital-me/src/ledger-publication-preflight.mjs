@@ -17,7 +17,7 @@ function normalize(m) {
   const step=m.steps[0];
   if (!isRecord(step) || !id(step.id) || !id(step.idempotencyKey) || step.capability!==CAPABILITY || step.effect!=='reversible') fail('unsupported capability');
   const a=step.toolArguments, approval=step.approval;
-  if (!isRecord(a) || JSON.stringify(Object.keys(a).sort())!==JSON.stringify(keys) || a.repository!==REPOSITORY || !sha(a.base) || !sha(a.source) || !sha256(a.patchSha256)) fail('invalid immutable target');
+  if (!isRecord(a) || Object.keys(a).length!==keys.length || Object.keys(a).some(key=>!keys.includes(key)) || a.repository!==REPOSITORY || !sha(a.base) || !sha(a.source) || !sha256(a.patchSha256)) fail('invalid immutable target');
   if (typeof a.patchPath!=='string' || a.patchPath.length>180 || !a.patchPath.endsWith('.patch') || !a.patchPath.split('/').every(s=>/^[A-Za-z0-9_-][A-Za-z0-9_.-]*$/.test(s))) fail('invalid patch path');
   if (!Array.isArray(a.paths) || a.paths.length!==1 || !PATHS.has(a.paths[0])) fail('path not explicitly reviewed');
   if (!isRecord(approval) || approval.approvedBy!==m.requester || !iso(approval.approvedAt) || !id(approval.evidenceRef)) fail('missing bound approval');
