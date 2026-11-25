@@ -108,25 +108,47 @@ jobs:
           }
           function checkManifest(cfg,m){if(!m||!same(m.cfg,cfg)||!Array.isArray(m.files)||!same(m.files.map(f=>f.path),cfg.paths)||m.files.some(f=>!sha(f.before)||!sha(f.after)||f.before===f.after||typeof f.contents!=='string'||f.contents.length>700000||blob(Buffer.from(f.contents,'base64'))!==f.after))throw Error('Invalid prepared manifest');}
           function jwtFor(pem){const enc=x=>Buffer.from(JSON.stringify(x)).toString('base64url');const now=Math.floor(Date.now()/1000);const message=enc({alg:'RS256',typ:'JWT'})+'.'+enc({iss:String(APP),iat:now-30,exp:now+540});return message+'.'+createSign('RSA-SHA256').update(message).sign(pem).toString('base64url');}
+          async function checkRegularMode(api,token,commit,path,expectedBlob){
+           const c=await api(R+'/git/commits/'+commit,token);if(c?.sha!==commit||!sha(c.tree?.sha))throw Error('Incomplete tree evidence');
+           let tree=c.tree.sha;const parts=path.split('/');
+           for(let i=0;i<parts.length;i++){
+            const t=await api(R+'/git/trees/'+tree,token);if(t?.sha!==tree||t.truncated!==false||!Array.isArray(t.tree))throw Error('Incomplete tree evidence');
+            const matches=t.tree.filter(x=>x.path===parts[i]);if(matches.length!==1)throw Error('Tree entry missing or ambiguous');const e=matches[0];
+            if(i===parts.length-1){if(e.mode!=='100644'||e.type!=='blob'||e.sha!==expectedBlob)throw Error('Unsupported file mode or tree blob mismatch');}
+            else{if(e.mode!=='040000'||e.type!=='tree'||!sha(e.sha))throw Error('Unsupported directory mode');tree=e.sha;}
+           }
+          }
+          const exactDraft=(pr,cfg,head)=>Number.isSafeInteger(pr?.number)&&pr.number>0&&pr.state==='open'&&pr.draft===true&&pr.user?.login===BOT&&pr.head?.sha===head&&pr.head?.ref===cfg.branch&&pr.head?.repo?.full_name===REPO&&pr.base?.ref==='main'&&pr.base?.repo?.full_name===REPO;
+          async function closeFailedDraft(api,token,cfg,head){
+           const candidates=await api(R+'/pulls?state=open&head='+encodeURIComponent('GLORIFIER7:'+cfg.branch)+'&base=main&per_page=100',token);
+           if(!Array.isArray(candidates)||candidates.length!==1||!exactDraft(candidates[0],cfg,head))throw Error('No unique exact draft');
+           const n=candidates[0].number, path=R+'/pulls/'+n;
+           const current=await api(path,token);if(current?.number!==n||!exactDraft(current,cfg,head))throw Error('Draft identity changed');
+           const closed=await api(path,token,'PATCH',{state:'closed'});
+           if(closed?.number!==n||closed.state!=='closed'||!exactDraft({...closed,state:'open'},cfg,head))throw Error('Close readback mismatch');
+          }
           export async function publish(cfg,m,api,jwt){
            checkManifest(cfg,m);
            const i=await api(R+'/installation',jwt);if(i?.app_id!==APP||i.account?.login!=='GLORIFIER7'||i.repository_selection!=='selected'||!Number.isSafeInteger(i.id)||Object.entries(PERMS).some(([k,v])=>i.permissions?.[k]!==v))throw Error('Wrong App or installation scope');
            const t=await api('/app/installations/'+i.id+'/access_tokens',jwt,'POST',{repositories:['GLORIFIER'],permissions:PERMS});if(typeof t?.token!=='string'||!t.token)throw Error('Installation token unavailable');const token=t.token;
            try{if(t.repository_selection!=='selected'||t.repositories?.length!==1||t.repositories[0].full_name!==REPO||Object.entries(PERMS).some(([k,v])=>t.permissions?.[k]!==v)||Object.entries(t.permissions).some(([k,v])=>!(k in PERMS)&&!(k==='metadata'&&v==='read')))throw Error('Token scope mismatch');
             checkMain(await api(R+'/commits/main',token),cfg);
-            for(const f of m.files){if(blob(await getFile(api,token,f.path,cfg.base))!==f.before)throw Error('Original file changed');}
+            for(const f of m.files){if(blob(await getFile(api,token,f.path,cfg.base))!==f.before)throw Error('Original file changed');await checkRegularMode(api,token,cfg.base,f.path,f.before);}
             const ref='refs/heads/'+cfg.branch;const created=await api(R+'/git/refs',token,'POST',{ref,sha:cfg.base});if(created?.ref!==ref||created.object?.sha!==cfg.base)throw Error('Branch readback mismatch');
             const result=await api('/graphql',token,'POST',{query:'mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid}}}',variables:{input:{branch:{repositoryNameWithOwner:REPO,branchName:cfg.branch},expectedHeadOid:cfg.base,message:{headline:'fix: governed reviewed source repair'},fileChanges:{additions:m.files.map(({path,contents})=>({path,contents}))}}}});
             const head=result?.data?.createCommitOnBranch?.commit?.oid;if(!sha(head))throw Error('Commit not returned');
             const c=await api(R+'/commits/'+head,token);if(c?.sha!==head||c.author?.login!==BOT||c.commit?.verification?.verified!==true||c.commit?.verification?.reason!=='valid'||c.parents?.length!==1||c.parents[0].sha!==cfg.base||c.files?.length!==m.files.length||m.files.some(f=>!c.files.some(x=>x.filename===f.path&&x.status==='modified'&&x.sha===f.after)))throw Error('Signed commit evidence mismatch; no PR opened');
-            for(const f of m.files){if(!(await getFile(api,token,f.path,head)).equals(Buffer.from(f.contents,'base64')))throw Error('File readback mismatch; no PR opened');}
+            for(const f of m.files){if(!(await getFile(api,token,f.path,head)).equals(Buffer.from(f.contents,'base64')))throw Error('File readback mismatch; no PR opened');await checkRegularMode(api,token,head,f.path,f.after);}
             checkMain(await api(R+'/commits/main',token),cfg);
-            const pr=await api(R+'/pulls',token,'POST',{head:cfg.branch,base:'main',draft:true,title:'fix: governed reviewed source repair',body:'Reviewed patch digest: '+cfg.digest+'\nPinned base: '+cfg.base+'\nIndependent review and required CI remain mandatory. No merge or deployment authorized.'});
-            if(!Number.isSafeInteger(pr?.number)||pr.head?.sha!==head||pr.base?.ref!=='main'||pr.draft!==true||pr.user?.login!==BOT)throw Error('PR readback mismatch; inspect manually');
-            // A PR targets a moving ref. Verify the returned base and recheck main after creation.
-            // Close only the draft whose exact head and App identity were verified above.
-            try{if(pr.base?.sha!==cfg.base)throw Error('PR base changed');checkMain(await api(R+'/commits/main',token),cfg);}
-            catch{try{const closed=await api(R+'/pulls/'+pr.number,token,'PATCH',{state:'closed'});if(closed?.number!==pr.number||closed.state!=='closed'||closed.head?.sha!==head||closed.user?.login!==BOT)throw Error('Close readback mismatch');}catch{throw Error('Stale draft cleanup not verified; inspect PR #'+pr.number+' manually');}throw Error('Stale draft closed; revalidate against current main');}
+            let pr;
+            try{
+            pr=await api(R+'/pulls',token,'POST',{head:cfg.branch,base:'main',draft:true,title:'fix: governed reviewed source repair',body:'Reviewed patch digest: '+cfg.digest+'\nPinned base: '+cfg.base+'\nIndependent review and required CI remain mandatory. No merge or deployment authorized.'});
+             if(!exactDraft(pr,cfg,head)||pr.base.sha!==cfg.base)throw Error('PR readback or base mismatch');
+             checkMain(await api(R+'/commits/main',token),cfg);
+            }catch{
+             try{await closeFailedDraft(api,token,cfg,head);}catch{throw Error('Draft cleanup not verified; inspect branch '+cfg.branch+' manually');}
+             throw Error('Stale draft closed; revalidate against current main');
+            }
             return {status:'SIGNED_DRAFT_CREATED',pr:pr.number,sha:head,url:pr.html_url,merged:false};
            }finally{try{await api('/installation/token',token,'DELETE');}catch{console.error('Short-lived token revocation unavailable; token expires automatically.');}}
           }
@@ -145,7 +167,28 @@ jobs:
           const env={GITHUB_REPOSITORY:'GLORIFIER7/GLORIFIER',GITHUB_REF:'refs/heads/main',GITHUB_ACTOR:'GLORIFIER7',GITHUB_ACTOR_ID:'32674233',GITHUB_TRIGGERING_ACTOR:'GLORIFIER7',GITHUB_EVENT_NAME:'workflow_dispatch',GITHUB_RUN_ATTEMPT:'1',GITHUB_RUN_ID:'1234',GITHUB_SHA:base,EXPECTED_MAIN:base,SOURCE_SHA:source,PATCH_PATH:'repair.patch',PATCH_SHA256:digest(patch),ALLOWED_PATHS:path,CONFIRM:'true'};
           const apiFile=(p,b)=>({path:p,type:'file',encoding:'base64',content:b.toString('base64'),sha:blob(b)});
           const main={sha:base,commit:{verification:{verified:true,reason:'valid'}}};
-          function fake(overrides={}){const calls=[]; const api=async(p,t,m='GET',body)=>{calls.push({p,m,body}); if(p.endsWith('/commits/main'))return overrides.advanceAfterPr&&calls.some(c=>c.p.endsWith('/pulls')&&c.m==='POST')?{...main,sha:source}:overrides.main??main; if(p.includes('/contents/repair.patch?'))return apiFile('repair.patch',overrides.patch??patch);if(p.includes('/contents/src/example.ts?'))return apiFile(path,p.endsWith(base)?old:updated); if(p.endsWith('/installation'))return {app_id:5876036,account:{login:'GLORIFIER7'},repository_selection:'selected',id:12,permissions:{contents:'write',pull_requests:'write'}};if(p.endsWith('/access_tokens'))return {token:'fake',repository_selection:'selected',repositories:[{full_name:'GLORIFIER7/GLORIFIER'}],permissions:{contents:'write',pull_requests:'write'}}; if(p.endsWith('/git/refs'))return {ref:body.ref,object:{sha:base}};if(p==='/graphql')return {data:{createCommitOnBranch:{commit:{oid:'c'.repeat(40)}}}};if(p.endsWith('/commits/'+ 'c'.repeat(40)))return {sha:'c'.repeat(40),author:{login:'glorifier-digital-me[bot]'},commit:{verification:{verified:true,reason:'valid'}},parents:[{sha:base}],files:[{filename:path,status:'modified',sha:blob(updated)}]};if(p.endsWith('/pulls'))return {number:1,head:{sha:'c'.repeat(40)},base:{ref:'main',sha:overrides.prBase??base},draft:true,user:{login:'glorifier-digital-me[bot]'},html_url:'https://github.com/GLORIFIER7/GLORIFIER/pull/1'};if(p.endsWith('/pulls/1')&&m==='PATCH')return {number:1,state:'closed',head:{sha:'c'.repeat(40)},user:{login:'glorifier-digital-me[bot]'}};if(p==='/installation/token')return null;throw Error('unexpected API');};return {api,calls};}
+          function fake(overrides={}){
+           const calls=[], branch='digital-me/repair-1234', repo='GLORIFIER7/GLORIFIER', head='c'.repeat(40), tree='d'.repeat(40), subtree='e'.repeat(40), postTree='f'.repeat(40), postSub='1'.repeat(40);
+           const pr={number:1,state:'open',head:{sha:head,ref:branch,repo:{full_name:repo}},base:{ref:'main',sha:overrides.prBase??base,repo:{full_name:repo}},draft:true,user:{login:'glorifier-digital-me[bot]'},html_url:'https://github.com/GLORIFIER7/GLORIFIER/pull/1'};
+           const actual=overrides.actualPr?{...pr,...overrides.actualPr}:pr;
+           const api=async(p,t,m='GET',body)=>{calls.push({p,m,body});
+           if(p.endsWith('/commits/main'))return overrides.advanceAfterPr&&calls.some(c=>c.p.endsWith('/pulls')&&c.m==='POST')?{...main,sha:source}:overrides.main??main;
+           if(p.includes('/contents/repair.patch?'))return apiFile('repair.patch',overrides.patch??patch);
+           if(p.includes('/contents/src/example.ts?'))return apiFile(path,p.endsWith(base)?old:updated);
+           if(p.endsWith('/git/commits/'+base))return {sha:base,tree:{sha:tree}};
+           if(p.endsWith('/git/commits/'+head))return {sha:head,tree:{sha:postTree}};
+           if(p.endsWith('/git/trees/'+tree)||p.endsWith('/git/trees/'+postTree)){const root=p.endsWith(tree);return {sha:root?tree:postTree,truncated:false,tree:[{path:'src',type:'tree',mode:'040000',sha:root?subtree:postSub}]};}
+           if(p.endsWith('/git/trees/'+subtree)||p.endsWith('/git/trees/'+postSub)){const before=p.endsWith(subtree);return {sha:before?subtree:postSub,truncated:false,tree:[{path:'example.ts',type:'blob',mode:before?(overrides.mode??'100644'):(overrides.postMode??'100644'),sha:blob(before?old:updated)}]};}
+           if(p.endsWith('/installation'))return {app_id:5876036,account:{login:'GLORIFIER7'},repository_selection:'selected',id:12,permissions:{contents:'write',pull_requests:'write'}};
+           if(p.endsWith('/access_tokens'))return {token:'fake',repository_selection:'selected',repositories:[{full_name:repo}],permissions:{contents:'write',pull_requests:'write'}};
+           if(p.endsWith('/git/refs'))return {ref:body.ref,object:{sha:base}};
+           if(p==='/graphql')return {data:{createCommitOnBranch:{commit:{oid:head}}}};
+           if(p.endsWith('/commits/'+head))return {sha:head,author:{login:'glorifier-digital-me[bot]'},commit:{verification:{verified:true,reason:'valid'}},parents:[{sha:base}],files:[{filename:path,status:'modified',sha:blob(updated)}]};
+           if(p.endsWith('/pulls')&&m==='POST'){if(overrides.ambiguous)throw Error('Network failure');return overrides.response?{...actual,...overrides.response}:actual;}
+           if(p.includes('/pulls?'))return overrides.list??[actual];
+           if(p.endsWith('/pulls/1')&&m==='GET')return actual;
+           if(p.endsWith('/pulls/1')&&m==='PATCH')return {...actual,state:'closed'};
+           if(p==='/installation/token')return null;throw Error('unexpected API');};return {api,calls};}
           test('owner and immutable input scope accepted',()=>assert.deepEqual(validate(env).paths,[path]));
           test('reject untrusted actor, ref, rerun and stale base',()=>{for(const e of [{GITHUB_ACTOR_ID:'1'},{GITHUB_REF:'refs/heads/other'},{GITHUB_RUN_ATTEMPT:'2'},{EXPECTED_MAIN:source},{CONFIRM:'false'}])assert.throws(()=>validate({...env,...e}));});
           test('reject workflow paths, traversal, duplicate paths and shell syntax',()=>{for(const p of ['.github/workflows/x.yml','src/../x.ts','src/x.ts,src/x.ts','src/x.ts;echo','src/a.ts,README.md'])assert.throws(()=>validate({...env,ALLOWED_PATHS:p}));});
@@ -157,6 +200,12 @@ jobs:
           test('manifest alteration fails before App authentication',async()=>{const f=fake(), cfg=validate(env), m=await materialize(cfg,f.api,'read-token');m.files[0].contents='aW52YWxpZA==';f.calls.length=0;await assert.rejects(publish(cfg,m,f.api,'jwt'),/manifest/);assert.equal(f.calls.length,0);});
           test('base advancement at PR creation closes the stale draft and fails',async()=>{const f=fake({prBase:source}),cfg=validate(env),m=await materialize(cfg,f.api,'read-token');await assert.rejects(publish(cfg,m,f.api,'jwt'),/stale draft/i);assert.ok(f.calls.some(c=>c.m==='PATCH'&&c.p.endsWith('/pulls/1')&&c.body.state==='closed'));assert.equal(f.calls.at(-1).m,'DELETE');});
           test('base advancement immediately after PR creation closes the stale draft',async()=>{const f=fake({advanceAfterPr:true}),cfg=validate(env),m=await materialize(cfg,f.api,'read-token');await assert.rejects(publish(cfg,m,f.api,'jwt'),/stale draft/i);assert.ok(f.calls.some(c=>c.m==='PATCH'&&c.p.endsWith('/pulls/1')));});
+          test('executable source is rejected before branch creation',async()=>{const f=fake({mode:'100755'}),cfg=validate(env),m=await materialize(cfg,f.api,'read-token');await assert.rejects(publish(cfg,m,f.api,'jwt'),/mode/i);assert.ok(!f.calls.some(c=>c.p.endsWith('/git/refs')));});
+          test('unexpected published mode blocks draft creation',async()=>{const f=fake({postMode:'100755'}),cfg=validate(env),m=await materialize(cfg,f.api,'read-token');await assert.rejects(publish(cfg,m,f.api,'jwt'),/mode/i);assert.ok(!f.calls.some(c=>c.p.endsWith('/pulls')&&c.m==='POST'));});
+          test('ambiguous creation response recovers and closes only matching draft',async()=>{const f=fake({ambiguous:true}),cfg=validate(env),m=await materialize(cfg,f.api,'read-token');await assert.rejects(publish(cfg,m,f.api,'jwt'),/draft closed/i);assert.ok(f.calls.some(c=>c.m==='PATCH'&&c.p.endsWith('/pulls/1')));});
+          test('invalid creation readback recovers exact App draft',async()=>{const f=fake({response:{head:{sha:source}}}),cfg=validate(env),m=await materialize(cfg,f.api,'read-token');await assert.rejects(publish(cfg,m,f.api,'jwt'),/draft closed/i);assert.ok(f.calls.some(c=>c.m==='PATCH'&&c.p.endsWith('/pulls/1')));});
+          test('unexpected head never closed and cleanup failure reported',async()=>{const f=fake({actualPr:{head:{sha:source,ref:'digital-me/repair-1234',repo:{full_name:'GLORIFIER7/GLORIFIER'}}}}),cfg=validate(env),m=await materialize(cfg,f.api,'read-token');await assert.rejects(publish(cfg,m,f.api,'jwt'),/cleanup not verified/i);assert.ok(!f.calls.some(c=>c.m==='PATCH'));});
+          test('ambiguous lookup with no matching draft reports unverified cleanup',async()=>{const f=fake({ambiguous:true,list:[]}),cfg=validate(env),m=await materialize(cfg,f.api,'read-token');await assert.rejects(publish(cfg,m,f.api,'jwt'),/cleanup not verified/i);assert.ok(!f.calls.some(c=>c.m==='PATCH'));});
           PUBLISHER_TEST
           node --test "$RUNNER_TEMP/glorifier-reviewed-publisher/publisher.test.mjs"
       - name: Validate approved patch as data (no App secret)
