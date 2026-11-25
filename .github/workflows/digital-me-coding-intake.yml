@@ -2,15 +2,16 @@ name: GLORIFIER Digital Me — coding intake
 on:
   issue_comment:
     types: [created]
-permissions:
-  contents: read
-  issues: read
-  pull-requests: read
+permissions: {}
 concurrency:
   group: glorifier-coding-intake-${{ github.event.comment.id }}
   cancel-in-progress: false
 jobs:
   intake:
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
     if: github.repository == 'GLORIFIER7/GLORIFIER' && github.ref == 'refs/heads/main' && github.actor_id == '32674233' && github.event.sender.type == 'User'
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -28,6 +29,10 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: node digital-me/src/coding-target.mjs
   admit:
+    permissions:
+      contents: read
+      issues: read
+      pull-requests: read
     needs: intake
     if: >-
       github.repository == 'GLORIFIER7/GLORIFIER' && github.ref == 'refs/heads/main' &&
@@ -46,6 +51,7 @@ jobs:
         with:
           node-version: '24'
       - run: npm ci --ignore-scripts --no-audit --no-fund
+      # Dedicated ledger-only credential; never grant GitHub write or execution privileges.
       - name: Admit verified command as blocked mission only
         env:
           GITHUB_TOKEN: ${{ github.token }}
