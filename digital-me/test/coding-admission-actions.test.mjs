@@ -23,7 +23,7 @@ test('admission failure diagnostics distinguish configuration, target, store and
     [env,{...f.deps,verifyTarget:async()=>{throw Error('secret target data')}},'ADMISSION_TARGET_FAILED'],
     [env,{...f.deps,openStore:async()=>{throw Error('secret module data')}},'ADMISSION_STORE_OPEN_FAILED'],
   ];
-  for(const [code,expected] of [['28P01','ADMISSION_DB_AUTH_FAILED'],['42501','ADMISSION_DB_PERMISSION_DENIED'],['23514','ADMISSION_DB_CONSTRAINT_FAILED'],['CERT_HAS_EXPIRED','ADMISSION_DB_TLS_FAILED'],['ECONNREFUSED','ADMISSION_DB_NETWORK_FAILED'],['secret arbitrary code','ADMISSION_DB_WRITE_FAILED']]){
+  for(const [code,expected] of [['28P01','ADMISSION_DB_AUTH_FAILED'],['42501','ADMISSION_DB_PERMISSION_DENIED'],['23514','ADMISSION_DB_CONSTRAINT_FAILED'],['CERT_HAS_EXPIRED','ADMISSION_DB_TLS_FAILED'],['ECONNREFUSED','ADMISSION_DB_NETWORK_FAILED'],... ['08000','08001','08003','08004','08006','08007','08P01','57P01','57P02','57P03','57P04','57P05'].map(code=>[code,'ADMISSION_DB_NETWORK_FAILED']),['secret arbitrary code','ADMISSION_DB_WRITE_FAILED']]){
     cases.push([env,{...f.deps,openStore:async()=>({create:async()=>{throw Object.assign(Error('secret database URL'),{code})}})},expected]);
   }
   for(const [e,deps,expected] of cases){
