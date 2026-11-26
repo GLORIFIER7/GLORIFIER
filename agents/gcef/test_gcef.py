@@ -81,4 +81,39 @@ class GcefTests(unittest.TestCase):
             with self.assertRaises(PolicyError): inspect_page('https://bad.example', {HOST})
             resolve.assert_not_called()
 
+
+class EvidenceIntegrityTests(unittest.TestCase):
+    def test_foreign_self_closing_elements_preserve_text(self):
+        for tag in ('svg','math'):
+            with self.subTest(tag=tag):
+                doc=extract_document(f'<p>before</p><{tag}/><p>after</p>'.encode(),'text/html')
+                self.assertEqual(doc['text'],'before after')
+        self.assertEqual(extract_document(b'<svg><svg/>hidden</svg>after','text/html')['text'],'after')
+
+    def test_unclosed_omission_fails_closed(self):
+        with self.assertRaisesRegex(PolicyError,'HTML_OMISSION_UNCLOSED'):
+            extract_document(b'before<script/>hidden','text/html')
+
+    def test_links_are_filtered_in_receipt(self):
+        body=b'<a href="/next">next</a><script><a href="/hidden">hidden</a></script><a href="https://evil.com/">external</a>'
+        with patch('gcef.resolve_public',return_value='8.8.8.8'), patch('gcef.fetch_pinned',return_value=(200,'text/html',body)):
+            receipt=inspect_page(URL,{HOST})
+        self.assertEqual(receipt['links'],['https://example.com/next'])
+        self.assertNotIn('rawLinks',receipt)
+
+    def test_body_framing(self):
+        from gcef import read_bounded_body
+        from unittest.mock import Mock
+        for headers,body,expected in [({'Content-Length':'5'},b'ab','BODY_INCOMPLETE'),
+                                      ({'Content-Length':'1','Transfer-Encoding':'chunked'},b'a','BODY_FRAMING_DENIED'),
+                                      ({'Transfer-Encoding':'gzip'},b'a','BODY_FRAMING_DENIED'),
+                                      ({},b'a','BODY_FRAMING_REQUIRED')]:
+            response=Mock(); response.getheader.side_effect=lambda name,default=None: headers.get(name,default)
+            response.read.return_value=body
+            with self.subTest(headers=headers),self.assertRaisesRegex(PolicyError,expected):
+                read_bounded_body(response)
+        response=Mock(); response.getheader.side_effect=lambda name,default=None: {'Content-Length':'3'}.get(name,default)
+        response.read.return_value=b'abc'
+        self.assertEqual(read_bounded_body(response),b'abc')
+
 if __name__=='__main__': unittest.main()
