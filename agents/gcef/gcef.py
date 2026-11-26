@@ -12,7 +12,7 @@ import socket
 import ssl
 import signal
 from datetime import datetime, timezone
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, urljoin
 
 MAX_BODY = 1_048_576
 MAX_TEXT = 32_768
@@ -84,6 +84,23 @@ def tls_context():
     return context
 
 
+def read_bounded_body(response):
+    declared=response.getheader('Content-Length')
+    transfer=response.getheader('Transfer-Encoding')
+    if transfer is not None and (transfer.strip().lower()!='chunked' or declared is not None):
+        raise PolicyError('BODY_FRAMING_DENIED')
+    if declared is None and transfer is None:
+        raise PolicyError('BODY_FRAMING_REQUIRED')
+    if declared is not None and (not declared.isascii() or not declared.isdecimal() or len(declared)>10 or int(declared)>MAX_BODY):
+        raise PolicyError('BODY_LIMIT')
+    body=response.read(MAX_BODY+1)
+    if len(body)>MAX_BODY:
+        raise PolicyError('BODY_LIMIT')
+    if declared is not None and len(body)!=int(declared):
+        raise PolicyError('BODY_INCOMPLETE')
+    return body
+
+
 def fetch_pinned(target, address):
     if not safe_address(address) or ipaddress.ip_address(address).version != 4:
         raise PolicyError('DNS_ADDRESS_DENIED')
@@ -111,12 +128,7 @@ def fetch_pinned(target, address):
                     content_type=response.getheader('Content-Type','').split(';',1)[0].strip().lower()
                     if content_type not in ('text/html','text/plain'):
                         raise PolicyError('CONTENT_TYPE_DENIED')
-                    declared=response.getheader('Content-Length')
-                    if declared is not None and (not declared.isascii() or not declared.isdecimal() or len(declared)>10 or int(declared)>MAX_BODY):
-                        raise PolicyError('BODY_LIMIT')
-                    body=response.read(MAX_BODY+1)
-                    if len(body)>MAX_BODY:
-                        raise PolicyError('BODY_LIMIT')
+                    body=read_bounded_body(response)
                     return status,content_type,body
     except (OSError,ssl.SSLError,http.client.HTTPException):
         raise PolicyError('TRANSPORT_FAILED') from None
@@ -132,16 +144,28 @@ class StaticText(HTMLParser):
         self.in_title=False
         self.title=[]
         self.text=[]
+        self.links=[]
+        self.links_truncated=False
 
     def handle_starttag(self,tag,attrs):
         if tag in self.OMIT:
             self.omitted.append(tag)
         elif not self.omitted and tag=='title':
             self.in_title=True
+        elif not self.omitted and tag=='a':
+            for key,value in attrs:
+                if key=='href' and isinstance(value,str):
+                    if len(self.links)<128:
+                        self.links.append(value)
+                    else:
+                        self.links_truncated=True
+                    break
 
     def handle_startendtag(self,tag,attrs):
         # HTML non-void omitted elements do not reliably self-close. Treat
         # them as open conservatively, including malformed script/style tags.
+        if tag in ('svg','math'):
+            return  # Foreign elements honor self-closing syntax.
         if tag in self.OMIT:
             self.handle_starttag(tag,attrs)
             if tag in self.CDATA_CONTENT_ELEMENTS:
@@ -173,13 +197,31 @@ def extract_document(body,content_type):
         parser=StaticText()
         parser.feed(decoded)
         parser.close()
+        if parser.omitted:
+            raise PolicyError('HTML_OMISSION_UNCLOSED')
         title=' '.join(' '.join(parser.title).split())
         text=' '.join(' '.join(parser.text).split())
     else:
         title=''
         text=decoded
     return {'title':title[:256],'text':text[:MAX_TEXT],
+            'rawLinks':parser.links if content_type=='text/html' else [],
+            'linksTruncated':parser.links_truncated if content_type=='text/html' else False,
             'textTruncated':len(text)>MAX_TEXT,'titleTruncated':len(title)>256}
+
+
+def approved_links(base, raw_links, allowed_hosts):
+    links=[]
+    for raw in raw_links:
+        if not isinstance(raw,str) or not raw or len(raw)>2048 or not raw.isascii() or any(ord(c)<=32 or ord(c)==127 for c in raw) or any(c in raw for c in ('\\','?','#')):
+            continue
+        try:
+            url=validate_target(urljoin(base,raw),allowed_hosts).geturl()
+        except (PolicyError,ValueError):
+            continue
+        if url not in links:
+            links.append(url)
+    return links
 
 
 def inspect_page(url,allowed_hosts):
@@ -188,10 +230,14 @@ def inspect_page(url,allowed_hosts):
     status,content_type,body=fetch_pinned(target,ip)
     if status != 200:
         raise PolicyError('HTTP_STATUS_'+str(status))
+    document=extract_document(body,content_type)
+    raw_links=document.pop('rawLinks')
+    links=approved_links(target.geturl(),raw_links,allowed_hosts)
+    document['linksTruncated']=document['linksTruncated'] or len(links)>32
     return {'classification':'PUBLIC_STATIC_READ_ONLY','url':target.geturl(),
             'observedAt':datetime.now(timezone.utc).isoformat(),'status':status,
             'contentType':content_type,'bodyBytes':len(body),
-            'bodySha256':hashlib.sha256(body).hexdigest(),**extract_document(body,content_type)}
+            'bodySha256':hashlib.sha256(body).hexdigest(),'links':links[:32],**document}
 
 
 def render_document(document):
