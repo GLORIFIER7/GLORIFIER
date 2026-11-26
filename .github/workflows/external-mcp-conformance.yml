@@ -106,6 +106,21 @@ jobs:
             --output-dir "$GITHUB_WORKSPACE/mcp-conformance-results" \
             --verbose
 
+      - name: Test independent HTTPS header diagnostic
+        id: header_diagnostic_tests
+        if: always()
+        run: node --test scripts/mcp-header-diagnostic.test.mjs
+
+      - name: Independent HTTPS header diagnostic (not official conformance)
+        if: ${{ always() && steps.validate_target.outcome == 'success' && steps.header_diagnostic_tests.outcome == 'success' && steps.validate_target.outputs.url == 'https://glorifier.pages.dev/mcp' }}
+        env:
+          GLORIFIER_MCP_CONFORMANCE_URL: ${{ steps.validate_target.outputs.url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/mcp-conformance-results"
+          node scripts/mcp-header-diagnostic.mjs | tee "$GITHUB_WORKSPACE/mcp-conformance-results/independent-https-header-diagnostic.json"
+
       - name: Upload conformance evidence
         if: always()
         uses: actions/upload-artifact@v4
