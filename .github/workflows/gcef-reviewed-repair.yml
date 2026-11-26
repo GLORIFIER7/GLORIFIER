@@ -2,6 +2,8 @@ name: GLORIFIER Digital Me — owner-reviewed GCEF repair publisher
 on:
   schedule:
     - cron: "17 * * * *"
+  issue_comment:
+    types: [created]
   workflow_dispatch:
     inputs:
       expected_main:
@@ -39,12 +41,17 @@ concurrency:
   cancel-in-progress: false
 jobs:
   reviewed-gcef:
-    if: github.repository == 'GLORIFIER7/GLORIFIER' && github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && github.actor_id == '32674233' && github.triggering_actor == 'GLORIFIER7' && inputs.confirm_reviewed == true) || (github.event_name == 'schedule' && vars.DIGITAL_ME_AUTO_DISPATCH == 'true'))
+    if: github.repository == 'GLORIFIER7/GLORIFIER' && github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && github.actor_id == '32674233' && github.triggering_actor == 'GLORIFIER7' && inputs.confirm_reviewed == true) || (github.event_name == 'schedule' && vars.DIGITAL_ME_AUTO_DISPATCH == 'true') || (github.event_name == 'issue_comment' && vars.DIGITAL_ME_AUTO_DISPATCH == 'true' && github.actor_id == '32674233' && github.triggering_actor == 'GLORIFIER7' && github.event.comment.user.id == 32674233 && github.event.issue.number == 1034 && github.event.issue.pull_request == null && startsWith(github.event.comment.body, '/glorifier publish-gcef ')))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: digital-me-publish
     env:
       AUTO_ENABLED: ${{ vars.DIGITAL_ME_AUTO_DISPATCH }}
+      EVENT_ACTION: ${{ github.event.action }}
+      EVENT_ISSUE: ${{ github.event.issue.number }}
+      EVENT_IS_PR: ${{ github.event.issue.pull_request != null }}
+      EVENT_APPROVAL_ID: ${{ github.event.comment.id }}
+      EVENT_AUTHOR_ID: ${{ github.event.comment.user.id }}
       EXPECTED_MAIN: ${{ inputs.expected_main }}
       COMMENT_ID: ${{ inputs.comment_id }}
       PAYLOAD_SHA256: ${{ inputs.payload_sha256 }}
@@ -82,10 +89,11 @@ jobs:
           const AUTO_MAX_AGE=48*60*60*1000;
           const AUTO_PATHS=new Set([...ALLOWED].filter(p=>p.startsWith('agents/gcef/test_')));
           function autoContext(e){
-           ensure(e.GITHUB_REPOSITORY===REPO&&e.GITHUB_REF==='refs/heads/main'&&e.GITHUB_EVENT_NAME==='schedule'&&e.GITHUB_RUN_ATTEMPT==='1'&&e.AUTO_ENABLED==='true'&&hex(e.GITHUB_SHA,40),'AUTO_DISPATCH_DISABLED_OR_INVALID');
+           ensure(e.GITHUB_REPOSITORY===REPO&&e.GITHUB_REF==='refs/heads/main'&&['schedule','issue_comment'].includes(e.GITHUB_EVENT_NAME)&&e.GITHUB_RUN_ATTEMPT==='1'&&e.AUTO_ENABLED==='true'&&hex(e.GITHUB_SHA,40),'AUTO_DISPATCH_DISABLED_OR_INVALID');
+           if(e.GITHUB_EVENT_NAME==='issue_comment')ensure(e.GITHUB_ACTOR_ID==='32674233'&&e.GITHUB_TRIGGERING_ACTOR==='GLORIFIER7'&&e.EVENT_AUTHOR_ID==='32674233'&&e.EVENT_ACTION==='created'&&e.EVENT_ISSUE==='1034'&&e.EVENT_IS_PR==='false'&&/^[1-9][0-9]{0,15}$/.test(e.EVENT_APPROVAL_ID??'')&&Number.isSafeInteger(Number(e.EVENT_APPROVAL_ID)),'OWNER_APPROVAL_EVENT_REQUIRED');
           }
           export function config(e){
-           const scheduled=e.GITHUB_EVENT_NAME==='schedule';
+           const scheduled=['schedule','issue_comment'].includes(e.GITHUB_EVENT_NAME);
            if(scheduled)autoContext(e);
            else{
             const trusted={GITHUB_REPOSITORY:REPO,GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'workflow_dispatch',GITHUB_ACTOR_ID:'32674233',GITHUB_TRIGGERING_ACTOR:'GLORIFIER7',GITHUB_RUN_ATTEMPT:'1',CONFIRM:'true'};
@@ -94,6 +102,7 @@ jobs:
            const base=e.EXPECTED_MAIN,digest=e.PAYLOAD_SHA256,commentId=Number(e.COMMENT_ID),approvalId=Number(e.APPROVAL_ID);
            ensure(hex(base,40)&&base===e.GITHUB_SHA&&hex(digest,64)&&/^[1-9][0-9]{0,15}$/.test(e.COMMENT_ID??'')&&Number.isSafeInteger(commentId),'INVALID_IMMUTABLE_INPUT');
            if(scheduled)ensure(/^[1-9][0-9]{0,15}$/.test(e.APPROVAL_ID??'')&&Number.isSafeInteger(approvalId)&&approvalId!==commentId,'OWNER_APPROVAL_REQUIRED');
+           if(e.GITHUB_EVENT_NAME==='issue_comment')ensure(e.APPROVAL_ID===e.EVENT_APPROVAL_ID,'APPROVAL_EVENT_ID_MISMATCH');
            const paths=(e.ALLOWED_PATHS??'').split(',').map(p=>p.trim()).sort();
            ensure(paths.length>=1&&paths.length<=MAX_FILES&&new Set(paths).size===paths.length&&paths.every(p=>(scheduled?AUTO_PATHS:ALLOWED).has(p)),'PATH_NOT_ALLOWED');
            return {base,digest,commentId,paths,branch:'digital-me/gcef-'+sha256(JSON.stringify([base,digest,paths])),...(scheduled?{approvalId}:{})};
@@ -123,11 +132,12 @@ jobs:
            const list=await api(ROOT+'/issues/'+QUEUE+'/comments?per_page=100&since='+encodeURIComponent(new Date(now-AUTO_MAX_AGE).toISOString()),token);
            ensure(Array.isArray(list)&&list.length<100,'MISSION_INVENTORY_INCOMPLETE');
            const available=[];
-           for(const c of list){const item=parseApproval(c,e,now);if(!item)continue;
+           for(const c of list){const item=parseApproval(c,{...e,GITHUB_EVENT_NAME:'schedule'},now);if(!item)continue;
             const history=await api(ROOT+'/pulls?state=all&head='+encodeURIComponent('GLORIFIER7:'+item.cfg.branch)+'&base=main&per_page=100',token);
             ensure(Array.isArray(history)&&history.length<100,'DRAFT_INVENTORY_RECONCILE');if(history.length===0)available.push(item);
            }
            ensure(available.length<=1,'MULTIPLE_APPROVED_MISSIONS');if(!available.length)return null;
+           if(e.GITHUB_EVENT_NAME==='issue_comment'&&String(available[0].cfg.approvalId)!==e.EVENT_APPROVAL_ID)return null;
            await assertAuthorized(available[0].cfg,api,token,now);return available[0].inputs;
           }
           async function checkMain(cfg,api,token){
@@ -367,10 +377,17 @@ jobs:
           test('scheduled revalidation rejects changed or withdrawn authorization before writes',async()=>{const {assertAuthorized}=await import('./publisher.mjs');const cfg=config(autoEnv);await assertAuthorized(cfg,autoFake().api,'read',autoNow);for(const opts of [{approval:{...approval,body:approval.body+' '}},{approval:{...approval,updated_at:'2026-11-26T11:01:00Z'}},{approval:null},{open:[{number:5}]}]){await assert.rejects(assertAuthorized(cfg,autoFake(opts).api,'read',autoNow));}});
           test('disabled scheduler makes no API requests',async()=>{const {selectMission}=await import('./publisher.mjs');const f=autoFake();await assert.rejects(selectMission({...autoEnv,AUTO_ENABLED:'false'},f.api,'read',autoNow));assert.equal(f.calls.length,0);});
           test('scheduled publication with revoked approval stops before App authentication',async()=>{const f=autoFake({approval:null});await assert.rejects(publish(config(autoEnv),f.api,'read','jwt'),/OWNER_APPROVAL_CHANGED_OR_EXPIRED/);assert.ok(!f.calls.some(c=>c.p.includes('/installation')||c.method!=='GET'));});
+
+          const eventEnv={...autoEnv,GITHUB_EVENT_NAME:'issue_comment',GITHUB_ACTOR_ID:'32674233',GITHUB_TRIGGERING_ACTOR:'GLORIFIER7',EVENT_ACTION:'created',EVENT_ISSUE:'1034',EVENT_IS_PR:'false',EVENT_APPROVAL_ID:'43',EVENT_AUTHOR_ID:'32674233'};
+          test('owner approval comment can trigger the same pinned test mission',async()=>{const {selectMission}=await import('./publisher.mjs');assert.deepEqual(config(eventEnv),config(autoEnv));const f=autoFake();assert.equal((await selectMission(eventEnv,f.api,'read',autoNow)).APPROVAL_ID,'43');assert.ok(f.calls.every(c=>c.method==='GET'));});
+          test('event context rejects edits, PR comments, wrong queue, nonowner and reruns before API access',async()=>{const {selectMission}=await import('./publisher.mjs');for(const x of [{EVENT_ACTION:'edited'},{EVENT_IS_PR:'true'},{EVENT_ISSUE:'471'},{EVENT_AUTHOR_ID:'2'},{GITHUB_ACTOR_ID:'2'},{GITHUB_TRIGGERING_ACTOR:'other'},{GITHUB_RUN_ATTEMPT:'2'},{AUTO_ENABLED:'false'},{EVENT_APPROVAL_ID:'43\nX=true'}]){const f=autoFake();await assert.rejects(selectMission({...eventEnv,...x},f.api,'read',autoNow));assert.equal(f.calls.length,0);}});
+          test('event ID cannot select a different approved mission',async()=>{const {selectMission}=await import('./publisher.mjs');assert.throws(()=>config({...eventEnv,APPROVAL_ID:'44'}));assert.equal(await selectMission({...eventEnv,EVENT_APPROVAL_ID:'44'},autoFake().api,'read',autoNow),null);});
+          test('event fallback refuses competing approvals and any open PR',async()=>{const {selectMission}=await import('./publisher.mjs');await assert.rejects(selectMission(eventEnv,autoFake({comments:[approval,{...approval,id:44,body:approval.body.replace(' 42 ',' 45 ')}]}).api,'read',autoNow),/MULTIPLE_APPROVED_MISSIONS/);assert.equal(await selectMission(eventEnv,autoFake({open:[{number:2}]}).api,'read',autoNow),null);});
+          test('event fallback rejects edited or expired actual approval',async()=>{const {selectMission}=await import('./publisher.mjs');for(const a of [{...approval,updated_at:'2026-11-26T11:01:00Z'},{...approval,created_at:'2026-11-23T11:00:00Z',updated_at:'2026-11-23T11:00:00Z'}])assert.equal(await selectMission(eventEnv,autoFake({comments:[a]}).api,'read',autoNow),null);});
           PUBLISHER_TEST
           node --test publisher.test.mjs
-      - name: Select exact owner-approved scheduled test mission
-        if: github.event_name == 'schedule'
+      - name: Select exact owner-approved automatic test mission
+        if: github.event_name == 'schedule' || github.event_name == 'issue_comment'
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -386,7 +403,7 @@ jobs:
           set -euo pipefail
           node "$RUNNER_TEMP/gcef-reviewed-publisher/publisher.mjs" prepare
       - name: Publish only a verified App-signed draft
-        if: (github.event_name == 'workflow_dispatch' && inputs.publish == true) || (github.event_name == 'schedule' && env.MISSION_SELECTED == 'true')
+        if: (github.event_name == 'workflow_dispatch' && inputs.publish == true) || ((github.event_name == 'schedule' || github.event_name == 'issue_comment') && env.MISSION_SELECTED == 'true')
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
