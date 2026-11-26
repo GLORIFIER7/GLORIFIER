@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import test from 'node:test';
+import '../digital-me/test/coding-repair-workflow.test.mjs';
 
 const read = (path) => readFile(new URL(path, import.meta.url), 'utf8');
 const [guardian, systemHealth, infrastructureHealth, geminiReview, bootstrap, ci, dockerImage, solanaReconcile, globalCollaboration, mediatorExpansion, globalResolution, codeql] = await Promise.all([

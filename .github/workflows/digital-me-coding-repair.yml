@@ -179,6 +179,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       candidate_digest: ${{ steps.repair.outputs.candidate_digest }}
+      repair_status: ${{ steps.repair.outputs.repair_status }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -199,6 +200,7 @@ jobs:
           import {pathToFileURL} from 'node:url';
           const paths=['digital-me/src/coding-admission-actions.mjs','digital-me/test/coding-admission-actions.test.mjs'];
           const before=['9e89a276070e5c35d768a5a0958c5e850c480ebc','d868c05eae6dc029b15fbcd70a3c624455d48bf8'];
+          const after=['297925e006307f40a40fd9caf8e7ecc1af887ac8','50d424a7c60da38a7102a17842eca64d0d028ce3'];
           const oldCodes="'08000','08001','08003','08004','08006','08007','08P01','57P01','57P02','57P03','57P04','57P05'";
           const newCodes="'08000','08001','08003','08004','08006','08007','57P01','57P02','57P03','57P05'";
           const oldTest="... ['08000','08001','08003','08004','08006','08007','08P01','57P01','57P02','57P03','57P04','57P05'].map(code=>[code,'ADMISSION_DB_NETWORK_FAILED']),['secret arbitrary code','ADMISSION_DB_WRITE_FAILED']";
@@ -207,6 +209,13 @@ jobs:
           const blob=b=>createHash('sha1').update(Buffer.from(`blob ${b.length}\0`)).update(b).digest('hex');
           const check=(v)=>{if(!v)throw Error('REPAIR_RULE_DENIED');};
           function replaceOnce(s,a,b){check(s.split(a).length===2);return s.replace(a,b);}
+          export function repairStatus(files){
+           check(Array.isArray(files)&&files.length===2&&files.every(Buffer.isBuffer));
+           const hashes=files.map(blob);
+           if(hashes.every((sha,i)=>sha===after[i]))return 'REPAIR_ALREADY_APPLIED';
+           check(hashes.every((sha,i)=>sha===before[i]));
+           return 'REPAIR_REQUIRED';
+          }
           export function derive(files){
            check(Array.isArray(files)&&files.length===2&&files.every((b,i)=>Buffer.isBuffer(b)&&blob(b)===before[i]));
            const output=[Buffer.from(replaceOnce(files[0].toString('utf8'),oldCodes,newCodes)),Buffer.from(replaceOnce(files[1].toString('utf8'),oldTest,newTest))];
@@ -215,7 +224,8 @@ jobs:
           }
           function original(){return paths.map(p=>readFileSync(p));}
           function put(path,contents){writeFileSync(path,Buffer.from(contents,'base64'));}
-          function main(){const mode=process.argv[2];if(mode==='red'){const m=derive(original());put(paths[1],m.changes[1].contents);writeFileSync(process.argv[3],JSON.stringify(m),{mode:0o600,flag:'wx'});}
+          function main(){const mode=process.argv[2];if(mode==='status'){console.log(repairStatus(original()));}
+           else if(mode==='red'){const m=derive(original());put(paths[1],m.changes[1].contents);writeFileSync(process.argv[3],JSON.stringify(m),{mode:0o600,flag:'wx'});}
            else if(mode==='green'){const m=JSON.parse(readFileSync(process.argv[3],'utf8'));check(blob(readFileSync(paths[0]))===before[0]&&blob(readFileSync(paths[1]))===m.changes[1].after);put(paths[0],m.changes[0].contents);check(paths.every((p,i)=>blob(readFileSync(p))===m.changes[i].after));console.log('REPAIR_CANDIDATE_CREATED '+m.digest);if(process.env.GITHUB_OUTPUT)appendFileSync(process.env.GITHUB_OUTPUT,`candidate_digest=${m.digest}\n`);}
            else if(mode==='derive'){const m=derive(original());writeFileSync(process.argv[3],JSON.stringify(m),{mode:0o600,flag:'wx'});}
            else check(false);}
@@ -236,6 +246,13 @@ jobs:
           test -z "$(git status --porcelain)"
           tests=(digital-me/test/coding-intake.test.mjs digital-me/test/coding-target.test.mjs digital-me/test/coding-mission-admission.test.mjs digital-me/test/coding-admission-actions.test.mjs)
           node --test "${tests[@]}"
+          repair_status="$(node "$RUNNER_TEMP/v7/repair.mjs" status)"
+          if [[ "$repair_status" == 'REPAIR_ALREADY_APPLIED' ]]; then
+            echo 'repair_status=already-applied' >> "$GITHUB_OUTPUT"
+            printf '## Bounded repair already applied\nThe exact reviewed source and regression test are present and the focused tests passed. No candidate or publication is needed. Issue #471 remains open; its other acceptance gates are not verified by this check.\n' >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          test "$repair_status" = 'REPAIR_REQUIRED'
           node "$RUNNER_TEMP/v7/repair.mjs" red "$RUNNER_TEMP/v7/manifest.json"
           if node --test digital-me/test/coding-admission-actions.test.mjs > "$RUNNER_TEMP/v7/red.log" 2>&1; then
             echo 'Expected regression did not fail; stopping.'; exit 1
@@ -252,9 +269,10 @@ jobs:
             cat "$RUNNER_TEMP/v7/candidate.patch"
             printf '\n```\n'
           } >> "$GITHUB_STEP_SUMMARY"
+          echo 'repair_status=candidate-created' >> "$GITHUB_OUTPUT"
   publish:
     needs: [authorize, candidate]
-    if: vars.DIGITAL_ME_AUTO_DISPATCH == 'true'
+    if: vars.DIGITAL_ME_AUTO_DISPATCH == 'true' && needs.candidate.outputs.repair_status == 'candidate-created' && needs.candidate.outputs.candidate_digest != ''
     permissions:
       contents: read
       actions: read
@@ -284,6 +302,7 @@ jobs:
           import {pathToFileURL} from 'node:url';
           const paths=['digital-me/src/coding-admission-actions.mjs','digital-me/test/coding-admission-actions.test.mjs'];
           const before=['9e89a276070e5c35d768a5a0958c5e850c480ebc','d868c05eae6dc029b15fbcd70a3c624455d48bf8'];
+          const after=['297925e006307f40a40fd9caf8e7ecc1af887ac8','50d424a7c60da38a7102a17842eca64d0d028ce3'];
           const oldCodes="'08000','08001','08003','08004','08006','08007','08P01','57P01','57P02','57P03','57P04','57P05'";
           const newCodes="'08000','08001','08003','08004','08006','08007','57P01','57P02','57P03','57P05'";
           const oldTest="... ['08000','08001','08003','08004','08006','08007','08P01','57P01','57P02','57P03','57P04','57P05'].map(code=>[code,'ADMISSION_DB_NETWORK_FAILED']),['secret arbitrary code','ADMISSION_DB_WRITE_FAILED']";
@@ -292,6 +311,13 @@ jobs:
           const blob=b=>createHash('sha1').update(Buffer.from(`blob ${b.length}\0`)).update(b).digest('hex');
           const check=(v)=>{if(!v)throw Error('REPAIR_RULE_DENIED');};
           function replaceOnce(s,a,b){check(s.split(a).length===2);return s.replace(a,b);}
+          export function repairStatus(files){
+           check(Array.isArray(files)&&files.length===2&&files.every(Buffer.isBuffer));
+           const hashes=files.map(blob);
+           if(hashes.every((sha,i)=>sha===after[i]))return 'REPAIR_ALREADY_APPLIED';
+           check(hashes.every((sha,i)=>sha===before[i]));
+           return 'REPAIR_REQUIRED';
+          }
           export function derive(files){
            check(Array.isArray(files)&&files.length===2&&files.every((b,i)=>Buffer.isBuffer(b)&&blob(b)===before[i]));
            const output=[Buffer.from(replaceOnce(files[0].toString('utf8'),oldCodes,newCodes)),Buffer.from(replaceOnce(files[1].toString('utf8'),oldTest,newTest))];
@@ -300,7 +326,8 @@ jobs:
           }
           function original(){return paths.map(p=>readFileSync(p));}
           function put(path,contents){writeFileSync(path,Buffer.from(contents,'base64'));}
-          function main(){const mode=process.argv[2];if(mode==='red'){const m=derive(original());put(paths[1],m.changes[1].contents);writeFileSync(process.argv[3],JSON.stringify(m),{mode:0o600,flag:'wx'});}
+          function main(){const mode=process.argv[2];if(mode==='status'){console.log(repairStatus(original()));}
+           else if(mode==='red'){const m=derive(original());put(paths[1],m.changes[1].contents);writeFileSync(process.argv[3],JSON.stringify(m),{mode:0o600,flag:'wx'});}
            else if(mode==='green'){const m=JSON.parse(readFileSync(process.argv[3],'utf8'));check(blob(readFileSync(paths[0]))===before[0]&&blob(readFileSync(paths[1]))===m.changes[1].after);put(paths[0],m.changes[0].contents);check(paths.every((p,i)=>blob(readFileSync(p))===m.changes[i].after));console.log('REPAIR_CANDIDATE_CREATED '+m.digest);if(process.env.GITHUB_OUTPUT)appendFileSync(process.env.GITHUB_OUTPUT,`candidate_digest=${m.digest}\n`);}
            else if(mode==='derive'){const m=derive(original());writeFileSync(process.argv[3],JSON.stringify(m),{mode:0o600,flag:'wx'});}
            else check(false);}
