@@ -50,3 +50,17 @@ class TransportTests(unittest.TestCase):
                         from execution import receipt_digest
                         self.assertEqual(ledger.status(job)['digest'],receipt_digest(result))
                 finally: server.shutdown();thread.join()
+
+    def test_unexpected_server_error_is_diagnosable_without_secrets(self):
+        import io, contextlib, ssl
+        from worker_transport import TLSServer
+        with TLSServer(('127.0.0.1',0),None,ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)) as server:
+            output=io.StringIO()
+            with contextlib.redirect_stderr(output):
+                try:
+                    raise RuntimeError('SYNTHETIC_SECRET_BEARER')
+                except RuntimeError:
+                    server.handle_error('SYNTHETIC_REQUEST_SECRET',('SYNTHETIC_PEER_SECRET',0))
+            self.assertIn('GCEF_UNEXPECTED_SERVER_ERROR',output.getvalue())
+            self.assertRegex(output.getvalue(),r'line=[1-9][0-9]*')
+            self.assertNotIn('SYNTHETIC_',output.getvalue())

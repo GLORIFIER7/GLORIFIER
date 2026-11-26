@@ -3,7 +3,7 @@ import argparse
 import json
 import os
 from pathlib import Path
-from gcef import render_document, MAX_TEXT
+from gcef import render_document, MAX_TEXT, MAX_RECEIPT_BYTES
 
 
 def configure_context(browser):
@@ -13,11 +13,31 @@ def configure_context(browser):
     return context
 
 
-def prepare_view(context, document):
+def validate_document(document):
     if not isinstance(document,dict) or not isinstance(document.get('title'),str) or not isinstance(document.get('text'),str):
         raise ValueError('Invalid static evidence')
     if len(document['title'])>256 or len(document['text'])>MAX_TEXT:
         raise ValueError('Static evidence exceeds bounds')
+    return document
+
+
+def load_receipt(path):
+    # The ledger stores canonical JSON. Accept either a direct inspection
+    # receipt or its successful result envelope, never a failed result.
+    with path.open('rb') as f:
+        data=f.read(MAX_RECEIPT_BYTES+1)
+    if len(data)>MAX_RECEIPT_BYTES:
+        raise ValueError('Evidence file exceeds bounds')
+    document=json.loads(data)
+    if isinstance(document,dict) and set(document)=={'status','receipt'} and document['status']=='succeeded':
+        document=document['receipt']
+    if not isinstance(document,dict) or document.get('classification')!='PUBLIC_STATIC_READ_ONLY':
+        raise ValueError('Not a static evidence receipt')
+    return validate_document(document)
+
+
+def prepare_view(context, document):
+    validate_document(document)
     page=context.new_page()
     page.set_content(render_document(document),wait_until='domcontentloaded',timeout=5000)
     return page
@@ -42,13 +62,7 @@ def main():
     try:
         if os.geteuid()==0:
             raise ValueError('Run as an unprivileged user')
-        with args.receipt.open('rb') as f:
-            data=f.read(400_001)
-        if len(data)>400_000:
-            raise ValueError('Evidence file exceeds bounds')
-        document=json.loads(data)
-        if document.get('classification')!='PUBLIC_STATIC_READ_ONLY':
-            raise ValueError('Not a static evidence receipt')
+        document=load_receipt(args.receipt)
         from playwright.sync_api import sync_playwright
         with sync_playwright() as p:
             # Fail rather than disable the browser sandbox. Do not import a profile.

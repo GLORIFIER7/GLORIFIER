@@ -41,3 +41,26 @@ class BrowserViewTests(unittest.TestCase):
         self.assertIn('overflow-wrap:anywhere',source)
         self.assertIn('white-space:pre-wrap',source)
         self.assertIn('x'*32768,source)
+
+    def test_large_receipt_input_matches_ledger_bound(self):
+        import json, tempfile
+        from pathlib import Path
+        import browser_view
+        from execution import MAX_RESULT, canonical
+        receipt={'classification':'PUBLIC_STATIC_READ_ONLY','url':'https://www.example.com/',
+                 'status':200,'bodySha256':'a'*64,'title':'😀'*256,'text':'😀'*32768,
+                 'links':['https://www.example.com/'+str(i)+'/'+('x'*2000) for i in range(32)]}
+        result={'status':'succeeded','receipt':receipt}
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)/'receipt.json'
+            for value in (receipt,result):
+                data=canonical(value)
+                self.assertGreater(len(data),400000)
+                self.assertLessEqual(len(data),MAX_RESULT)
+                path.write_bytes(data)
+                self.assertEqual(browser_view.load_receipt(path),receipt)
+            path.write_bytes(b' '* (MAX_RESULT+1))
+            with self.assertRaises(ValueError): browser_view.load_receipt(path)
+            for value in ([],{'status':'failed','reason':'INSPECTION_FAILED'},dict(receipt,text='x'*32769)):
+                path.write_text(json.dumps(value))
+                with self.assertRaises(ValueError): browser_view.load_receipt(path)
