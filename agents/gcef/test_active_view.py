@@ -37,3 +37,10 @@ class ActiveTests(unittest.TestCase):
         with self.assertRaises(InteractionDenied):
             view.run({'action':'fill','value':'blocked'})
         view.page.locator.return_value.fill.assert_not_called()
+
+    def test_fill_boundary_and_exact_action_shape(self):
+        valid={'action':'fill','value':'x'*512}
+        self.assertEqual(validate_interaction(valid),valid)
+        for step in [None, {'action':'fill','value':512}, {'action':'fill','value':'x'*513}, {'action':'fill','value':'note','selector':'#other'}, {'action':'scroll','direction':'left'}, {'action':'read-note','extra':True}]:
+            with self.subTest(step=step), self.assertRaises(InteractionDenied):
+                validate_interaction(step)
