@@ -1,0 +1,26 @@
+name: GCEF offline validation
+on:
+  pull_request:
+    paths:
+      - 'agents/gcef/**'
+      - 'docs/architecture/gcef.md'
+      - '.github/workflows/gcef-validation.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'agents/gcef/**'
+      - 'docs/architecture/gcef.md'
+      - '.github/workflows/gcef-validation.yml'
+permissions:
+  contents: read
+jobs:
+  offline-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout source without persisted credentials
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Test bounded public inspection and offline renderer contracts
+        run: python3 -m unittest discover -s agents/gcef -p 'test_*.py' -v
