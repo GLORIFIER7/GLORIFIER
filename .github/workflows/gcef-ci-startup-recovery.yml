@@ -1,0 +1,120 @@
+name: GLORIFIER Digital Me — bounded GCEF CI startup recovery
+on:
+  workflow_run:
+    workflows:
+      - GLORIFIER CI
+      - GLORIFIER CodeQL Security
+      - GLORIFIER npm Security
+      - GLORIFIER Dependency Review
+      - GLORIFIER Cloudflare Worker
+      - GCEF offline validation
+      - GLORIFIER Build and Test
+    types: [completed]
+  pull_request_target:
+    types: [ready_for_review]
+    branches: [main]
+permissions:
+  actions: write
+  contents: read
+  pull-requests: read
+concurrency:
+  group: glorifier-gcef-ci-recovery-${{ github.event.workflow_run.head_sha || github.event.pull_request.head.sha }}
+  cancel-in-progress: false
+jobs:
+  recover:
+    if: github.repository == 'GLORIFIER7/GLORIFIER' && github.ref == 'refs/heads/main' && vars.DIGITAL_ME_AUTO_DISPATCH == 'true' && ((github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'startup_failure' && github.event.workflow_run.run_attempt == 1) || (github.event_name == 'pull_request_target' && github.event.action == 'ready_for_review' && github.event.pull_request.head.repo.full_name == 'GLORIFIER7/GLORIFIER' && github.event.pull_request.user.login == 'glorifier-digital-me[bot]' && github.event.pull_request.base.ref == 'main'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      AUTO_ENABLED: ${{ vars.DIGITAL_ME_AUTO_DISPATCH }}
+      TRIGGER_RUN_ID: ${{ github.event.workflow_run.id }}
+      READY_ACTION: ${{ github.event.action }}
+      READY_PR: ${{ github.event.pull_request.number }}
+      READY_HEAD: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Install trusted recovery and run tests without credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir "$RUNNER_TEMP/gcef-ci-recovery"
+          cd "$RUNNER_TEMP/gcef-ci-recovery"
+          cat > recovery.mjs <<'RECOVERY_JS'
+          import {pathToFileURL} from 'node:url';
+          const REPO='GLORIFIER7/GLORIFIER',ROOT='/repos/'+REPO,BOT='glorifier-digital-me[bot]';
+          const PATHS=new Set(['ci.yml','codeql.yml','npm-security.yml','dependency-review.yml','cloudflare-worker.yml','gcef-validation.yml','build-test.yml'].map(p=>'.github/workflows/'+p));
+          const TESTS=new Set(['active_view','browser_session','browser_view','execution','gcef','profile_vault','worker_transport'].map(p=>'agents/gcef/test_'+p+'.py'));
+          const sha=s=>typeof s==='string'&&/^[a-f0-9]{40}$/.test(s);
+          const id=n=>Number.isSafeInteger(n)&&n>0;
+          const ok=(v,c)=>{if(!v)throw Error(c);};
+          const signed=c=>c?.commit?.verification?.verified===true&&c.commit.verification.reason==='valid';
+          const status=(s,extra={})=>({status:s,...extra});
+          function eligiblePr(p,base){return id(p?.number)&&p.state==='open'&&p.draft===false&&p.user?.login===BOT&&p.user.type==='Bot'&&p.head?.repo?.full_name===REPO&&p.base?.repo?.full_name===REPO&&p.base.ref==='main'&&p.base.sha===base&&sha(p.head.sha)&&/^digital-me\/gcef-[a-f0-9]{64}$/.test(p.head.ref);}
+          function eligibleRun(r,p,now){const t=Date.parse(r?.created_at);return id(r?.id)&&id(r.workflow_id)&&PATHS.has(r.path)&&r.event==='pull_request'&&r.status==='completed'&&r.conclusion==='startup_failure'&&r.run_attempt===1&&r.head_sha===p.head.sha&&r.head_branch===p.head.ref&&r.head_repository?.full_name===REPO&&r.repository?.full_name===REPO&&Number.isFinite(t)&&t<=now&&now-t<=24*60*60*1000&&Array.isArray(r.pull_requests)&&(r.pull_requests.length===0||(r.pull_requests.length===1&&r.pull_requests[0].number===p.number&&r.pull_requests[0].head?.sha===p.head.sha&&r.pull_requests[0].head?.ref===p.head.ref&&r.pull_requests[0].base?.ref==='main'));}
+          async function inventory(api,p){const r=await api(ROOT+'/actions/runs?event=pull_request&head_sha='+p.head.sha+'&per_page=100');ok(Array.isArray(r?.workflow_runs)&&Number.isSafeInteger(r.total_count)&&r.total_count===r.workflow_runs.length&&r.total_count<100,'INCOMPLETE_RUN_INVENTORY');return r.workflow_runs;}
+          export async function recover(e,api,now=Date.now()){
+           const ready=e.GITHUB_EVENT_NAME==='pull_request_target';
+           ok(e.GITHUB_REPOSITORY===REPO&&e.GITHUB_REF==='refs/heads/main'&&e.GITHUB_RUN_ATTEMPT==='1'&&e.AUTO_ENABLED==='true'&&sha(e.GITHUB_SHA)&&(ready?(e.READY_ACTION==='ready_for_review'&&/^[1-9][0-9]{0,15}$/.test(e.READY_PR??'')&&id(Number(e.READY_PR))&&sha(e.READY_HEAD)):(e.GITHUB_EVENT_NAME==='workflow_run'&&/^[1-9][0-9]{0,15}$/.test(e.TRIGGER_RUN_ID??'')&&id(Number(e.TRIGGER_RUN_ID)))),'RECOVERY_DISABLED_OR_INVALID');
+           const repo=await api(ROOT);ok(repo?.full_name===REPO&&repo.private===false&&repo.visibility==='public','PUBLIC_REPOSITORY_REQUIRED');
+           const base=e.GITHUB_SHA;const main=await api(ROOT+'/commits/main');ok(main?.sha===base&&signed(main),'STALE_OR_UNSIGNED_MAIN');
+           const prs=await api(ROOT+'/pulls?state=open&per_page=100');ok(Array.isArray(prs)&&prs.length<100,'INCOMPLETE_PR_INVENTORY');
+           if(prs.length!==1||!eligiblePr(prs[0],base)||(ready&&(prs[0].number!==Number(e.READY_PR)||prs[0].head.sha!==e.READY_HEAD)))return status('NO_ELIGIBLE_PR');
+           const p=await api(ROOT+'/pulls/'+prs[0].number);if(!eligiblePr(p,base)||p.number!==prs[0].number||p.head.sha!==prs[0].head.sha||p.head.ref!==prs[0].head.ref)return status('PR_CHANGED');
+           const c=await api(ROOT+'/commits/'+p.head.sha);if(c?.sha!==p.head.sha||c.author?.login!==BOT||!signed(c)||c.parents?.length!==1||c.parents[0].sha!==base||!Array.isArray(c.files)||!c.files.length||c.files.length>7||!c.files.every(f=>TESTS.has(f.filename)&&f.status==='modified'))return status('UNVERIFIED_PR_SCOPE');
+           const runs=await inventory(api,p);const candidates=runs.filter(r=>(ready||r.id===Number(e.TRIGGER_RUN_ID))&&eligibleRun(r,p,now)&&runs.filter(x=>x.workflow_id===r.workflow_id).length===1).sort((a,b)=>a.id-b.id);
+           if(!candidates.length)return status('NO_ELIGIBLE_STARTUP_FAILURE');
+           const results=[];
+           for(const r of candidates){results.push(await recoverOne(r,p,base,api,now));}
+           return results.length===1?results[0]:status(results.every(x=>x.status==='RECOVERY_CONFIRMED')?'RECOVERY_CONFIRMED':'RECOVERY_UNCONFIRMED',{results});
+          }
+          async function recoverOne(r,p,base,api,now){
+           const latest=await api(ROOT+'/actions/runs/'+r.id);if(!eligibleRun(latest,p,now)||latest.id!==r.id||latest.workflow_id!==r.workflow_id||latest.path!==r.path)return status('RUN_CHANGED');
+           const again=await api(ROOT+'/pulls/'+p.number);const m=await api(ROOT+'/commits/main');if(!eligiblePr(again,base)||again.number!==p.number||again.head.sha!==p.head.sha||again.head.ref!==p.head.ref||m?.sha!==base||!signed(m))return status('PR_OR_MAIN_CHANGED');
+           const current=await inventory(api,p);if(current.filter(x=>x.workflow_id===r.workflow_id).length!==1||!current.some(x=>x.id===r.id&&eligibleRun(x,p,now)))return status('RUN_INVENTORY_CHANGED');
+           try{await api(ROOT+'/actions/runs/'+r.id+'/rerun','POST');}catch{/* no blind retry */}
+           try{const result=await api(ROOT+'/actions/runs/'+r.id);if(result?.id===r.id&&result.workflow_id===r.workflow_id&&result.head_sha===p.head.sha&&result.run_attempt===2)return status('RECOVERY_CONFIRMED',{run_id:r.id,pr:p.number,head:p.head.sha});}catch{/* outcome unknown */}
+           return status('RECOVERY_UNCONFIRMED',{run_id:r.id,pr:p.number,head:p.head.sha});
+          }
+          async function main(){const token=process.env.GITHUB_TOKEN;ok(token,'TOKEN_REQUIRED');const api=async(path,method='GET')=>{const r=await fetch('https://api.github.com'+path,{method,redirect:'error',signal:AbortSignal.timeout(15000),headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}});ok(r.ok,'GITHUB_HTTP_'+r.status);if(r.status===201||r.status===204)return null;return await r.json();};const r=await recover(process.env,api);console.log(JSON.stringify(r));if(r.status==='RECOVERY_UNCONFIRMED')process.exitCode=1;}
+          if(process.argv[1]&&pathToFileURL(process.argv[1]).href===import.meta.url)main().catch(e=>{console.error(/^[A-Z0-9_]{1,80}$/.test(e?.message??'')?e.message:'RECOVERY_FAILED');process.exitCode=1;});
+          RECOVERY_JS
+          cat > recovery.test.mjs <<'RECOVERY_TEST'
+          import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import {recover} from './recovery.mjs';
+          const repo='GLORIFIER7/GLORIFIER',root='/repos/'+repo,sha='a'.repeat(40),base='b'.repeat(40),branch='digital-me/gcef-'+'c'.repeat(64),now=Date.parse('2026-11-26T18:00:00Z');
+          const env={GITHUB_REPOSITORY:repo,GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'workflow_run',TRIGGER_RUN_ID:'123',GITHUB_RUN_ATTEMPT:'1',AUTO_ENABLED:'true',GITHUB_SHA:base};
+          const pr={number:1063,state:'open',draft:false,user:{login:'glorifier-digital-me[bot]',type:'Bot'},head:{sha,ref:branch,repo:{full_name:repo}},base:{ref:'main',sha:base,repo:{full_name:repo}}};
+          const run={id:123,workflow_id:364904712,path:'.github/workflows/ci.yml',event:'pull_request',head_sha:sha,head_branch:branch,head_repository:{full_name:repo},repository:{full_name:repo},pull_requests:[{number:1063,head:{sha,ref:branch},base:{ref:'main'}}],status:'completed',conclusion:'startup_failure',run_attempt:1,created_at:'2026-11-26T17:50:00Z'};
+          function fixture(o={}){const calls=[];let attempt=1;const api=async(p,method='GET')=>{calls.push([p,method]);if(p===root)return {full_name:repo,private:o.private??false,visibility:o.private?'private':'public'};if(p===root+'/commits/main')return {sha:base,commit:{verification:{verified:true,reason:'valid'}}};if(p===root+'/pulls?state=open&per_page=100')return o.prs??[pr];if(p===root+'/pulls/1063')return o.pr??pr;if(p===root+'/commits/'+sha)return {sha,author:{login:'glorifier-digital-me[bot]'},commit:{verification:{verified:!o.unsigned,reason:o.unsigned?'unsigned':'valid'}},parents:[{sha:base}],files:[{filename:'agents/gcef/test_active_view.py',status:'modified'}]};if(p.startsWith(root+'/actions/runs?'))return {total_count:(o.runs??[run]).length,workflow_runs:o.runs??[run]};if(p===root+'/actions/runs/123')return {...run,run_attempt:attempt,...o.readback};if(p===root+'/actions/runs/123/rerun'&&method==='POST'){if(!o.noEffect)attempt=2;if(o.lost)throw Error('lost response');return null;}throw Error('unexpected API '+p);};return {api,calls};}
+          const writes=f=>f.calls.filter(x=>x[1]!=='GET');
+          test('one confirmed startup failure is rerun exactly once',async()=>{const f=fixture();const r=await recover(env,f.api,now);assert.equal(r.status,'RECOVERY_CONFIRMED');assert.equal(writes(f).length,1);});
+          test('disabled or non-main context performs no requests',async()=>{for(const e of [{AUTO_ENABLED:'false'},{GITHUB_REF:'refs/heads/other'},{GITHUB_EVENT_NAME:'pull_request'},{GITHUB_RUN_ATTEMPT:'2'}]){const f=fixture();await assert.rejects(recover({...env,...e},f.api,now));assert.equal(f.calls.length,0);}});
+          test('private repo refuses automatic billable runner recovery',async()=>{const f=fixture({private:true});await assert.rejects(recover(env,f.api,now));assert.equal(writes(f).length,0);});
+          test('no candidate, draft, human PR or unsigned commit cannot rerun',async()=>{for(const o of [{prs:[]},{pr:{...pr,draft:true}},{pr:{...pr,user:{login:'human'}}},{unsigned:true}]){const f=fixture(o);await recover(env,f.api,now);assert.equal(writes(f).length,0);}});
+          test('reject unsafe workflows, old runs, nonstartup failures, prior retry and wrong head',async()=>{for(const r of [{path:'.github/workflows/deploy.yml'},{created_at:'2026-11-25T00:00:00Z'},{conclusion:'failure'},{run_attempt:2},{head_sha:base},{pull_requests:[{number:99}]},{event:'push'},{status:'queued'}]){const f=fixture({runs:[{...run,...r}]});await recover(env,f.api,now);assert.equal(writes(f).length,0);}});
+          test('readback mismatch blocks mutation',async()=>{const f=fixture({readback:{head_sha:base}});await recover(env,f.api,now);assert.equal(writes(f).length,0);});
+          test('lost successful response reconciles from run attempt, never repeats write',async()=>{const f=fixture({lost:true});assert.equal((await recover(env,f.api,now)).status,'RECOVERY_CONFIRMED');assert.equal(writes(f).length,1);});
+          test('unknown outcome is not reported as success or retried',async()=>{const f=fixture({lost:true,noEffect:true});assert.equal((await recover(env,f.api,now)).status,'RECOVERY_UNCONFIRMED');assert.equal(writes(f).length,1);});
+          
+          test('different event run or a newer workflow run cannot retry',async()=>{for(const o of [{runs:[{...run,id:456}]},{runs:[run,{...run,id:456,status:'queued'}]}]){const f=fixture(o);await recover(env,f.api,now);assert.equal(writes(f).length,0);}});
+          test('invalid triggering ID fails closed before API calls',async()=>{const f=fixture();await assert.rejects(recover({...env,TRIGGER_RUN_ID:'123/../../rerun'},f.api,now));assert.equal(f.calls.length,0);});
+          
+          test('actual GitHub startup failure with empty PR association matches exact signed branch',async()=>{const r={...run,pull_requests:[]};const f=fixture({runs:[r],readback:{pull_requests:[]}});assert.equal((await recover(env,f.api,now)).status,'RECOVERY_CONFIRMED');assert.equal(writes(f).length,1);});
+          test('ready event recovers original startup failure after draft becomes ready',async()=>{const f=fixture();const e={...env,GITHUB_EVENT_NAME:'pull_request_target',TRIGGER_RUN_ID:'',READY_ACTION:'ready_for_review',READY_PR:'1063',READY_HEAD:sha};const result=await recover(e,f.api,now);assert.equal(result.status,'RECOVERY_CONFIRMED');assert.equal(writes(f).length,1);});
+          
+          test('ready fallback rejects mismatched event PR/head before writes',async()=>{for(const e of [{READY_PR:'99'},{READY_HEAD:base},{READY_ACTION:'opened'}]){const f=fixture();const x={...env,GITHUB_EVENT_NAME:'pull_request_target',TRIGGER_RUN_ID:'',READY_ACTION:'ready_for_review',READY_PR:'1063',READY_HEAD:sha,...e};try{await recover(x,f.api,now);}catch{}assert.equal(writes(f).length,0);}});
+          test('empty association cannot bypass exact branch and repository matching',async()=>{for(const extra of [{head_branch:'wrong'},{head_repository:{full_name:'other/repo'}},{repository:{full_name:'other/repo'}}]){const f=fixture({runs:[{...run,pull_requests:[],...extra}]});await recover(env,f.api,now);assert.equal(writes(f).length,0);}});
+          RECOVERY_TEST
+          node --test recovery.test.mjs
+      - name: Reconcile eligible exact failed startups
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node "$RUNNER_TEMP/gcef-ci-recovery/recovery.mjs"
