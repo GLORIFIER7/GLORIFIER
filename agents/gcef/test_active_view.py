@@ -22,3 +22,18 @@ class ActiveTests(unittest.TestCase):
             view.run({'action':'scroll','direction':'bottom'})
             view.page.evaluate.assert_called_once_with('window.scrollTo(0, document.scrollingElement.scrollHeight)')
             view.page.keyboard.press.assert_not_called()
+
+    def test_action_budget_and_closed_session_fail_closed(self):
+        from active_view import ActiveView
+        from unittest.mock import MagicMock
+        context=MagicMock()
+        with ActiveView(context,{'title':'Fixture','text':'Evidence'}) as view:
+            for _ in range(8):
+                view.run({'action':'read-note'})
+            with self.assertRaises(InteractionDenied):
+                view.run({'action':'read-note'})
+        self.assertEqual(view.page.locator.return_value.input_value.call_count,8)
+        view.page.close.assert_called_once()
+        with self.assertRaises(InteractionDenied):
+            view.run({'action':'fill','value':'blocked'})
+        view.page.locator.return_value.fill.assert_not_called()
