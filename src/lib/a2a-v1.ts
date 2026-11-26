@@ -179,7 +179,7 @@ export function buildA2AAgentCard(publicBaseUrl: string, agentVersion = '0.2.1')
     skills: [{
       id: 'governed-task-intake',
       name: 'Governed task intake',
-      description: 'Accepts a new text or structured-data task request, records it in the GLORIFIER task queue, and returns its task identifier. Every newly submitted task remains pending human-owner approval before execution. Existing-task continuation, streaming, and push notifications are not supported by this interface.',
+      description: 'Accepts a new text or structured-data task request, records it in the GLORIFIER task queue, and returns its task identifier. Every newly submitted task remains pending human-owner approval before execution. Nonterminal task continuation is supported within the authenticated requester context. Streaming and push notifications are not supported by this interface.',
       tags: ['task-intake', 'human-approval', 'governance', 'task-status'],
       examples: ['Submit a proposal for human-owner review.'],
       inputModes: ['text/plain', 'application/json'],
@@ -325,7 +325,7 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
       const params = payload.params;
       if (!isRecord(params.message)) return rpcError(id, -32602, 'Invalid params: message is required.');
       if (isRecord(params.configuration) && hasOwn(params.configuration, 'taskPushNotificationConfig')) {
-        return rpcError(id, -32602, 'Push notifications are not supported by this agent.');
+        return rpcError(id, -32003, 'Push notifications are not supported by this agent.');
       }
       const parsed = messageText(params.message);
       if (!parsed) {
@@ -356,7 +356,7 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
               ? await dependencies.getTaskForIdempotencyKey(parsed.messageId, dependencies.requesterAgentId)
               : null;
             if (!replay || replay.requesterAgentId !== dependencies.requesterAgentId) {
-              return rpcError(id, -32000, 'A task in a terminal state cannot accept additional messages.');
+              return rpcError(id, -32004, 'A task in a terminal state cannot accept additional messages.');
             }
             // A matching key is only permission to attempt an exact replay.
             // createTask performs the atomic stored-fingerprint comparison and
@@ -379,7 +379,7 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
         return rpcResult(id, { task: toA2ATask(task) });
       } catch (error) {
         if (error instanceof Error && error.name === 'A2AIdempotencyConflictError') {
-          return rpcError(id, -32003, 'messageId was already used with different content.');
+          return rpcError(id, -32602, 'messageId was already used with different content.');
         }
         // Record a safe diagnostic without exposing submitted message content,
         // database URLs, credentials, or provider details to the client.
@@ -425,7 +425,7 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
       };
       let statuses: A2ATaskLike['status'][] | undefined;
       if (params.status !== undefined) {
-        if (typeof params.status !== 'string' || !statusMap[params.status]) {
+        if (typeof params.status !== 'string' || !hasOwn(statusMap, params.status)) {
           return rpcError(id, -32602, 'status is not a supported A2A task state.');
         }
         statuses = statusMap[params.status];

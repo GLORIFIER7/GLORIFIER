@@ -164,7 +164,7 @@ void test('A2A SendMessage returns an exact retry after the referenced task beco
       },
     },
   });
-  assert.equal((newMessage.error as { code: number }).code, -32000);
+  assert.equal((newMessage.error as { code: number }).code, -32004);
   assert.equal(attemptedCreate, false,
     'terminal lifecycle protection must still reject a new message before durable task creation');
 });
@@ -305,7 +305,7 @@ void test('A2A JSON-RPC rejects invalid message roles, parts, and disabled push 
       configuration: { taskPushNotificationConfig: { url: 'https://client.invalid/webhook' } },
     },
   });
-  assert.equal((unsupportedPushConfig.error as { code: number }).code, -32602,
+  assert.equal((unsupportedPushConfig.error as { code: number }).code, -32003,
     'the current A2A 1.0 push configuration field must be rejected when push is disabled');
 });
 
@@ -393,7 +393,7 @@ void test('A2A SendMessage rejects foreign and terminal task continuations', asy
     jsonrpc: '2.0', id: 62, method: 'SendMessage',
     params: { message: { messageId: 'terminal-follow-up', role: 'ROLE_USER', taskId: existing.id, parts: [{ text: 'no' }] } },
   });
-  assert.equal((rejected.error as { code: number }).code, -32000);
+  assert.equal((rejected.error as { code: number }).code, -32004);
 
   const canceledTask = createA2AJsonRpcHandler({
     requesterAgentId: 'verified-user-42',
@@ -405,11 +405,11 @@ void test('A2A SendMessage rejects foreign and terminal task continuations', asy
     jsonrpc: '2.0', id: 65, method: 'SendMessage',
     params: { message: { messageId: 'canceled-follow-up', role: 'ROLE_USER', taskId: existing.id, parts: [{ text: 'no' }] } },
   });
-  assert.equal((canceledFollowUp.error as { code: number }).code, -32000,
+  assert.equal((canceledFollowUp.error as { code: number }).code, -32004,
     'canceled tasks are terminal and must reject follow-up messages');
 });
 
-void test('A2A SendMessage maps idempotency conflicts to a server-defined error', async () => {
+void test('A2A SendMessage maps idempotency conflicts to invalid params', async () => {
   const handler = createA2AJsonRpcHandler({
     requesterAgentId: 'verified-user-42',
     createTask: async (input) => {
@@ -442,7 +442,7 @@ void test('A2A SendMessage maps idempotency conflicts to a server-defined error'
 
   assert.equal(response.result, undefined);
   assert.deepEqual(response.error, {
-    code: -32003,
+    code: -32602,
     message: 'messageId was already used with different content.',
   });
 });
@@ -482,6 +482,27 @@ void test('A2A ListTasks returns a bounded requester-scoped page with stable res
     params: { pageSize: 101 },
   });
   assert.equal((invalid.error as { code: number }).code, -32602);
+});
+
+void test('A2A ListTasks rejects inherited object keys before calling persistence', async () => {
+  let calls = 0;
+  const handler = createA2AJsonRpcHandler({
+    requesterAgentId: 'verified-user-42',
+    createTask: () => { throw new Error('unexpected create'); },
+    getTask: () => null,
+    listTasks: (input) => {
+      calls++;
+      return { tasks: [], nextPageToken: '', pageSize: input.pageSize, totalSize: 0 };
+    },
+  });
+  for (const status of ['constructor', '__proto__', 'toString', 'hasOwnProperty', 'UNKNOWN']) {
+    const response = await handler({ jsonrpc: '2.0', id: 1, method: 'ListTasks', params: { status } });
+    assert.equal(response.error?.code, -32602);
+  }
+  assert.equal(calls, 0);
+  const valid = await handler({ jsonrpc: '2.0', id: 2, method: 'ListTasks', params: { status: 'TASK_STATE_WORKING' } });
+  assert.equal(valid.error, undefined);
+  assert.equal(calls, 1);
 });
 
 void test('A2A ListTasks reports storage failures as internal errors without leaking details', async () => {
