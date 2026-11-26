@@ -34,6 +34,20 @@ class GcefTests(unittest.TestCase):
         self.assertIn('Hello & world',doc['text'])
         self.assertNotIn('secret_',doc['text'])
 
+    def test_self_closing_omitted_tags(self):
+        for tag in ('script','style','iframe','template'):
+            with self.subTest(tag=tag):
+                body=f'<p>before</p><{tag}/>hidden<{"/"+tag}><p>after</p>'.encode()
+                self.assertEqual(extract_document(body,'text/html')['text'],'before after')
+
+    def test_tls_floor(self):
+        import ssl
+        from gcef import tls_context
+        ctx=tls_context()
+        self.assertGreaterEqual(ctx.minimum_version,ssl.TLSVersion.TLSv1_2)
+        self.assertTrue(ctx.check_hostname)
+        self.assertEqual(ctx.verify_mode,ssl.CERT_REQUIRED)
+
     def test_render_escapes_untrusted_data(self):
         rendered=render_document({'title':'<script>bad</script>','text':'<img src=x onerror=bad()>'})
         self.assertNotIn('<script>',rendered)

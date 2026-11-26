@@ -23,6 +23,16 @@ def prepare_view(context, document):
     return page
 
 
+def capture_view(page):
+    # Bound pixel allocation on small hosts. Oversized documents fail closed;
+    # the original JSON receipt remains intact rather than silently clipped.
+    bounds=page.locator('body').bounding_box(timeout=5000)
+    if (not bounds or bounds['width']>1000 or bounds['height']>8192
+            or bounds['x']<0 or bounds['y']<0):
+        raise ValueError('Evidence view exceeds screenshot bounds')
+    return page.screenshot(timeout=5000,full_page=True,animations='disabled')
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('receipt',type=Path)
@@ -50,7 +60,7 @@ def main():
                 context=configure_context(browser)
                 try:
                     page=prepare_view(context,document)
-                    png=page.screenshot(timeout=5000,full_page=False,animations='disabled')
+                    png=capture_view(page)
                 finally:
                     context.close()
             finally:

@@ -78,10 +78,16 @@ def resolve_public(host, resolver=socket.getaddrinfo):
     raise PolicyError('IPV4_REQUIRED')
 
 
+def tls_context():
+    context=ssl.create_default_context()
+    context.minimum_version=ssl.TLSVersion.TLSv1_2
+    return context
+
+
 def fetch_pinned(target, address):
     if not safe_address(address) or ipaddress.ip_address(address).version != 4:
         raise PolicyError('DNS_ADDRESS_DENIED')
-    context=ssl.create_default_context()
+    context=tls_context()
     connection=http.client.HTTPConnection(target.hostname,443,timeout=TIMEOUT)
     # A numeric IPv4 socket is connected directly. TLS still validates the
     # original approved hostname; no certificate exception or redirect.
@@ -134,7 +140,12 @@ class StaticText(HTMLParser):
             self.in_title=True
 
     def handle_startendtag(self,tag,attrs):
-        pass
+        # HTML non-void omitted elements do not reliably self-close. Treat
+        # them as open conservatively, including malformed script/style tags.
+        if tag in self.OMIT:
+            self.handle_starttag(tag,attrs)
+            if tag in self.CDATA_CONTENT_ELEMENTS:
+                self.set_cdata_mode(tag)
 
     def handle_endtag(self,tag):
         if self.omitted:
@@ -186,7 +197,8 @@ def inspect_page(url,allowed_hosts):
 def render_document(document):
     # Offline evidence view, not a screenshot of the original website.
     return ('<!doctype html><html><head><meta charset="utf-8">'
-            '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'">'
+            '<meta http-equiv="Content-Security-Policy" content="default-src \'none\'; style-src \'unsafe-inline\'">'
+            '<style>body{margin:8px}h1,pre{white-space:pre-wrap;overflow-wrap:anywhere}pre{font:14px/1.4 monospace}</style>'
             '<title>GCEF static evidence</title></head><body><h1>'
             +html.escape(document['title'])+'</h1><pre>'+html.escape(document['text'])+'</pre></body></html>')
 
