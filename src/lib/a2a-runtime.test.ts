@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { createA2ATask, createA2ATaskWithIdempotency, A2AIdempotencyConflictError, executeA2ATask, getA2AProtocolManifest, listA2ATasks, listA2ATaskPageForProtocol, getA2ATaskForRequesterProtocol, cancelA2ATaskForRequesterProtocol } from './a2a-runtime.ts';
+import { createA2ATask, createA2ATaskWithIdempotency, A2AIdempotencyConflictError, A2AInvalidPageTokenError, executeA2ATask, getA2AProtocolManifest, listA2ATasks, listA2ATaskPageForProtocol, getA2ATaskForRequesterProtocol, cancelA2ATaskForRequesterProtocol } from './a2a-runtime.ts';
 import { test } from 'node:test';
 import crypto from 'node:crypto';
 
@@ -127,9 +127,30 @@ void test('A2A protocol task pages are requester-scoped, filtered, and cursor-st
         contextId: context,
         pageToken: first.nextPageToken,
       }),
-      /invalid or does not match/,
+      A2AInvalidPageTokenError,
       'a cursor must not be reusable by a different requester',
     );
+  });
+});
+
+void test('A2A malformed and mismatched cursors expose a safe, distinguishable validation error', async () => {
+  await withA2ATestEnvironment(async () => {
+    const cursor = {
+      version: 1, requesterAgentId: 'cursor-owner', contextId: 'original-context', statuses: null,
+      statusTimestampAfter: null, updatedAt: '2026-11-26T00:00:00.000Z', id: 'a2a-cursor-task',
+    };
+    for (const pageToken of ['not-json', Buffer.from('null').toString('base64url'), 'x'.repeat(2049), Buffer.from(JSON.stringify(cursor)).toString('base64url')]) {
+      await assert.rejects(
+        listA2ATaskPageForProtocol({ requesterAgentId: 'cursor-owner', pageSize: 1, contextId: 'changed-context', pageToken }),
+        error => {
+          assert.ok(error instanceof A2AInvalidPageTokenError);
+          assert.equal(error.name, 'A2AInvalidPageTokenError');
+          assert.equal(error.message, 'A2A page token is invalid or does not match the current filters.');
+          assert.equal(error.cause, undefined);
+          return true;
+        },
+      );
+    }
   });
 });
 

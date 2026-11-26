@@ -227,6 +227,13 @@ export class A2AIdempotencyConflictError extends Error {
   }
 }
 
+export class A2AInvalidPageTokenError extends Error {
+  constructor() {
+    super('A2A page token is invalid or does not match the current filters.');
+    this.name = 'A2AInvalidPageTokenError';
+  }
+}
+
 function buildA2ATask(input: CreateA2ATaskInput): A2ATask {
   const now = new Date().toISOString();
   return {
@@ -551,7 +558,7 @@ function pageFiltersMatch(cursor: A2ATaskPageCursor, request: A2ATaskPageRequest
 }
 
 function decodeA2ATaskPageCursor(token: string, request: A2ATaskPageRequest): A2ATaskPageCursor {
-  if (!token || token.length > 2048) throw new Error('A2A page token is invalid.');
+  if (!token || token.length > 2048) throw new A2AInvalidPageTokenError();
   try {
     const decoded = JSON.parse(Buffer.from(token, 'base64url').toString('utf8')) as Partial<A2ATaskPageCursor>;
     const knownStatuses: A2ATaskStatus[] = ['queued', 'running', 'completed', 'failed', 'blocked', 'degraded', 'canceled'];
@@ -563,13 +570,13 @@ function decodeA2ATaskPageCursor(token: string, request: A2ATaskPageRequest): A2
           decoded.statuses.every((status) => knownStatuses.includes(status)))) ||
         !(decoded.statusTimestampAfter === null || (typeof decoded.statusTimestampAfter === 'string' &&
           Number.isFinite(Date.parse(decoded.statusTimestampAfter))))) {
-      throw new Error('A2A page token is invalid.');
+      throw new A2AInvalidPageTokenError();
     }
     const cursor = decoded as A2ATaskPageCursor;
-    if (!pageFiltersMatch(cursor, request)) throw new Error('A2A page token does not match the current filters.');
+    if (!pageFiltersMatch(cursor, request)) throw new A2AInvalidPageTokenError();
     return cursor;
   } catch {
-    throw new Error('A2A page token is invalid or does not match the current filters.');
+    throw new A2AInvalidPageTokenError();
   }
 }
 

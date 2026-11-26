@@ -484,6 +484,36 @@ void test('A2A ListTasks returns a bounded requester-scoped page with stable res
   assert.equal((invalid.error as { code: number }).code, -32602);
 });
 
+void test('A2A ListTasks reports storage failures as internal errors without leaking details', async () => {
+  for (const failure of [new Error('postgresql://private:credential@database.invalid/tasks'), 'private driver payload']) {
+    const handler = createA2AJsonRpcHandler({
+      requesterAgentId: 'verified-user-42',
+      createTask: () => { throw new Error('not used'); },
+      getTask: () => null,
+      listTasks: async () => { throw failure; },
+    });
+    const response = await handler({ jsonrpc: '2.0', id: 'list-outage', method: 'ListTasks', params: {} });
+    assert.deepEqual(response, {
+      jsonrpc: '2.0', id: 'list-outage',
+      error: { code: -32603, message: 'Task listing is temporarily unavailable.' },
+    });
+  }
+});
+
+void test('A2A ListTasks retains invalid-params errors for rejected pagination tokens', async () => {
+  const handler = createA2AJsonRpcHandler({
+    requesterAgentId: 'verified-user-42',
+    createTask: () => { throw new Error('not used'); },
+    getTask: () => null,
+    listTasks: () => { throw Object.assign(new Error('private cursor content'), { name: 'A2AInvalidPageTokenError' }); },
+  });
+  const response = await handler({ jsonrpc: '2.0', id: 65, method: 'ListTasks', params: { pageToken: 'invalid' } });
+  assert.deepEqual(response, {
+    jsonrpc: '2.0', id: 65,
+    error: { code: -32602, message: 'The task page token or filter is invalid.' },
+  });
+});
+
 void test('A2A JSON-RPC rejects unsupported methods and invalid protocol versions', async () => {
   const { existing, handler } = createTestHandler();
 
