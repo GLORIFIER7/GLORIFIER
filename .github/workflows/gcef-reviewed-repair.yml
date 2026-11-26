@@ -1,0 +1,245 @@
+name: GLORIFIER Digital Me — owner-reviewed GCEF repair publisher
+on:
+  workflow_dispatch:
+    inputs:
+      expected_main:
+        description: Exact signed main commit
+        required: true
+        type: string
+      comment_id:
+        description: Immutable candidate comment ID on issue 1034
+        required: true
+        type: string
+      payload_sha256:
+        description: Reviewed exact comment body SHA-256
+        required: true
+        type: string
+      allowed_paths:
+        description: Exact reviewed GCEF Python paths (comma-separated)
+        required: true
+        type: string
+      confirm_reviewed:
+        description: I reviewed the exact comment, digest, base and paths
+        type: boolean
+        required: true
+        default: false
+      publish:
+        description: Create an App-signed draft PR (false is read-only)
+        type: boolean
+        required: true
+        default: false
+permissions:
+  contents: read
+  issues: read
+concurrency:
+  group: glorifier-digital-me-reviewed-publication
+  cancel-in-progress: false
+jobs:
+  reviewed-gcef:
+    if: github.repository == 'GLORIFIER7/GLORIFIER' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && github.actor_id == '32674233' && github.triggering_actor == 'GLORIFIER7' && inputs.confirm_reviewed == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: digital-me-publish
+    env:
+      EXPECTED_MAIN: ${{ inputs.expected_main }}
+      COMMENT_ID: ${{ inputs.comment_id }}
+      PAYLOAD_SHA256: ${{ inputs.payload_sha256 }}
+      ALLOWED_PATHS: ${{ inputs.allowed_paths }}
+      CONFIRM: ${{ inputs.confirm_reviewed }}
+      PUBLISH: ${{ inputs.publish }}
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Install trusted publisher and run credential-free tests
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir "$RUNNER_TEMP/gcef-reviewed-publisher"
+          cd "$RUNNER_TEMP/gcef-reviewed-publisher"
+          cat > publisher.mjs <<'PUBLISHER_JS'
+          import {createHash,createSign} from 'node:crypto';
+          import {pathToFileURL} from 'node:url';
+          const REPO='GLORIFIER7/GLORIFIER', ROOT='/repos/'+REPO, APP_ID=5876036, BOT='glorifier-digital-me[bot]', QUEUE=1034;
+          const PERMISSIONS={contents:'write',pull_requests:'write'};
+          const MAX_COMMENT=60_000, MAX_FILES=8, MAX_FILE=32_000;
+          const PREFIX='GCEF_REPAIR_V1\n';
+          // Existing regular GCEF files only. Never workflows, secrets, config or new files.
+          const ALLOWED=new Set(['active_view.py','browser_session.py','browser_view.py','execution.py','gcef.py','local_smoke.py','profile_vault.py','worker_transport.py','test_active_view.py','test_browser_session.py','test_browser_view.py','test_execution.py','test_gcef.py','test_profile_vault.py','test_worker_transport.py'].map(p=>'agents/gcef/'+p));
+          const hex=(s,n)=>typeof s==='string'&&s.length===n&&/^[a-f0-9]+$/.test(s);
+          const sha256=s=>createHash('sha256').update(s).digest('hex');
+          const gitBlob=b=>createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${b.length}\0`),b])).digest('hex');
+          const ensure=(ok,code)=>{if(!ok)throw Error(code);};
+          const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+          const exactKeys=(x,keys)=>x!==null&&typeof x==='object'&&!Array.isArray(x)&&same(Object.keys(x).sort(),[...keys].sort());
+          export function config(e){
+           const trusted={GITHUB_REPOSITORY:REPO,GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'workflow_dispatch',GITHUB_ACTOR_ID:'32674233',GITHUB_TRIGGERING_ACTOR:'GLORIFIER7',GITHUB_RUN_ATTEMPT:'1',CONFIRM:'true'};
+           ensure(Object.entries(trusted).every(([k,v])=>e[k]===v),'OWNER_DISPATCH_REQUIRED');
+           const base=e.EXPECTED_MAIN,digest=e.PAYLOAD_SHA256,commentId=Number(e.COMMENT_ID);
+           ensure(hex(base,40)&&base===e.GITHUB_SHA&&hex(digest,64)&&/^[1-9][0-9]{0,15}$/.test(e.COMMENT_ID??'')&&Number.isSafeInteger(commentId),'INVALID_IMMUTABLE_INPUT');
+           const paths=(e.ALLOWED_PATHS??'').split(',').map(p=>p.trim()).sort();
+           ensure(paths.length>=1&&paths.length<=MAX_FILES&&new Set(paths).size===paths.length&&paths.every(p=>ALLOWED.has(p)),'PATH_NOT_ALLOWED');
+           return {base,digest,commentId,paths,branch:'digital-me/gcef-'+sha256(JSON.stringify([base,digest,paths]))};
+          }
+          async function checkMain(cfg,api,token){
+           const m=await api(ROOT+'/commits/main',token);
+           ensure(m?.sha===cfg.base&&m.commit?.verification?.verified===true&&m.commit.verification.reason==='valid','MAIN_STALE_OR_UNSIGNED');
+          }
+          async function regularBlob(api,token,commit,path){
+           const c=await api(ROOT+'/git/commits/'+commit,token);let tree=c?.tree?.sha;
+           ensure(c?.sha===commit&&hex(tree,40),'INVALID_COMMIT_TREE');
+           const parts=path.split('/');
+           for(let i=0;i<parts.length;i++){
+            const t=await api(ROOT+'/git/trees/'+tree,token);
+            ensure(t?.sha===tree&&t.truncated===false&&Array.isArray(t.tree),'INVALID_TREE');
+            const matches=t.tree.filter(x=>x.path===parts[i]);ensure(matches.length===1,'PATH_NOT_REGULAR');const e=matches[0];
+            ensure(hex(e.sha,40),'INVALID_TREE_ENTRY');
+            if(i===parts.length-1){ensure(e.mode==='100644'&&e.type==='blob','PATH_NOT_REGULAR');return e.sha;}
+            ensure(e.mode==='040000'&&e.type==='tree','PATH_NOT_DIRECTORY');tree=e.sha;
+           }
+           throw Error('INVALID_PATH');
+          }
+          async function readComment(cfg,api,token){
+           const queue=await api(ROOT+'/issues/'+QUEUE,token);
+           ensure(queue?.number===QUEUE&&queue.state==='open'&&!queue.pull_request,'QUEUE_UNAVAILABLE');
+           const c=await api(ROOT+'/issues/comments/'+cfg.commentId,token);
+           ensure(c?.id===cfg.commentId&&c.issue_url==='https://api.github.com'+ROOT+'/issues/'+QUEUE&&typeof c.created_at==='string'&&c.created_at===c.updated_at&&typeof c.body==='string'&&Buffer.byteLength(c.body)<=MAX_COMMENT&&c.body.startsWith(PREFIX)&&sha256(c.body)===cfg.digest,'COMMENT_CHANGED_OR_OUTSIDE_QUEUE');
+           let data;try{data=JSON.parse(c.body.slice(PREFIX.length));}catch{throw Error('INVALID_PAYLOAD');}
+           ensure(exactKeys(data,['base','files'])&&data.base===cfg.base&&Array.isArray(data.files)&&data.files.length===cfg.paths.length,'INVALID_PAYLOAD');
+           ensure(data.files.every(f=>exactKeys(f,['path','before','content'])&&typeof f.path==='string'&&hex(f.before,40)&&typeof f.content==='string'&&Buffer.byteLength(f.content)<=MAX_FILE&&!f.content.includes('\0')&&Buffer.from(f.content).toString('utf8')===f.content),'INVALID_FILE_PAYLOAD');
+           const files=[...data.files].sort((a,b)=>a.path<b.path?-1:a.path>b.path?1:0);
+           ensure(same(files.map(f=>f.path),cfg.paths),'PAYLOAD_PATH_MISMATCH');return files;
+          }
+          export async function prepare(cfg,api,token){
+           await checkMain(cfg,api,token);const candidates=await readComment(cfg,api,token);const files=[];
+           for(const f of candidates){
+            const before=await regularBlob(api,token,cfg.base,f.path);ensure(before===f.before,'BASE_BLOB_CHANGED');
+            const b=Buffer.from(f.content,'utf8'),after=gitBlob(b);ensure(after!==before,'UNCHANGED_FILE');
+            files.push({path:f.path,before,after,contents:b.toString('base64')});
+           }
+           await checkMain(cfg,api,token);return {cfg,files};
+          }
+          function draftMatches(p,cfg,head){return p?.state==='open'&&p.draft===true&&p.user?.login===BOT&&p.head?.sha===head&&p.head?.ref===cfg.branch&&p.head?.repo?.full_name===REPO&&p.base?.ref==='main'&&p.base?.repo?.full_name===REPO;}
+          export async function publish(cfg,api,readToken,jwt){
+           // Candidate text is inert data, not code run with the signing key.
+           const m=await prepare(cfg,api,readToken);
+           const i=await api(ROOT+'/installation',jwt);
+           ensure(i?.app_id===APP_ID&&i.account?.login==='GLORIFIER7'&&i.repository_selection==='selected'&&Number.isSafeInteger(i.id)&&Object.entries(PERMISSIONS).every(([k,v])=>i.permissions?.[k]===v),'INVALID_APP_INSTALLATION');
+           const t=await api('/app/installations/'+i.id+'/access_tokens',jwt,'POST',{repositories:['GLORIFIER'],permissions:PERMISSIONS});
+           ensure(typeof t?.token==='string'&&t.token.length>0,'INSTALLATION_TOKEN_UNAVAILABLE');const token=t.token;
+           try{
+            await checkMain(cfg,api,token);
+            // Revalidate the exact reviewed comment before making changes.
+            const latest=await prepare(cfg,api,readToken);ensure(same(latest,m),'PREPARATION_CHANGED');
+            const ref='refs/heads/'+cfg.branch;
+            const refs=await api(ROOT+'/git/matching-refs/heads/'+cfg.branch,token);
+            ensure(Array.isArray(refs)&&refs.every(r=>r.ref!==ref),'BRANCH_EXISTS_RECONCILE');
+            await checkMain(cfg,api,token);
+            const created=await api(ROOT+'/git/refs',token,'POST',{ref,sha:cfg.base});ensure(created?.ref===ref&&created.object?.sha===cfg.base,'BRANCH_READBACK_FAILED');
+            const result=await api('/graphql',token,'POST',{query:'mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid}}}',variables:{input:{branch:{repositoryNameWithOwner:REPO,branchName:cfg.branch},expectedHeadOid:cfg.base,message:{headline:'fix(gcef): owner-reviewed source repair'},fileChanges:{additions:m.files.map(({path,contents})=>({path,contents}))}}}});
+            const head=result?.data?.createCommitOnBranch?.commit?.oid;ensure(hex(head,40)&&head!==cfg.base,'SIGNED_COMMIT_UNAVAILABLE');
+            const c=await api(ROOT+'/commits/'+head,token);
+            ensure(c?.sha===head&&c.author?.login===BOT&&c.commit?.verification?.verified===true&&c.commit.verification.reason==='valid'&&c.parents?.length===1&&c.parents[0].sha===cfg.base&&Array.isArray(c.files)&&c.files.length===m.files.length&&m.files.every(f=>c.files.some(x=>x.filename===f.path&&x.status==='modified'&&x.sha===f.after)),'SIGNED_COMMIT_READBACK_FAILED');
+            for(const f of m.files)ensure(await regularBlob(api,token,head,f.path)===f.after,'PUBLISHED_MODE_OR_BLOB_CHANGED');
+            await checkMain(cfg,api,token);
+            const body='Owner-reviewed queue comment #'+cfg.commentId+'\nPinned base: '+cfg.base+'\nPayload SHA-256: '+cfg.digest+'\nIndependent review and required CI remain mandatory. No merge or deployment authorized.';
+            const p=await api(ROOT+'/pulls',token,'POST',{head:cfg.branch,base:'main',draft:true,title:'fix(gcef): owner-reviewed source repair',body});
+            ensure(Number.isSafeInteger(p?.number)&&draftMatches(p,cfg,head),'DRAFT_CREATION_RECONCILE');
+            const actual=await api(ROOT+'/pulls/'+p.number,token);
+            ensure(draftMatches(actual,cfg,head),'DRAFT_READBACK_RECONCILE');
+            try{ensure(actual.base.sha===cfg.base,'DRAFT_BASE_CHANGED');await checkMain(cfg,api,token);}catch{
+             const current=await api(ROOT+'/pulls/'+p.number,token);ensure(draftMatches(current,cfg,head),'STALE_DRAFT_RECONCILE');
+             const closed=await api(ROOT+'/pulls/'+p.number,token,'PATCH',{state:'closed'});ensure(closed?.number===p.number&&closed.state==='closed','STALE_DRAFT_RECONCILE');throw Error('STALE_DRAFT_CLOSED');
+            }
+            return {status:'SIGNED_DRAFT_CREATED',number:p.number,head,merged:false,deployed:false};
+           }finally{try{await api('/installation/token',token,'DELETE');}catch{console.error('SHORT_LIVED_TOKEN_REVOCATION_UNCONFIRMED');}}
+          }
+          async function github(path,token,method='GET',body){
+           ensure(typeof path==='string'&&path.startsWith('/')&&!path.startsWith('//')&&typeof token==='string'&&token.length>0,'API_REQUEST_DENIED');
+           const r=await fetch('https://api.github.com'+path,{method,redirect:'error',signal:AbortSignal.timeout(15000),headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'},...(body===undefined?{}:{body:JSON.stringify(body)})});
+           ensure(r.ok,'GITHUB_HTTP_'+r.status);if(r.status===204)return null;const data=await r.json();ensure(!data?.errors?.length,'GITHUB_GRAPHQL_DENIED');return data;
+          }
+          function appJwt(pem){const encode=x=>Buffer.from(JSON.stringify(x)).toString('base64url'),now=Math.floor(Date.now()/1000);const message=encode({alg:'RS256',typ:'JWT'})+'.'+encode({iss:String(APP_ID),iat:now-30,exp:now+540});return message+'.'+createSign('RSA-SHA256').update(message).sign(pem).toString('base64url');}
+          async function main(){
+           const cfg=config(process.env),token=process.env.GITHUB_TOKEN;ensure(token,'READ_TOKEN_REQUIRED');
+           if(process.argv[2]==='prepare'){
+            const m=await prepare(cfg,github,token);console.log(JSON.stringify({status:'PREPARED_READ_ONLY',base:cfg.base,digest:cfg.digest,files:m.files.map(({path,before,after})=>({path,before,after}))}));
+           }else if(process.argv[2]==='publish'){
+            const pem=process.env.DIGITAL_ME_APP_PRIVATE_KEY;delete process.env.DIGITAL_ME_APP_PRIVATE_KEY;ensure(pem&&process.env.PUBLISH==='true','EXPLICIT_PUBLISH_REQUIRED');
+            console.log(JSON.stringify(await publish(cfg,github,token,appJwt(pem))));
+           }else throw Error('INVALID_MODE');
+          }
+          // Never log request payloads, token-bearing errors or stack traces.
+          if(process.argv[1]&&pathToFileURL(process.argv[1]).href===import.meta.url)main().catch(e=>{console.error(/^([A-Z0-9_]{1,80})$/.test(e?.message??'')?e.message:'GCEF_PUBLICATION_FAILED_RECONCILE');process.exitCode=1;});
+          PUBLISHER_JS
+          cat > publisher.test.mjs <<'PUBLISHER_TEST'
+          import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import {createHash} from 'node:crypto';
+          import {config,prepare,publish} from './publisher.mjs';
+          const REPO='GLORIFIER7/GLORIFIER', root='/repos/'+REPO;
+          const base='a'.repeat(40), tree='b'.repeat(40), dir='c'.repeat(40), sub='d'.repeat(40), head='e'.repeat(40), path='agents/gcef/browser_view.py';
+          const blob=s=>createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${Buffer.byteLength(s)}\0`),Buffer.from(s)])).digest('hex');
+          const before=blob('old\n'), content='new\n', after=blob(content);
+          const payload={base,files:[{path,before,content}]};
+          const raw='GCEF_REPAIR_V1\n'+JSON.stringify(payload);
+          const digest=s=>createHash('sha256').update(s).digest('hex');
+          const env={GITHUB_REPOSITORY:REPO,GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'workflow_dispatch',GITHUB_ACTOR_ID:'32674233',GITHUB_TRIGGERING_ACTOR:'GLORIFIER7',GITHUB_RUN_ATTEMPT:'1',GITHUB_SHA:base,EXPECTED_MAIN:base,COMMENT_ID:'42',PAYLOAD_SHA256:digest(raw),ALLOWED_PATHS:path,CONFIRM:'true'};
+          const validCommit={sha:base,commit:{verification:{verified:true,reason:'valid'}}};
+          function fake(opts={}){
+           const calls=[];const cfg=config(env);const ref='refs/heads/'+cfg.branch;let postimage=false,prCreated=false;
+           const comment={id:42,issue_url:'https://api.github.com'+root+'/issues/1034',body:raw,created_at:'2026-11-26T00:00:00Z',updated_at:'2026-11-26T00:00:00Z',...opts.comment};
+           const pr={number:123,state:'open',draft:true,user:{login:'glorifier-digital-me[bot]'},head:{sha:head,ref:cfg.branch,repo:{full_name:REPO}},base:{ref:'main',sha:base,repo:{full_name:REPO}}};
+           return {calls,api:async(p,token,method='GET',body)=>{calls.push({p,method,body});
+           if(p===root+'/commits/main')return prCreated&&opts.advanceAfterPr?{...validCommit,sha:head}:opts.main??validCommit;
+           if(p===root+'/issues/1034')return {number:1034,state:'open'};
+           if(p===root+'/issues/comments/42')return comment;
+           if(p===root+'/git/commits/'+base)return {sha:base,tree:{sha:tree}};
+           if(p===root+'/git/commits/'+head){postimage=true;return {sha:head,tree:{sha:tree}};}
+           if(p===root+'/git/trees/'+tree)return {sha:tree,truncated:false,tree:[{path:'agents',mode:'040000',type:'tree',sha:dir}]};
+           if(p===root+'/git/trees/'+dir)return {sha:dir,truncated:false,tree:[{path:'gcef',mode:'040000',type:'tree',sha:sub}]};
+           if(p===root+'/git/trees/'+sub)return {sha:sub,truncated:false,tree:[{path:'browser_view.py',mode:(postimage?opts.postMode:opts.mode)??'100644',type:'blob',sha:postimage?after:before}]};
+           if(p===root+'/contents/'+path+'?ref='+base)return {path,type:'file',encoding:'base64',sha:before,content:Buffer.from('old\n').toString('base64')};
+           if(p===root+'/installation')return {id:1,app_id:5876036,account:{login:'GLORIFIER7'},repository_selection:'selected',permissions:{contents:'write',pull_requests:'write'}};
+           if(p==='/app/installations/1/access_tokens')return {token:'synthetic'};
+           if(p===root+'/git/matching-refs/heads/'+cfg.branch)return opts.refs??[];
+           if(p===root+'/git/refs'&&method==='POST')return {ref,object:{sha:base}};
+           if(p==='/graphql')return {data:{createCommitOnBranch:{commit:{oid:head}}}};
+           if(p===root+'/commits/'+head)return {sha:head,author:{login:'glorifier-digital-me[bot]'},commit:{verification:{verified:!opts.unsigned,reason:opts.unsigned?'unsigned':'valid'}},parents:[{sha:base}],files:[{filename:path,status:'modified',sha:after}]};
+           if(p===root+'/pulls'&&method==='POST'){prCreated=true;return pr;}
+           if(p===root+'/pulls/123'&&method==='PATCH')return {...pr,state:'closed'};
+           if(p===root+'/pulls/123')return pr;
+           if(p==='/installation/token'&&method==='DELETE')return null;
+           throw Error('Unexpected fixture API');
+           }};
+          }
+          test('exact owner dispatch and scope',()=>assert.deepEqual(config(env).paths,[path]));
+          test('rejects non-owner, stale base, rerun, workflows, unknown files and duplicate paths',()=>{for(const e of [{GITHUB_ACTOR_ID:'1'},{EXPECTED_MAIN:head},{GITHUB_RUN_ATTEMPT:'2'},{ALLOWED_PATHS:'.github/workflows/x.yml'},{ALLOWED_PATHS:'agents/gcef/unknown.py'},{ALLOWED_PATHS:path+','+path},{CONFIRM:'false'}])assert.throws(()=>config({...env,...e}));});
+          test('prepare checks immutable comment and exact base file, performs only reads',async()=>{const f=fake();const m=await prepare(config(env),f.api,'read');assert.equal(m.files[0].after,after);assert.equal(Buffer.from(m.files[0].contents,'base64').toString(),content);assert.ok(f.calls.every(c=>c.method==='GET'));});
+          test('edited comment, altered payload, stale main and executable mode are rejected',async()=>{for(const options of [{comment:{updated_at:'2026-11-26T01:00:00Z'}},{comment:{body:raw+' '}},{main:{...validCommit,sha:head}},{mode:'100755'}])await assert.rejects(prepare(config(env),fake(options).api,'read'));});
+          test('publication creates only verified App-signed draft and revokes token',async()=>{const f=fake();const cfg=config(env);const result=await publish(cfg,f.api,'read','jwt');assert.equal(result.number,123);assert.equal(result.merged,false);assert.equal(f.calls.at(-1).method,'DELETE');assert.ok(!f.calls.some(c=>c.p.includes('/merge')));assert.ok(f.calls.some(c=>c.p==='/graphql'&&c.body.variables.input.expectedHeadOid===base));});
+          test('unsigned commit and duplicate branch block draft creation; token is revoked',async()=>{for(const options of [{unsigned:true},{refs:[{ref:'refs/heads/'+config(env).branch}]}]){const f=fake(options);await assert.rejects(publish(config(env),f.api,'read','jwt'));assert.ok(!f.calls.some(c=>c.p===root+'/pulls'&&c.method==='POST'));assert.equal(f.calls.at(-1).method,'DELETE');}});
+
+          test('changed base after draft creation closes only the matching draft',async()=>{const f=fake({advanceAfterPr:true});await assert.rejects(publish(config(env),f.api,'read','jwt'),/STALE_DRAFT_CLOSED/);assert.ok(f.calls.some(c=>c.method==='PATCH'&&c.p===root+'/pulls/123'&&c.body.state==='closed'));assert.equal(f.calls.at(-1).method,'DELETE');});
+          test('unsafe published mode prevents opening any draft',async()=>{const f=fake({postMode:'100755'});await assert.rejects(publish(config(env),f.api,'read','jwt'));assert.ok(!f.calls.some(c=>c.p===root+'/pulls'&&c.method==='POST'));});
+          test('wrong issue, wrong digest, stale preimage and out-of-scope payload rejected',async()=>{const inputs=[{...payload,files:[{path,before:'f'.repeat(40),content}]},{...payload,files:[{path:'agents/gcef/execution.py',before,content}]}];for(const data of inputs){const body='GCEF_REPAIR_V1\n'+JSON.stringify(data);await assert.rejects(prepare(config({...env,PAYLOAD_SHA256:digest(body)}),fake({comment:{body}}).api,'read'));}await assert.rejects(prepare(config(env),fake({comment:{issue_url:'https://api.github.com'+root+'/issues/471'}}).api,'read'));});
+          PUBLISHER_TEST
+          node --test publisher.test.mjs
+      - name: Read-only verification of approved payload
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node "$RUNNER_TEMP/gcef-reviewed-publisher/publisher.mjs" prepare
+      - name: Publish only a verified App-signed draft
+        if: inputs.publish == true
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          DIGITAL_ME_APP_PRIVATE_KEY: ${{ secrets.DIGITAL_ME_APP_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          node "$RUNNER_TEMP/gcef-reviewed-publisher/publisher.mjs" publish
