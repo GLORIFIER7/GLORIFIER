@@ -1,5 +1,7 @@
 name: GLORIFIER Digital Me — owner-reviewed GCEF repair publisher
 on:
+  schedule:
+    - cron: "17 * * * *"
   workflow_dispatch:
     inputs:
       expected_main:
@@ -31,16 +33,18 @@ on:
 permissions:
   contents: read
   issues: read
+  pull-requests: read
 concurrency:
   group: glorifier-digital-me-reviewed-publication
   cancel-in-progress: false
 jobs:
   reviewed-gcef:
-    if: github.repository == 'GLORIFIER7/GLORIFIER' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && github.actor_id == '32674233' && github.triggering_actor == 'GLORIFIER7' && inputs.confirm_reviewed == true
+    if: github.repository == 'GLORIFIER7/GLORIFIER' && github.ref == 'refs/heads/main' && ((github.event_name == 'workflow_dispatch' && github.actor_id == '32674233' && github.triggering_actor == 'GLORIFIER7' && inputs.confirm_reviewed == true) || (github.event_name == 'schedule' && vars.DIGITAL_ME_AUTO_DISPATCH == 'true'))
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: digital-me-publish
     env:
+      AUTO_ENABLED: ${{ vars.DIGITAL_ME_AUTO_DISPATCH }}
       EXPECTED_MAIN: ${{ inputs.expected_main }}
       COMMENT_ID: ${{ inputs.comment_id }}
       PAYLOAD_SHA256: ${{ inputs.payload_sha256 }}
@@ -62,6 +66,7 @@ jobs:
           cat > publisher.mjs <<'PUBLISHER_JS'
           import {createHash,createSign} from 'node:crypto';
           import {pathToFileURL} from 'node:url';
+          import {appendFileSync} from 'node:fs';
           const REPO='GLORIFIER7/GLORIFIER', ROOT='/repos/'+REPO, APP_ID=5876036, BOT='glorifier-digital-me[bot]', QUEUE=1034;
           const PERMISSIONS={contents:'write',pull_requests:'write'};
           const MAX_COMMENT=60_000, MAX_FILES=8, MAX_FILE=32_000;
@@ -74,14 +79,56 @@ jobs:
           const ensure=(ok,code)=>{if(!ok)throw Error(code);};
           const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
           const exactKeys=(x,keys)=>x!==null&&typeof x==='object'&&!Array.isArray(x)&&same(Object.keys(x).sort(),[...keys].sort());
+          const AUTO_MAX_AGE=48*60*60*1000;
+          const AUTO_PATHS=new Set([...ALLOWED].filter(p=>p.startsWith('agents/gcef/test_')));
+          function autoContext(e){
+           ensure(e.GITHUB_REPOSITORY===REPO&&e.GITHUB_REF==='refs/heads/main'&&e.GITHUB_EVENT_NAME==='schedule'&&e.GITHUB_RUN_ATTEMPT==='1'&&e.AUTO_ENABLED==='true'&&hex(e.GITHUB_SHA,40),'AUTO_DISPATCH_DISABLED_OR_INVALID');
+          }
           export function config(e){
-           const trusted={GITHUB_REPOSITORY:REPO,GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'workflow_dispatch',GITHUB_ACTOR_ID:'32674233',GITHUB_TRIGGERING_ACTOR:'GLORIFIER7',GITHUB_RUN_ATTEMPT:'1',CONFIRM:'true'};
-           ensure(Object.entries(trusted).every(([k,v])=>e[k]===v),'OWNER_DISPATCH_REQUIRED');
-           const base=e.EXPECTED_MAIN,digest=e.PAYLOAD_SHA256,commentId=Number(e.COMMENT_ID);
+           const scheduled=e.GITHUB_EVENT_NAME==='schedule';
+           if(scheduled)autoContext(e);
+           else{
+            const trusted={GITHUB_REPOSITORY:REPO,GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'workflow_dispatch',GITHUB_ACTOR_ID:'32674233',GITHUB_TRIGGERING_ACTOR:'GLORIFIER7',GITHUB_RUN_ATTEMPT:'1',CONFIRM:'true'};
+            ensure(Object.entries(trusted).every(([k,v])=>e[k]===v)&&!e.APPROVAL_ID,'OWNER_DISPATCH_REQUIRED');
+           }
+           const base=e.EXPECTED_MAIN,digest=e.PAYLOAD_SHA256,commentId=Number(e.COMMENT_ID),approvalId=Number(e.APPROVAL_ID);
            ensure(hex(base,40)&&base===e.GITHUB_SHA&&hex(digest,64)&&/^[1-9][0-9]{0,15}$/.test(e.COMMENT_ID??'')&&Number.isSafeInteger(commentId),'INVALID_IMMUTABLE_INPUT');
+           if(scheduled)ensure(/^[1-9][0-9]{0,15}$/.test(e.APPROVAL_ID??'')&&Number.isSafeInteger(approvalId)&&approvalId!==commentId,'OWNER_APPROVAL_REQUIRED');
            const paths=(e.ALLOWED_PATHS??'').split(',').map(p=>p.trim()).sort();
-           ensure(paths.length>=1&&paths.length<=MAX_FILES&&new Set(paths).size===paths.length&&paths.every(p=>ALLOWED.has(p)),'PATH_NOT_ALLOWED');
-           return {base,digest,commentId,paths,branch:'digital-me/gcef-'+sha256(JSON.stringify([base,digest,paths]))};
+           ensure(paths.length>=1&&paths.length<=MAX_FILES&&new Set(paths).size===paths.length&&paths.every(p=>(scheduled?AUTO_PATHS:ALLOWED).has(p)),'PATH_NOT_ALLOWED');
+           return {base,digest,commentId,paths,branch:'digital-me/gcef-'+sha256(JSON.stringify([base,digest,paths])),...(scheduled?{approvalId}:{})};
+          }
+          function parseApproval(c,e,now){
+           if(!c||!Number.isSafeInteger(c.id)||c.id<1||c.issue_url!=='https://api.github.com'+ROOT+'/issues/'+QUEUE||c.user?.id!==32674233||c.user.login!=='GLORIFIER7'||c.user.type!=='User'||c.author_association!=='OWNER'||typeof c.created_at!=='string'||c.created_at!==c.updated_at||typeof c.body!=='string')return null;
+           const stamp=Date.parse(c.created_at);if(!Number.isFinite(stamp)||stamp>now||now-stamp>AUTO_MAX_AGE)return null;
+           const m=/^\/glorifier publish-gcef ([a-f0-9]{40}) ([1-9][0-9]{0,15}) ([a-f0-9]{64}) ([A-Za-z0-9_./,-]+)$/.exec(c.body);
+           if(!m||m[0]!==c.body||m[1]!==e.GITHUB_SHA)return null;
+           const inputs={EXPECTED_MAIN:m[1],COMMENT_ID:m[2],PAYLOAD_SHA256:m[3],ALLOWED_PATHS:m[4],APPROVAL_ID:String(c.id)};
+           try{const cfg=config({...e,...inputs});return {cfg,inputs};}catch{return null;}
+          }
+          async function queueOpen(api,token){const q=await api(ROOT+'/issues/'+QUEUE,token);ensure(q?.number===QUEUE&&q.state==='open'&&!q.pull_request,'QUEUE_UNAVAILABLE');}
+          async function noOpenPr(api,token){const open=await api(ROOT+'/pulls?state=open&per_page=100',token);ensure(Array.isArray(open)&&open.length<100,'OPEN_PR_INVENTORY_INCOMPLETE');return open.length===0;}
+          export async function assertAuthorized(cfg,api,token,now=Date.now()){
+           if(!cfg.approvalId)return;
+           await queueOpen(api,token);
+           const c=await api(ROOT+'/issues/comments/'+cfg.approvalId,token);
+           const e={GITHUB_REPOSITORY:REPO,GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'schedule',GITHUB_RUN_ATTEMPT:'1',AUTO_ENABLED:'true',GITHUB_SHA:cfg.base};
+           const result=parseApproval(c,e,now);
+           ensure(result&&same(result.cfg,cfg),'OWNER_APPROVAL_CHANGED_OR_EXPIRED');
+           ensure(await noOpenPr(api,token),'OPEN_PR_REQUIRES_REVIEW');
+          }
+          export async function selectMission(e,api,token,now=Date.now()){
+           autoContext(e);await checkMain({base:e.GITHUB_SHA},api,token);await queueOpen(api,token);
+           if(!await noOpenPr(api,token))return null;
+           const list=await api(ROOT+'/issues/'+QUEUE+'/comments?per_page=100&since='+encodeURIComponent(new Date(now-AUTO_MAX_AGE).toISOString()),token);
+           ensure(Array.isArray(list)&&list.length<100,'MISSION_INVENTORY_INCOMPLETE');
+           const available=[];
+           for(const c of list){const item=parseApproval(c,e,now);if(!item)continue;
+            const history=await api(ROOT+'/pulls?state=all&head='+encodeURIComponent('GLORIFIER7:'+item.cfg.branch)+'&base=main&per_page=100',token);
+            ensure(Array.isArray(history)&&history.length<100,'DRAFT_INVENTORY_RECONCILE');if(history.length===0)available.push(item);
+           }
+           ensure(available.length<=1,'MULTIPLE_APPROVED_MISSIONS');if(!available.length)return null;
+           await assertAuthorized(available[0].cfg,api,token,now);return available[0].inputs;
           }
           async function checkMain(cfg,api,token){
            const m=await api(ROOT+'/commits/main',token);
@@ -113,7 +160,7 @@ jobs:
            ensure(same(files.map(f=>f.path),cfg.paths),'PAYLOAD_PATH_MISMATCH');return files;
           }
           export async function prepare(cfg,api,token){
-           await checkMain(cfg,api,token);const candidates=await readComment(cfg,api,token);const files=[];
+           await assertAuthorized(cfg,api,token);await checkMain(cfg,api,token);const candidates=await readComment(cfg,api,token);const files=[];
            for(const f of candidates){
             const before=await regularBlob(api,token,cfg.base,f.path);ensure(before===f.before,'BASE_BLOB_CHANGED');
             const b=Buffer.from(f.content,'utf8'),after=gitBlob(b);ensure(after!==before,'UNCHANGED_FILE');
@@ -187,7 +234,8 @@ jobs:
             let head=await branchHead(cfg,api,token);
             if(head===null){
              await checkMain(cfg,api,token);
-             try{await api(ROOT+'/git/refs',token,'POST',{ref,sha:cfg.base});}catch{/* inspect actual ref; no blind retry */}
+             await assertAuthorized(cfg,api,readToken);
+               try{await api(ROOT+'/git/refs',token,'POST',{ref,sha:cfg.base});}catch{/* inspect actual ref; no blind retry */}
              head=await branchHead(cfg,api,token);
              ensure(head!==null,'BRANCH_CREATION_RECONCILE');
             }
@@ -196,7 +244,8 @@ jobs:
              const history=await api(ROOT+'/pulls?state=all&head='+encodeURIComponent('GLORIFIER7:'+cfg.branch)+'&base=main&per_page=100',token);
              ensure(Array.isArray(history)&&history.length===0,'DRAFT_HISTORY_RECONCILE');
              await checkMain(cfg,api,token);
-             try{await api('/graphql',token,'POST',{query:'mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid}}}',variables:{input:{branch:{repositoryNameWithOwner:REPO,branchName:cfg.branch},expectedHeadOid:cfg.base,message:{headline:'fix(gcef): owner-reviewed source repair'},fileChanges:{additions:m.files.map(({path,contents})=>({path,contents}))}}}});}catch{/* inspect actual ref; no blind retry */}
+             await assertAuthorized(cfg,api,readToken);
+               try{await api('/graphql',token,'POST',{query:'mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid}}}',variables:{input:{branch:{repositoryNameWithOwner:REPO,branchName:cfg.branch},expectedHeadOid:cfg.base,message:{headline:'fix(gcef): owner-reviewed source repair'},fileChanges:{additions:m.files.map(({path,contents})=>({path,contents}))}}}});}catch{/* inspect actual ref; no blind retry */}
              head=await branchHead(cfg,api,token);
              ensure(head!==null&&head!==cfg.base,'SIGNED_COMMIT_RECONCILE');
             }
@@ -206,7 +255,8 @@ jobs:
              await checkMain(cfg,api,token);
              ensure(await branchHead(cfg,api,token)===head,'BRANCH_HEAD_CHANGED_RECONCILE');
              const body='Owner-reviewed queue comment #'+cfg.commentId+'\nPinned base: '+cfg.base+'\nPayload SHA-256: '+cfg.digest+'\nIndependent review and required CI remain mandatory. No merge or deployment authorized.';
-             try{await api(ROOT+'/pulls',token,'POST',{head:cfg.branch,base:'main',draft:true,title:'fix(gcef): owner-reviewed source repair',body});}catch{/* verify exact draft through inventory; no blind replay */}
+             await assertAuthorized(cfg,api,readToken);
+               try{await api(ROOT+'/pulls',token,'POST',{head:cfg.branch,base:'main',draft:true,title:'fix(gcef): owner-reviewed source repair',body});}catch{/* verify exact draft through inventory; no blind replay */}
              p=await findDraft(cfg,head,api,token);
              ensure(p,'DRAFT_CREATION_RECONCILE');
             }
@@ -220,7 +270,16 @@ jobs:
           }
           function appJwt(pem){const encode=x=>Buffer.from(JSON.stringify(x)).toString('base64url'),now=Math.floor(Date.now()/1000);const message=encode({alg:'RS256',typ:'JWT'})+'.'+encode({iss:String(APP_ID),iat:now-30,exp:now+540});return message+'.'+createSign('RSA-SHA256').update(message).sign(pem).toString('base64url');}
           async function main(){
-           const cfg=config(process.env),token=process.env.GITHUB_TOKEN;ensure(token,'READ_TOKEN_REQUIRED');
+           const token=process.env.GITHUB_TOKEN;ensure(token,'READ_TOKEN_REQUIRED');
+           if(process.argv[2]==='select'){
+            const inputs=await selectMission(process.env,github,token);
+            if(!inputs){console.log('NO_APPROVED_MISSION');return;}
+            ensure(process.env.GITHUB_ENV,'RUNNER_ENV_REQUIRED');
+            // Values are validated hex, numeric IDs or exact allowlisted paths; never raw comment text.
+            appendFileSync(process.env.GITHUB_ENV,Object.entries({...inputs,CONFIRM:'true',PUBLISH:'true',MISSION_SELECTED:'true'}).map(([k,v])=>k+'='+v+'\n').join(''));
+            console.log('APPROVED_TEST_MISSION_SELECTED');return;
+           }
+           const cfg=config(process.env);
            if(process.argv[2]==='prepare'){
             const m=await prepare(cfg,github,token);console.log(JSON.stringify({status:'PREPARED_READ_ONLY',base:cfg.base,digest:cfg.digest,files:m.files.map(({path,before,after})=>({path,before,after}))}));
            }else if(process.argv[2]==='publish'){
@@ -279,23 +338,47 @@ jobs:
           test('edited comment, altered payload, stale main and executable mode are rejected',async()=>{for(const options of [{comment:{updated_at:'2026-11-26T01:00:00Z'}},{comment:{body:raw+' '}},{main:{...validCommit,sha:head}},{mode:'100755'}])await assert.rejects(prepare(config(env),fake(options).api,'read'));});
           test('publication creates only verified App-signed draft and revokes token',async()=>{const f=fake();const cfg=config(env);const result=await publish(cfg,f.api,'read','jwt');assert.equal(result.number,123);assert.equal(result.merged,false);assert.equal(f.calls.at(-1).method,'DELETE');assert.ok(!f.calls.some(c=>c.p.includes('/merge')));assert.ok(f.calls.some(c=>c.p==='/graphql'&&c.body.variables.input.expectedHeadOid===base));});
           test('unsigned commit and duplicate branch block draft creation; token is revoked',async()=>{for(const options of [{unsigned:true},{refs:[{ref:'refs/heads/'+config(env).branch}]}]){const f=fake(options);await assert.rejects(publish(config(env),f.api,'read','jwt'));assert.ok(!f.calls.some(c=>c.p===root+'/pulls'&&c.method==='POST'));assert.equal(f.calls.at(-1).method,'DELETE');}});
-          
+
           test('changed base after draft creation closes only the matching draft',async()=>{const f=fake({advanceAfterPr:true});await assert.rejects(publish(config(env),f.api,'read','jwt'),/STALE_DRAFT_CLOSED/);assert.ok(f.calls.some(c=>c.method==='PATCH'&&c.p===root+'/pulls/123'&&c.body.state==='closed'));assert.equal(f.calls.at(-1).method,'DELETE');});
           test('unsafe published mode prevents opening any draft',async()=>{const f=fake({postMode:'100755'});await assert.rejects(publish(config(env),f.api,'read','jwt'));assert.ok(!f.calls.some(c=>c.p===root+'/pulls'&&c.method==='POST'));});
           test('wrong issue, wrong digest, stale preimage and out-of-scope payload rejected',async()=>{const inputs=[{...payload,files:[{path,before:'f'.repeat(40),content}]},{...payload,files:[{path:'agents/gcef/execution.py',before,content}]}];for(const data of inputs){const body='GCEF_REPAIR_V1\n'+JSON.stringify(data);await assert.rejects(prepare(config({...env,PAYLOAD_SHA256:digest(body)}),fake({comment:{body}}).api,'read'));}await assert.rejects(prepare(config(env),fake({comment:{issue_url:'https://api.github.com'+root+'/issues/471'}}).api,'read'));});
-          
+
           test('resume exact existing base branch without recreating it',async()=>{const f=fake({existingHead:base});assert.equal((await publish(config(env),f.api,'read','jwt')).number,123);assert.ok(!f.calls.some(c=>c.p===root+'/git/refs'&&c.method==='POST'));});
           test('resume exact verified signed head without another commit',async()=>{const f=fake({existingHead:head});assert.equal((await publish(config(env),f.api,'read','jwt')).number,123);assert.ok(!f.calls.some(c=>c.p==='/graphql'));});
           test('recover lost branch, commit or draft creation response from readback',async()=>{for(const o of [{lostBranchResponse:true},{lostCommitResponse:true},{lostPrResponse:true},{badPrResponse:true}]){const f=fake(o);assert.equal((await publish(config(env),f.api,'read','jwt')).number,123);assert.equal(f.calls.filter(c=>c.p===root+'/pulls'&&c.method==='POST').length,1);}});
           test('reuse verified existing draft without duplicate writes',async()=>{const f=fake({existingHead:head,existingPr:true});assert.equal((await publish(config(env),f.api,'read','jwt')).number,123);assert.ok(!f.calls.some(c=>c.p===root+'/pulls'&&c.method==='POST'||c.p==='/graphql'));});
           test('temporary main read failure never closes a valid draft',async()=>{const f=fake({mainUnavailable:true});await assert.rejects(publish(config(env),f.api,'read','jwt'));assert.ok(!f.calls.some(c=>c.method==='PATCH'));});
-          
+
           test('retry a transient draft GET only, not the creation write',async()=>{const f=fake({lostReadback:true});assert.equal((await publish(config(env),f.api,'read','jwt')).number,123);assert.equal(f.calls.filter(c=>c.p===root+'/pulls'&&c.method==='POST').length,1);});
           test('mismatched draft readback stops without closing or replaying writes',async()=>{const f=fake({prReadback:{draft:false}});await assert.rejects(publish(config(env),f.api,'read','jwt'),/DRAFT_IDENTITY_RECONCILE/);assert.ok(!f.calls.some(c=>c.method==='PATCH'));assert.equal(f.calls.filter(c=>c.p===root+'/pulls'&&c.method==='POST').length,1);});
           test('unverified existing branch does not create a PR',async()=>{const f=fake({existingHead:head,unsigned:true});await assert.rejects(publish(config(env),f.api,'read','jwt'),/SIGNED_COMMIT_READBACK_FAILED/);assert.ok(!f.calls.some(c=>c.p===root+'/pulls'&&c.method==='POST'||c.p==='/graphql'));});
+
+          const scheduledEnv={...env,GITHUB_EVENT_NAME:'schedule',AUTO_ENABLED:'true',APPROVAL_ID:'43'};
+          const autoPath='agents/gcef/test_active_view.py';
+          const autoEnv={...scheduledEnv,ALLOWED_PATHS:autoPath};
+          const autoNow=Date.parse('2026-11-26T12:00:00Z');
+          const approval={id:43,issue_url:'https://api.github.com'+root+'/issues/1034',user:{id:32674233,login:'GLORIFIER7',type:'User'},author_association:'OWNER',created_at:'2026-11-26T11:00:00Z',updated_at:'2026-11-26T11:00:00Z',body:`/glorifier publish-gcef ${base} 42 ${digest(raw)} ${autoPath}`};
+          function autoFake(opts={}){const calls=[];return {calls,api:async(p,t,method='GET')=>{calls.push({p,method});if(p===root+'/commits/main')return opts.main??validCommit;if(p===root+'/issues/1034')return {number:1034,state:'open'};if(p.startsWith(root+'/issues/1034/comments?'))return opts.comments??[approval];if(p===root+'/issues/comments/43')return Object.hasOwn(opts,'approval')?opts.approval:approval;if(p.startsWith(root+'/pulls?state=open'))return opts.open??[];if(p.startsWith(root+'/pulls?state=all'))return opts.history??[];throw Error('unexpected auto API');}};}
+          test('scheduled dispatch accepts only test paths with explicit opt-in and pinned approval',()=>{assert.equal(config(autoEnv).approvalId,43);for(const extra of [{AUTO_ENABLED:'false'},{APPROVAL_ID:''},{GITHUB_RUN_ATTEMPT:'2'},{ALLOWED_PATHS:path},{GITHUB_REF:'refs/heads/other'}])assert.throws(()=>config({...autoEnv,...extra}));});
+          test('scheduled selection is read-only and pins exact owner approval',async()=>{const {selectMission}=await import('./publisher.mjs');const f=autoFake();const m=await selectMission(autoEnv,f.api,'read',autoNow);assert.equal(m.APPROVAL_ID,'43');assert.equal(m.COMMENT_ID,'42');assert.equal(m.ALLOWED_PATHS,autoPath);assert.ok(f.calls.every(c=>c.method==='GET'));});
+          test('scheduled selection ignores edited, nonowner, expired and non-test approvals',async()=>{const {selectMission}=await import('./publisher.mjs');for(const a of [{...approval,user:{...approval.user,id:2}},{...approval,updated_at:'2026-11-26T11:01:00Z'},{...approval,created_at:'2026-11-23T11:00:00Z',updated_at:'2026-11-23T11:00:00Z'},{...approval,body:approval.body.replace(autoPath,path)}])assert.equal(await selectMission(autoEnv,autoFake({comments:[a]}).api,'read',autoNow),null);});
+          test('scheduled selection skips open PRs and previously published missions',async()=>{const {selectMission}=await import('./publisher.mjs');for(const opts of [{open:[{number:1}]},{history:[{number:2}]}])assert.equal(await selectMission(autoEnv,autoFake(opts).api,'read',autoNow),null);});
+          test('scheduled selection fails closed for incomplete inventory or competing approvals',async()=>{const {selectMission}=await import('./publisher.mjs');for(const opts of [{comments:Array(100).fill(approval)},{comments:[approval,{...approval,id:44,body:approval.body.replace(' 42 ',' 45 ')}]}])await assert.rejects(selectMission(autoEnv,autoFake(opts).api,'read',autoNow));});
+          test('scheduled revalidation rejects changed or withdrawn authorization before writes',async()=>{const {assertAuthorized}=await import('./publisher.mjs');const cfg=config(autoEnv);await assertAuthorized(cfg,autoFake().api,'read',autoNow);for(const opts of [{approval:{...approval,body:approval.body+' '}},{approval:{...approval,updated_at:'2026-11-26T11:01:00Z'}},{approval:null},{open:[{number:5}]}]){await assert.rejects(assertAuthorized(cfg,autoFake(opts).api,'read',autoNow));}});
+          test('disabled scheduler makes no API requests',async()=>{const {selectMission}=await import('./publisher.mjs');const f=autoFake();await assert.rejects(selectMission({...autoEnv,AUTO_ENABLED:'false'},f.api,'read',autoNow));assert.equal(f.calls.length,0);});
+          test('scheduled publication with revoked approval stops before App authentication',async()=>{const f=autoFake({approval:null});await assert.rejects(publish(config(autoEnv),f.api,'read','jwt'),/OWNER_APPROVAL_CHANGED_OR_EXPIRED/);assert.ok(!f.calls.some(c=>c.p.includes('/installation')||c.method!=='GET'));});
           PUBLISHER_TEST
           node --test publisher.test.mjs
+      - name: Select exact owner-approved scheduled test mission
+        if: github.event_name == 'schedule'
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          node "$RUNNER_TEMP/gcef-reviewed-publisher/publisher.mjs" select
       - name: Read-only verification of approved payload
+        if: github.event_name == 'workflow_dispatch' || env.MISSION_SELECTED == 'true'
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -303,7 +386,7 @@ jobs:
           set -euo pipefail
           node "$RUNNER_TEMP/gcef-reviewed-publisher/publisher.mjs" prepare
       - name: Publish only a verified App-signed draft
-        if: inputs.publish == true
+        if: (github.event_name == 'workflow_dispatch' && inputs.publish == true) || (github.event_name == 'schedule' && env.MISSION_SELECTED == 'true')
         shell: bash
         env:
           GITHUB_TOKEN: ${{ github.token }}
