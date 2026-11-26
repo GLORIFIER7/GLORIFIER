@@ -122,6 +122,57 @@ jobs:
            await checkMain(cfg,api,token);return {cfg,files};
           }
           function draftMatches(p,cfg,head){return p?.state==='open'&&p.draft===true&&p.user?.login===BOT&&p.head?.sha===head&&p.head?.ref===cfg.branch&&p.head?.repo?.full_name===REPO&&p.base?.ref==='main'&&p.base?.repo?.full_name===REPO;}
+          // Read exact deterministic resources. Never replay a write whose outcome is unknown.
+          async function branchHead(cfg,api,token){
+           const ref='refs/heads/'+cfg.branch;
+           const refs=await api(ROOT+'/git/matching-refs/heads/'+cfg.branch,token);
+           ensure(Array.isArray(refs)&&refs.length<100,'BRANCH_INVENTORY_RECONCILE');
+           const exact=refs.filter(r=>r.ref===ref);
+           ensure(exact.length<=1&&exact.every(r=>hex(r.object?.sha,40)),'BRANCH_IDENTITY_RECONCILE');
+           return exact[0]?.object.sha??null;
+          }
+          async function verifyHead(cfg,m,head,api,token){
+           ensure(hex(head,40)&&head!==cfg.base,'SIGNED_COMMIT_UNAVAILABLE');
+           const c=await api(ROOT+'/commits/'+head,token);
+           ensure(c?.sha===head&&c.author?.login===BOT&&c.commit?.verification?.verified===true&&c.commit.verification.reason==='valid'&&c.parents?.length===1&&c.parents[0].sha===cfg.base&&Array.isArray(c.files)&&c.files.length===m.files.length&&m.files.every(f=>c.files.some(x=>x.filename===f.path&&x.status==='modified'&&x.sha===f.after)),'SIGNED_COMMIT_READBACK_FAILED');
+           for(const f of m.files)ensure(await regularBlob(api,token,head,f.path)===f.after,'PUBLISHED_MODE_OR_BLOB_CHANGED');
+          }
+          // A single bounded retry of a read is safe; no mutation is retried here.
+          async function readDraft(api,token,number){
+           const path=ROOT+'/pulls/'+number;
+           try{return await api(path,token);}catch{return await api(path,token);}
+          }
+          async function findDraft(cfg,head,api,token){
+           const query=ROOT+'/pulls?state=all&head='+encodeURIComponent('GLORIFIER7:'+cfg.branch)+'&base=main&per_page=100';
+           const list=await api(query,token);
+           ensure(Array.isArray(list)&&list.length<100,'DRAFT_INVENTORY_RECONCILE');
+           // Any prior closed/merged or unrelated result requires owner reconciliation.
+           if(!list.length)return null;
+           ensure(list.length===1&&Number.isSafeInteger(list[0]?.number)&&draftMatches(list[0],cfg,head),'DRAFT_HISTORY_RECONCILE');
+           const p=await readDraft(api,token,list[0].number);
+           ensure(p?.number===list[0].number&&draftMatches(p,cfg,head),'DRAFT_IDENTITY_RECONCILE');
+           return p;
+          }
+          async function confirmDraft(cfg,head,p,api,token){
+           // Only a positively observed different base SHA justifies closure.
+           // An unavailable API, malformed response or unsigned matching base is not proof of staleness.
+           const main=await api(ROOT+'/commits/main',token);
+           ensure(hex(main?.sha,40)&&hex(p.base?.sha,40),'MAIN_READBACK_RECONCILE');
+           if(main.sha!==cfg.base||p.base.sha!==cfg.base){
+            const current=await api(ROOT+'/pulls/'+p.number,token);
+            ensure(current?.number===p.number&&draftMatches(current,cfg,head),'STALE_DRAFT_RECONCILE');
+            // Recheck staleness after verifying the current draft identity.
+            const now=await api(ROOT+'/commits/main',token);
+            ensure(hex(now?.sha,40)&&hex(current.base?.sha,40)&&(now.sha!==cfg.base||current.base.sha!==cfg.base),'STALE_DRAFT_RECONCILE');
+            try{await api(ROOT+'/pulls/'+p.number,token,'PATCH',{state:'closed'});}catch{/* readback below; no blind replay */}
+            const closed=await api(ROOT+'/pulls/'+p.number,token);
+            ensure(closed?.number===p.number&&closed.state==='closed'&&draftMatches({...closed,state:'open'},cfg,head)&&!closed.merged,'STALE_DRAFT_RECONCILE');
+            throw Error('STALE_DRAFT_CLOSED');
+           }
+           ensure(main.commit?.verification?.verified===true&&main.commit.verification.reason==='valid','MAIN_STALE_OR_UNSIGNED');
+           ensure(await branchHead(cfg,api,token)===head,'BRANCH_HEAD_CHANGED_RECONCILE');
+           return {status:'SIGNED_DRAFT_CREATED',number:p.number,head,merged:false,deployed:false};
+          }
           export async function publish(cfg,api,readToken,jwt){
            // Candidate text is inert data, not code run with the signing key.
            const m=await prepare(cfg,api,readToken);
@@ -131,29 +182,35 @@ jobs:
            ensure(typeof t?.token==='string'&&t.token.length>0,'INSTALLATION_TOKEN_UNAVAILABLE');const token=t.token;
            try{
             await checkMain(cfg,api,token);
-            // Revalidate the exact reviewed comment before making changes.
             const latest=await prepare(cfg,api,readToken);ensure(same(latest,m),'PREPARATION_CHANGED');
             const ref='refs/heads/'+cfg.branch;
-            const refs=await api(ROOT+'/git/matching-refs/heads/'+cfg.branch,token);
-            ensure(Array.isArray(refs)&&refs.every(r=>r.ref!==ref),'BRANCH_EXISTS_RECONCILE');
-            await checkMain(cfg,api,token);
-            const created=await api(ROOT+'/git/refs',token,'POST',{ref,sha:cfg.base});ensure(created?.ref===ref&&created.object?.sha===cfg.base,'BRANCH_READBACK_FAILED');
-            const result=await api('/graphql',token,'POST',{query:'mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid}}}',variables:{input:{branch:{repositoryNameWithOwner:REPO,branchName:cfg.branch},expectedHeadOid:cfg.base,message:{headline:'fix(gcef): owner-reviewed source repair'},fileChanges:{additions:m.files.map(({path,contents})=>({path,contents}))}}}});
-            const head=result?.data?.createCommitOnBranch?.commit?.oid;ensure(hex(head,40)&&head!==cfg.base,'SIGNED_COMMIT_UNAVAILABLE');
-            const c=await api(ROOT+'/commits/'+head,token);
-            ensure(c?.sha===head&&c.author?.login===BOT&&c.commit?.verification?.verified===true&&c.commit.verification.reason==='valid'&&c.parents?.length===1&&c.parents[0].sha===cfg.base&&Array.isArray(c.files)&&c.files.length===m.files.length&&m.files.every(f=>c.files.some(x=>x.filename===f.path&&x.status==='modified'&&x.sha===f.after)),'SIGNED_COMMIT_READBACK_FAILED');
-            for(const f of m.files)ensure(await regularBlob(api,token,head,f.path)===f.after,'PUBLISHED_MODE_OR_BLOB_CHANGED');
-            await checkMain(cfg,api,token);
-            const body='Owner-reviewed queue comment #'+cfg.commentId+'\nPinned base: '+cfg.base+'\nPayload SHA-256: '+cfg.digest+'\nIndependent review and required CI remain mandatory. No merge or deployment authorized.';
-            const p=await api(ROOT+'/pulls',token,'POST',{head:cfg.branch,base:'main',draft:true,title:'fix(gcef): owner-reviewed source repair',body});
-            ensure(Number.isSafeInteger(p?.number)&&draftMatches(p,cfg,head),'DRAFT_CREATION_RECONCILE');
-            const actual=await api(ROOT+'/pulls/'+p.number,token);
-            ensure(draftMatches(actual,cfg,head),'DRAFT_READBACK_RECONCILE');
-            try{ensure(actual.base.sha===cfg.base,'DRAFT_BASE_CHANGED');await checkMain(cfg,api,token);}catch{
-             const current=await api(ROOT+'/pulls/'+p.number,token);ensure(draftMatches(current,cfg,head),'STALE_DRAFT_RECONCILE');
-             const closed=await api(ROOT+'/pulls/'+p.number,token,'PATCH',{state:'closed'});ensure(closed?.number===p.number&&closed.state==='closed','STALE_DRAFT_RECONCILE');throw Error('STALE_DRAFT_CLOSED');
+            let head=await branchHead(cfg,api,token);
+            if(head===null){
+             await checkMain(cfg,api,token);
+             try{await api(ROOT+'/git/refs',token,'POST',{ref,sha:cfg.base});}catch{/* inspect actual ref; no blind retry */}
+             head=await branchHead(cfg,api,token);
+             ensure(head!==null,'BRANCH_CREATION_RECONCILE');
             }
-            return {status:'SIGNED_DRAFT_CREATED',number:p.number,head,merged:false,deployed:false};
+            if(head===cfg.base){
+             // No commit may be issued if prior PR history exists, even a closed PR.
+             const history=await api(ROOT+'/pulls?state=all&head='+encodeURIComponent('GLORIFIER7:'+cfg.branch)+'&base=main&per_page=100',token);
+             ensure(Array.isArray(history)&&history.length===0,'DRAFT_HISTORY_RECONCILE');
+             await checkMain(cfg,api,token);
+             try{await api('/graphql',token,'POST',{query:'mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid}}}',variables:{input:{branch:{repositoryNameWithOwner:REPO,branchName:cfg.branch},expectedHeadOid:cfg.base,message:{headline:'fix(gcef): owner-reviewed source repair'},fileChanges:{additions:m.files.map(({path,contents})=>({path,contents}))}}}});}catch{/* inspect actual ref; no blind retry */}
+             head=await branchHead(cfg,api,token);
+             ensure(head!==null&&head!==cfg.base,'SIGNED_COMMIT_RECONCILE');
+            }
+            await verifyHead(cfg,m,head,api,token);
+            let p=await findDraft(cfg,head,api,token);
+            if(!p){
+             await checkMain(cfg,api,token);
+             ensure(await branchHead(cfg,api,token)===head,'BRANCH_HEAD_CHANGED_RECONCILE');
+             const body='Owner-reviewed queue comment #'+cfg.commentId+'\nPinned base: '+cfg.base+'\nPayload SHA-256: '+cfg.digest+'\nIndependent review and required CI remain mandatory. No merge or deployment authorized.';
+             try{await api(ROOT+'/pulls',token,'POST',{head:cfg.branch,base:'main',draft:true,title:'fix(gcef): owner-reviewed source repair',body});}catch{/* verify exact draft through inventory; no blind replay */}
+             p=await findDraft(cfg,head,api,token);
+             ensure(p,'DRAFT_CREATION_RECONCILE');
+            }
+            return await confirmDraft(cfg,head,p,api,token);
            }finally{try{await api('/installation/token',token,'DELETE');}catch{console.error('SHORT_LIVED_TOKEN_REVOCATION_UNCONFIRMED');}}
           }
           async function github(path,token,method='GET',body){
@@ -189,11 +246,11 @@ jobs:
           const env={GITHUB_REPOSITORY:REPO,GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'workflow_dispatch',GITHUB_ACTOR_ID:'32674233',GITHUB_TRIGGERING_ACTOR:'GLORIFIER7',GITHUB_RUN_ATTEMPT:'1',GITHUB_SHA:base,EXPECTED_MAIN:base,COMMENT_ID:'42',PAYLOAD_SHA256:digest(raw),ALLOWED_PATHS:path,CONFIRM:'true'};
           const validCommit={sha:base,commit:{verification:{verified:true,reason:'valid'}}};
           function fake(opts={}){
-           const calls=[];const cfg=config(env);const ref='refs/heads/'+cfg.branch;let postimage=false,prCreated=false;
+           const calls=[];const cfg=config(env);const ref='refs/heads/'+cfg.branch;let postimage=false,prCreated=!!opts.existingPr,branchHead=opts.existingHead??null,closed=false,readFailures=0;
            const comment={id:42,issue_url:'https://api.github.com'+root+'/issues/1034',body:raw,created_at:'2026-11-26T00:00:00Z',updated_at:'2026-11-26T00:00:00Z',...opts.comment};
            const pr={number:123,state:'open',draft:true,user:{login:'glorifier-digital-me[bot]'},head:{sha:head,ref:cfg.branch,repo:{full_name:REPO}},base:{ref:'main',sha:base,repo:{full_name:REPO}}};
            return {calls,api:async(p,token,method='GET',body)=>{calls.push({p,method,body});
-           if(p===root+'/commits/main')return prCreated&&opts.advanceAfterPr?{...validCommit,sha:head}:opts.main??validCommit;
+           if(p===root+'/commits/main'){if(prCreated&&opts.mainUnavailable)throw Error('temporary API failure');return prCreated&&opts.advanceAfterPr?{...validCommit,sha:head}:opts.main??validCommit;}
            if(p===root+'/issues/1034')return {number:1034,state:'open'};
            if(p===root+'/issues/comments/42')return comment;
            if(p===root+'/git/commits/'+base)return {sha:base,tree:{sha:tree}};
@@ -204,13 +261,14 @@ jobs:
            if(p===root+'/contents/'+path+'?ref='+base)return {path,type:'file',encoding:'base64',sha:before,content:Buffer.from('old\n').toString('base64')};
            if(p===root+'/installation')return {id:1,app_id:5876036,account:{login:'GLORIFIER7'},repository_selection:'selected',permissions:{contents:'write',pull_requests:'write'}};
            if(p==='/app/installations/1/access_tokens')return {token:'synthetic'};
-           if(p===root+'/git/matching-refs/heads/'+cfg.branch)return opts.refs??[];
-           if(p===root+'/git/refs'&&method==='POST')return {ref,object:{sha:base}};
-           if(p==='/graphql')return {data:{createCommitOnBranch:{commit:{oid:head}}}};
+           if(p===root+'/git/matching-refs/heads/'+cfg.branch)return opts.refs??(branchHead?[{ref,object:{sha:branchHead}}]:[]);
+           if(p===root+'/git/refs'&&method==='POST'){branchHead=base;if(opts.lostBranchResponse)throw Error('connection lost');return {ref,object:{sha:base}};}
+           if(p==='/graphql'){branchHead=head;if(opts.lostCommitResponse)throw Error('connection lost');return {data:{createCommitOnBranch:{commit:{oid:head}}}};}
            if(p===root+'/commits/'+head)return {sha:head,author:{login:'glorifier-digital-me[bot]'},commit:{verification:{verified:!opts.unsigned,reason:opts.unsigned?'unsigned':'valid'}},parents:[{sha:base}],files:[{filename:path,status:'modified',sha:after}]};
-           if(p===root+'/pulls'&&method==='POST'){prCreated=true;return pr;}
-           if(p===root+'/pulls/123'&&method==='PATCH')return {...pr,state:'closed'};
-           if(p===root+'/pulls/123')return pr;
+           if(p.startsWith(root+'/pulls?'))return prCreated?[{...pr,state:closed?'closed':'open'}]:[];
+           if(p===root+'/pulls'&&method==='POST'){prCreated=true;if(opts.lostPrResponse)throw Error('connection lost');return opts.badPrResponse?{}:pr;}
+           if(p===root+'/pulls/123'&&method==='PATCH'){closed=true;return {...pr,state:'closed'};}
+           if(p===root+'/pulls/123'){if(opts.lostReadback&&readFailures++===0)throw Error('transient readback');return {...pr,state:closed?'closed':'open',...opts.prReadback};}
            if(p==='/installation/token'&&method==='DELETE')return null;
            throw Error('Unexpected fixture API');
            }};
@@ -221,10 +279,20 @@ jobs:
           test('edited comment, altered payload, stale main and executable mode are rejected',async()=>{for(const options of [{comment:{updated_at:'2026-11-26T01:00:00Z'}},{comment:{body:raw+' '}},{main:{...validCommit,sha:head}},{mode:'100755'}])await assert.rejects(prepare(config(env),fake(options).api,'read'));});
           test('publication creates only verified App-signed draft and revokes token',async()=>{const f=fake();const cfg=config(env);const result=await publish(cfg,f.api,'read','jwt');assert.equal(result.number,123);assert.equal(result.merged,false);assert.equal(f.calls.at(-1).method,'DELETE');assert.ok(!f.calls.some(c=>c.p.includes('/merge')));assert.ok(f.calls.some(c=>c.p==='/graphql'&&c.body.variables.input.expectedHeadOid===base));});
           test('unsigned commit and duplicate branch block draft creation; token is revoked',async()=>{for(const options of [{unsigned:true},{refs:[{ref:'refs/heads/'+config(env).branch}]}]){const f=fake(options);await assert.rejects(publish(config(env),f.api,'read','jwt'));assert.ok(!f.calls.some(c=>c.p===root+'/pulls'&&c.method==='POST'));assert.equal(f.calls.at(-1).method,'DELETE');}});
-
+          
           test('changed base after draft creation closes only the matching draft',async()=>{const f=fake({advanceAfterPr:true});await assert.rejects(publish(config(env),f.api,'read','jwt'),/STALE_DRAFT_CLOSED/);assert.ok(f.calls.some(c=>c.method==='PATCH'&&c.p===root+'/pulls/123'&&c.body.state==='closed'));assert.equal(f.calls.at(-1).method,'DELETE');});
           test('unsafe published mode prevents opening any draft',async()=>{const f=fake({postMode:'100755'});await assert.rejects(publish(config(env),f.api,'read','jwt'));assert.ok(!f.calls.some(c=>c.p===root+'/pulls'&&c.method==='POST'));});
           test('wrong issue, wrong digest, stale preimage and out-of-scope payload rejected',async()=>{const inputs=[{...payload,files:[{path,before:'f'.repeat(40),content}]},{...payload,files:[{path:'agents/gcef/execution.py',before,content}]}];for(const data of inputs){const body='GCEF_REPAIR_V1\n'+JSON.stringify(data);await assert.rejects(prepare(config({...env,PAYLOAD_SHA256:digest(body)}),fake({comment:{body}}).api,'read'));}await assert.rejects(prepare(config(env),fake({comment:{issue_url:'https://api.github.com'+root+'/issues/471'}}).api,'read'));});
+          
+          test('resume exact existing base branch without recreating it',async()=>{const f=fake({existingHead:base});assert.equal((await publish(config(env),f.api,'read','jwt')).number,123);assert.ok(!f.calls.some(c=>c.p===root+'/git/refs'&&c.method==='POST'));});
+          test('resume exact verified signed head without another commit',async()=>{const f=fake({existingHead:head});assert.equal((await publish(config(env),f.api,'read','jwt')).number,123);assert.ok(!f.calls.some(c=>c.p==='/graphql'));});
+          test('recover lost branch, commit or draft creation response from readback',async()=>{for(const o of [{lostBranchResponse:true},{lostCommitResponse:true},{lostPrResponse:true},{badPrResponse:true}]){const f=fake(o);assert.equal((await publish(config(env),f.api,'read','jwt')).number,123);assert.equal(f.calls.filter(c=>c.p===root+'/pulls'&&c.method==='POST').length,1);}});
+          test('reuse verified existing draft without duplicate writes',async()=>{const f=fake({existingHead:head,existingPr:true});assert.equal((await publish(config(env),f.api,'read','jwt')).number,123);assert.ok(!f.calls.some(c=>c.p===root+'/pulls'&&c.method==='POST'||c.p==='/graphql'));});
+          test('temporary main read failure never closes a valid draft',async()=>{const f=fake({mainUnavailable:true});await assert.rejects(publish(config(env),f.api,'read','jwt'));assert.ok(!f.calls.some(c=>c.method==='PATCH'));});
+          
+          test('retry a transient draft GET only, not the creation write',async()=>{const f=fake({lostReadback:true});assert.equal((await publish(config(env),f.api,'read','jwt')).number,123);assert.equal(f.calls.filter(c=>c.p===root+'/pulls'&&c.method==='POST').length,1);});
+          test('mismatched draft readback stops without closing or replaying writes',async()=>{const f=fake({prReadback:{draft:false}});await assert.rejects(publish(config(env),f.api,'read','jwt'),/DRAFT_IDENTITY_RECONCILE/);assert.ok(!f.calls.some(c=>c.method==='PATCH'));assert.equal(f.calls.filter(c=>c.p===root+'/pulls'&&c.method==='POST').length,1);});
+          test('unverified existing branch does not create a PR',async()=>{const f=fake({existingHead:head,unsigned:true});await assert.rejects(publish(config(env),f.api,'read','jwt'),/SIGNED_COMMIT_READBACK_FAILED/);assert.ok(!f.calls.some(c=>c.p===root+'/pulls'&&c.method==='POST'||c.p==='/graphql'));});
           PUBLISHER_TEST
           node --test publisher.test.mjs
       - name: Read-only verification of approved payload
