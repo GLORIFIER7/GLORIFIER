@@ -6,13 +6,18 @@ import os
 import re
 import signal
 import ssl
+import socket
+import threading
+from socketserver import ThreadingMixIn
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from urllib.parse import urlsplit
-from execution import Ledger, Denied, ID_RE, TOKEN_RE, MAX_RESULT, execute_plan, private_file, approve_plan
+from execution import Ledger, Denied, ID_RE, TOKEN_RE, MAX_RESULT, execute_plan, private_file, approve_plan, canonical
 from gcef import tls_context, public_host
 
 MAX_REQUEST=MAX_RESULT+4096
+MAX_CONNECTIONS=8
+CONNECTION_DEADLINE=10
 class TransportDenied(Exception): pass
 
 def parse_endpoint(origin):
@@ -52,19 +57,48 @@ class Handler(BaseHTTPRequestHandler):
         self.send_json(200,result)
     def send_error(self,code,message=None,explain=None): self.send_json(code,{'error':'REQUEST_DENIED'})
 
-class TLSServer(HTTPServer):
+def terminate_connection(sock):
+    try: sock.shutdown(socket.SHUT_RDWR)
+    except OSError: pass
+
+class TLSServer(ThreadingMixIn,HTTPServer):
+    # Limit unauthenticated peers before starting a thread or TLS handshake.
+    # This is a private-network availability guard, not public DoS protection.
+    daemon_threads=False
     def __init__(self,address,ledger,context):
-        self.ledger=ledger; self.context=context; super().__init__(address,Handler)
-    def get_request(self):
-        sock,address=super().get_request(); sock.settimeout(5)
-        try: return self.context.wrap_socket(sock,server_side=True),address
-        except BaseException: sock.close(); raise
+        self.ledger=ledger; self.context=context
+        self.slots=threading.BoundedSemaphore(MAX_CONNECTIONS)
+        super().__init__(address,Handler)
+    def process_request(self,sock,address):
+        if not self.slots.acquire(blocking=False):
+            self.shutdown_request(sock); return
+        try: super().process_request(sock,address)
+        except BaseException:
+            self.slots.release(); raise
+    def process_request_thread(self,sock,address):
+        tls=None; timer=None
+        try:
+            sock.settimeout(5)
+            tls=self.context.wrap_socket(sock,server_side=True,do_handshake_on_connect=False)
+            timer=threading.Timer(CONNECTION_DEADLINE,terminate_connection,args=(tls,))
+            timer.daemon=True; timer.start()
+            tls.do_handshake()
+            self.finish_request(tls,address)
+        except (OSError,ValueError): pass
+        except Exception: self.handle_error(sock,address)
+        finally:
+            if timer is not None: timer.cancel(); timer.join()
+            self.shutdown_request(tls if tls is not None else sock)
+            self.slots.release()
+    def handle_error(self,request,client_address):
+        # Never emit an exception containing request data or credentials.
+        pass
 
 def call(origin,path,payload,token,*,context=None):
     p=urlsplit(parse_endpoint(origin)); context=context or tls_context()
     connection=http.client.HTTPSConnection(p.hostname,p.port or 443,timeout=8,context=context)
     try:
-        raw=json.dumps(payload,ensure_ascii=True,allow_nan=False).encode()
+        raw=canonical(payload)
         if len(raw)>MAX_REQUEST: raise TransportDenied('REQUEST_DENIED')
         connection.request('POST',path,body=raw,headers={'Authorization':'Bearer '+token,'Content-Type':'application/json','Connection':'close'})
         with connection.getresponse() as response:
@@ -102,7 +136,8 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__); sub=parser.add_subparsers(dest='action',required=True)
     for name in ('register','submit','status','revoke','serve'):
         p=sub.add_parser(name); p.add_argument('db',type=Path)
-        if name=='register': p.add_argument('credential',type=Path)
+        if name=='register':
+            p.add_argument('credential',type=Path); p.add_argument('--allow-host',required=True,action='append')
         if name=='submit': p.add_argument('plan',type=Path)
         if name in ('status','revoke'): p.add_argument('id')
         if name=='serve':
@@ -118,7 +153,7 @@ def main():
             print(json.dumps({'state':run_worker_once(args.origin,state['worker'],state['token'],allowed_hosts=set(args.allow_host),context=context)})); return 0
         ledger=Ledger(args.db)
         if args.action=='register':
-            worker,token=ledger.register()
+            worker,token=ledger.register(args.allow_host)
             try: write_new(args.credential,{'worker':worker,'token':token})
             except BaseException: ledger.revoke(worker); raise
             print(json.dumps({'worker':worker})); return 0

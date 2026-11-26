@@ -13,7 +13,9 @@ from gcef import inspect_page, validate_target, public_host, PolicyError
 
 LEASE_SECONDS=45
 TTL_SECONDS=120
-MAX_RESULT=262144
+# Worst-case ASCII JSON: 12 bytes per Unicode code point in title/text,
+# 2 bytes per ASCII URL character, plus bounded metadata and envelope.
+MAX_RESULT=1_048_576
 ID_RE=re.compile(r'[0-9a-f]{32}\Z')
 TOKEN_RE=re.compile(r'[A-Za-z0-9_-]{43}\Z')
 
@@ -25,6 +27,11 @@ def canonical(value):
 
 def receipt_digest(value):
     return hashlib.sha256(canonical(value)).hexdigest()
+
+def validate_hosts(hosts):
+    if not isinstance(hosts,list) or not 1<=len(hosts)<=8 or any(not public_host(h) for h in hosts) or len(set(hosts))!=len(hosts):
+        raise Denied('HOST_SCOPE_DENIED')
+    return sorted(hosts)
 
 def approve_plan(plan):
     if not isinstance(plan,dict) or set(plan)!={'url','hosts'}:
@@ -58,9 +65,16 @@ class Ledger:
     def __init__(self,path,*,now=time.time):
         self.path=private_file(path); self.now=now
         with self.tx() as db:
-            db.execute('CREATE TABLE IF NOT EXISTS workers (id TEXT PRIMARY KEY, digest TEXT NOT NULL, revoked INTEGER NOT NULL DEFAULT 0)')
+            db.execute("CREATE TABLE IF NOT EXISTS workers (id TEXT PRIMARY KEY, digest TEXT NOT NULL, revoked INTEGER NOT NULL DEFAULT 0, hosts TEXT NOT NULL DEFAULT '[]')")
             db.execute('''CREATE TABLE IF NOT EXISTS jobs (id TEXT PRIMARY KEY, plan TEXT NOT NULL, state TEXT NOT NULL,
                 created REAL NOT NULL, expires REAL NOT NULL, worker TEXT, lease TEXT, until REAL, result TEXT, digest TEXT)''')
+            # Legacy registrations had no trusted scope. Revoke them rather
+            # than guessing their authorization; owners must re-enroll.
+            if 'hosts' not in {row['name'] for row in db.execute('PRAGMA table_info(workers)')}:
+                db.execute("ALTER TABLE workers ADD COLUMN hosts TEXT NOT NULL DEFAULT '[]'")
+                db.execute('UPDATE workers SET revoked=1')
+                self._sweep(db,self.now())
+                db.execute("UPDATE jobs SET state='approved',worker=NULL,lease=NULL,until=NULL WHERE state='claimed'")
     @contextmanager
     def tx(self):
         db=sqlite3.connect(self.path,timeout=5,isolation_level=None)
@@ -72,14 +86,16 @@ class Ledger:
         finally: db.close()
     def _auth(self,db,worker,token):
         digest=token_hash(token)
-        row=db.execute('SELECT digest,revoked FROM workers WHERE id=?',(worker,)).fetchone()
+        row=db.execute('SELECT digest,revoked,hosts FROM workers WHERE id=?',(worker,)).fetchone()
         if not row or row['revoked'] or not hmac.compare_digest(row['digest'],digest): raise Denied('AUTH_DENIED')
+        return set(validate_hosts(json.loads(row['hosts'])))
     def _sweep(self,db,now):
         db.execute("UPDATE jobs SET state='expired',lease=NULL,worker=NULL,until=NULL WHERE state IN ('approved','claimed') AND expires<=?",(now,))
         db.execute("UPDATE jobs SET state='approved',lease=NULL,worker=NULL,until=NULL WHERE state='claimed' AND until<=?",(now,))
-    def register(self):
+    def register(self,hosts):
+        hosts=validate_hosts(hosts)
         worker=secrets.token_hex(16); token=secrets.token_urlsafe(32)
-        with self.tx() as db: db.execute('INSERT INTO workers(id,digest) VALUES (?,?)',(worker,token_hash(token)))
+        with self.tx() as db: db.execute('INSERT INTO workers(id,digest,hosts) VALUES (?,?,?)',(worker,token_hash(token),canonical(hosts).decode()))
         return worker,token
     def revoke(self,worker):
         with self.tx() as db:
@@ -93,9 +109,10 @@ class Ledger:
         return job
     def claim(self,worker,token):
         with self.tx() as db:
-            self._auth(db,worker,token); now=self.now(); self._sweep(db,now)
+            scope=self._auth(db,worker,token); now=self.now(); self._sweep(db,now)
             if db.execute("SELECT 1 FROM jobs WHERE worker=? AND state='claimed'",(worker,)).fetchone(): return None
-            row=db.execute("SELECT id,plan,expires FROM jobs WHERE state='approved' ORDER BY created,id LIMIT 1").fetchone()
+            row=next((candidate for candidate in db.execute("SELECT id,plan,expires FROM jobs WHERE state='approved' ORDER BY created,id")
+                      if set(json.loads(candidate['plan'])['hosts']).issubset(scope)),None)
             if not row: return None
             lease=secrets.token_urlsafe(32); until=min(row['expires'],now+LEASE_SECONDS)
             db.execute("UPDATE jobs SET state='claimed',worker=?,lease=?,until=? WHERE id=?",(worker,token_hash(lease),until,row['id']))
