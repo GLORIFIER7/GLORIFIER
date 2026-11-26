@@ -30,7 +30,9 @@ class ActiveView:
         self.actions+=1; action=validate_interaction(step)['action']
         if action=='fill': self.page.locator('#gcef-note').fill(step['value'],timeout=5000); return None
         if action=='read-note': return self.page.locator('#gcef-note').input_value(timeout=5000)
-        if action=='scroll': self.page.keyboard.press('Home' if step['direction']=='top' else 'End'); return None
+        if action=='scroll':
+            self.page.evaluate('window.scrollTo(0, 0)' if step['direction']=='top' else 'window.scrollTo(0, document.scrollingElement.scrollHeight)')
+            return None
         # Full-page screenshot bounds are relative to the viewport. Reset
         # document scroll using a fixed internal expression, never caller code.
         self.page.evaluate('window.scrollTo(0, 0)')

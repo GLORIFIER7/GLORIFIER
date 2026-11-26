@@ -7,7 +7,7 @@ Additive local prototype following merged Phase 2A. Read the original architectu
 | 2B | Actual Chromium DOM note input, readback, scroll and screenshot in an offline escaped evidence view | Original-site scripts and DOM, live-site egress isolation and authorized external actions not implemented |
 | 3 | AES-256-GCM encrypted, exact-origin profile-state file store, expiry and local revoke | Human-mediated sign-in, browser restoration, key lifecycle, server-side session revocation not implemented |
 | 4 | Owner-local explicit approval, SQLite transactional durable mission ledger, 45s leases, 120s task expiry, bounded fixed-action result receipts | GEAS/Digital Me adapters, policy identity and production persistence not connected |
-| 5 | TLS-only worker claim/finish interface, host-scoped worker bearer hashes, independent worker host allowlist, expiry/reclaim and revocation | Real multi-host execution, private network, fleet scheduler, resource quotas, independent evidence, MCP/A2A not verified |
+| 5 | TLS-only worker claim/finish interface, owner-registered worker host scopes and bearer hashes, independent worker host allowlist, expiry/reclaim and revocation | Real multi-host execution, private network, fleet scheduler, resource quotas, independent evidence, MCP/A2A not verified |
 
 No arbitrary execution, model inference, login automation, credential extraction, original-site form submission or modification to the existing Linux diagnostic agent. Worker results are authenticated claims, not independently verified remote observations. State-changing actions remain outside the contract. Owner operations are local CLI/file-system trust only; do not expose the ledger directory to workers or untrusted users. A worker can only process approved static GET plans and must independently allow the plan's hosts. Only approve known read-only public URLs; HTTP GET alone cannot guarantee absence of side effects.
 
@@ -33,7 +33,7 @@ umask 077
 mkdir -m 700 "$HOME/gcef-private"
 cd "$HOME/gcef-private"
 # set GCEF to the absolute directory of the checked-out agents/gcef files
-python3 "$GCEF/worker_transport.py" register ledger.db worker.json
+python3 "$GCEF/worker_transport.py" register ledger.db worker.json --allow-host www.example.com
 # local TLS server (requires existing cert.pem and key.pem)
 python3 "$GCEF/worker_transport.py" serve ledger.db --cert cert.pem --key key.pem
 ```
@@ -51,3 +51,7 @@ python3 "$GCEF/worker_transport.py" revoke WORKER_ID
 ```
 
 The worker executes one mission per invocation; a supervisor can invoke periodically with a strict external deadline and bounded resources. Use no paid inference. A failure or stale receipt must remain a failure. Revocation is local and prevents further authenticated claim/result processing; it cannot recall data already received by a worker. Do not treat deletion of an encrypted profile as revocation of sessions at the original provider. Keep profiles on the local owner-controlled machine. The vault library is deliberately not connected to the worker API, AI or browser sign-in. No live user credentials are needed or requested by this candidate.
+
+## Hardening and migration
+
+Worker registration now requires an explicit owner-side `--allow-host` scope. Existing pre-scope worker registrations are revoked transactionally on first opening the ledger; re-enroll them through the local owner CLI and securely replace credentials. The controller filters compatible plans before leasing and the worker retains its independent allowlist. TLS handshake/request handling is bounded to eight concurrent peers with five-second socket inactivity limits and a ten-second connection deadline. Keep the service private; saturation of all slots can still deny service. The canonical JSON receipt bound is 1 MiB plus 4 KiB for the transport envelope, sufficient for the current static inspector limits. These are local prototype protections, not evidence of production readiness.

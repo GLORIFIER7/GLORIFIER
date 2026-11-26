@@ -19,3 +19,34 @@ class TransportTests(unittest.TestCase):
         with patch('worker_transport.call',return_value={'claim':claim}), patch('worker_transport.execute_plan') as execute:
             with self.assertRaises(TransportDenied): run_worker_once('https://worker.example.com','c'*32,'d'*43,allowed_hosts={'www.example.com'})
             execute.assert_not_called()
+
+    def test_stalled_handshake_does_not_block_valid_worker(self):
+        import socket, ssl, subprocess, tempfile, threading, time
+        from pathlib import Path
+        from execution import Ledger
+        from worker_transport import TLSServer, call
+        with tempfile.TemporaryDirectory() as directory:
+            path=Path(directory)
+            subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-keyout',str(path/'key.pem'),'-out',str(path/'cert.pem'),'-days','1','-subj','/CN=localhost','-addext','subjectAltName=DNS:localhost'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=20)
+            ledger=Ledger(path/'ledger.db'); worker,token=ledger.register(['www.example.com'])
+            context=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);context.minimum_version=ssl.TLSVersion.TLSv1_2
+            context.load_cert_chain(path/'cert.pem',path/'key.pem')
+            client=ssl.create_default_context(cafile=str(path/'cert.pem'))
+            with TLSServer(('127.0.0.1',0),ledger,context) as server:
+                thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
+                try:
+                    with socket.create_connection(('127.0.0.1',server.server_port),timeout=2):
+                        start=time.monotonic()
+                        self.assertEqual(call(f'https://localhost:{server.server_port}','/claim',{'worker':worker},token,context=client),{'claim':None})
+                        self.assertLess(time.monotonic()-start,3)
+                        plan={'url':'https://www.example.com/','hosts':['www.example.com']}
+                        job=ledger.submit(plan)
+                        origin=f'https://localhost:{server.server_port}'
+                        claim=call(origin,'/claim',{'worker':worker},token,context=client)['claim']
+                        self.assertEqual(claim['id'],job)
+                        result={'status':'succeeded','receipt':{'classification':'PUBLIC_STATIC_READ_ONLY','url':plan['url'],'bodySha256':'a'*64,'status':200,'title':'😀'*256,'text':'😀'*32768,'links':['https://www.example.com/'+str(i)+'/'+('x'*2000) for i in range(32)]}}
+                        response=call(origin,'/finish',{'worker':worker,'id':job,'lease':claim['lease'],'result':result},token,context=client)
+                        self.assertEqual(response,{'ok':True})
+                        from execution import receipt_digest
+                        self.assertEqual(ledger.status(job)['digest'],receipt_digest(result))
+                finally: server.shutdown();thread.join()

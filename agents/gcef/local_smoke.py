@@ -20,7 +20,7 @@ def main():
     with tempfile.TemporaryDirectory() as directory:
         path=Path(directory)
         subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-keyout',str(path/'key.pem'),'-out',str(path/'cert.pem'),'-days','1','-subj','/CN=localhost','-addext','subjectAltName=DNS:localhost'],check=True,stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL,timeout=20)
-        ledger=Ledger(path/'ledger.db'); worker,token=ledger.register()
+        ledger=Ledger(path/'ledger.db'); worker,token=ledger.register(['www.example.com'])
         job=ledger.submit({'url':'https://www.example.com/','hosts':['www.example.com']})
         ctx=ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER);ctx.minimum_version=ssl.TLSVersion.TLSv1_2
         ctx.load_cert_chain(path/'cert.pem',path/'key.pem')
@@ -61,6 +61,9 @@ def main():
                     view.run({'action':'fill','value':'local note only'})
                     assert view.run({'action':'read-note'})=='local note only'
                     view.run({'action':'scroll','direction':'bottom'})
+                    assert view.page.evaluate('window.scrollY')>0
+                    view.run({'action':'scroll','direction':'top'})
+                    assert view.page.evaluate('window.scrollY')==0
                     assert view.run({'action':'screenshot'}).startswith(b'\x89PNG\r\n\x1a\n')
             finally: context.close()
         finally: browser.close()

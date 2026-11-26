@@ -12,3 +12,13 @@ class ActiveTests(unittest.TestCase):
         self.assertIn('id="gcef-note"',html)
         self.assertNotIn('<form',html)
         self.assertNotIn('src=x>',html.replace('&lt;img src=x&gt;',''))
+
+    def test_scroll_targets_document_after_fill(self):
+        from active_view import ActiveView
+        from unittest.mock import MagicMock
+        context=MagicMock()
+        with ActiveView(context,{'title':'Fixture','text':'Long evidence'}) as view:
+            view.run({'action':'fill','value':'note'})
+            view.run({'action':'scroll','direction':'bottom'})
+            view.page.evaluate.assert_called_once_with('window.scrollTo(0, document.scrollingElement.scrollHeight)')
+            view.page.keyboard.press.assert_not_called()
