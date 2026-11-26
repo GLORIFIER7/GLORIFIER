@@ -28,7 +28,8 @@ export async function runHeaderDiagnostic({ endpoint, fetchImpl = globalThis.fet
         'io.modelcontextprotocol/clientInfo': {name:'GLORIFIER header diagnostic',version:'1.0.0'},
       },
     };
-    let status = null, code = null, passed = false;
+    let status = null, code = null, passed = false, failureReason = null;
+    let phase = 'transport';
     try {
       const response = await fetchImpl(endpoint, {
         method:'POST', redirect:'manual', signal:AbortSignal.timeout(15_000),
@@ -36,13 +37,26 @@ export async function runHeaderDiagnostic({ endpoint, fetchImpl = globalThis.fet
         body:JSON.stringify({jsonrpc:'2.0',id,method:scenario.method,params}),
       });
       status=response.status;
+      phase = 'response';
       if (status===400 && response.headers.get('content-type')?.split(';')[0].trim().toLowerCase()==='application/json') {
+        phase = 'json';
         const body=await response.json();
-        code=body?.error?.code ?? null;
+        phase = 'response';
+        code=Number.isSafeInteger(body?.error?.code) ? body.error.code : null;
         passed=body?.jsonrpc==='2.0' && body.id===id && code===-32020 && !Object.hasOwn(body,'result');
-      } else await response.body?.cancel();
-    } catch { /* Report a failed probe; never log raw response or credentials. */ }
-    results.push({name:scenario.name,status,code,passed});
+        if (!passed) failureReason = 'INVALID_RPC_RESPONSE';
+      } else {
+        failureReason = status === 400 ? 'UNEXPECTED_CONTENT_TYPE' : 'UNEXPECTED_HTTP_STATUS';
+        await response.body?.cancel().catch(() => undefined);
+      }
+    } catch (error) {
+      // Fixed categories only; never include raw exception text, response bodies or credentials.
+      failureReason = error?.name === 'TimeoutError' || error?.name === 'AbortError'
+        ? 'TIMEOUT'
+        : phase === 'json' ? 'INVALID_JSON'
+        : phase === 'transport' ? 'TRANSPORT_ERROR' : 'RESPONSE_ERROR';
+    }
+    results.push({name:scenario.name,status,code,passed,failureReason});
   }
   const passed=results.filter(result=>result.passed).length;
   return {endpoint,protocolVersion:VERSION,classification:'INDEPENDENT_HTTPS_HEADER_DIAGNOSTIC_NOT_OFFICIAL_CONFORMANCE',passed,failed:results.length-passed,results};
