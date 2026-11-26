@@ -445,8 +445,11 @@ export function createA2AJsonRpcHandler(dependencies: A2AJsonRpcDependencies) {
           pageSize: page.pageSize,
           totalSize: page.totalSize,
         });
-      } catch {
-        return rpcError(id, -32602, 'The task page token or filter is invalid.');
+      } catch (error) {
+        if (error instanceof Error && error.name === 'A2AInvalidPageTokenError') {
+          return rpcError(id, -32602, 'The task page token or filter is invalid.');
+        }
+        return rpcError(id, -32603, 'Task listing is temporarily unavailable.');
       }
     }
 
