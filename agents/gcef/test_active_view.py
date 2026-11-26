@@ -44,3 +44,25 @@ class ActiveTests(unittest.TestCase):
         for step in [None, {'action':'fill','value':512}, {'action':'fill','value':'x'*513}, {'action':'fill','value':'note','selector':'#other'}, {'action':'scroll','direction':'left'}, {'action':'read-note','extra':True}]:
             with self.subTest(step=step), self.assertRaises(InteractionDenied):
                 validate_interaction(step)
+
+    def test_denied_actions_exhaust_budget_without_browser_calls(self):
+        from active_view import ActiveView
+        from unittest.mock import MagicMock
+        context=MagicMock()
+        with ActiveView(context,{'title':'Fixture','text':'Evidence'}) as view:
+            for _ in range(8):
+                with self.assertRaises(InteractionDenied):
+                    view.run({'action':'evaluate','script':'blocked'})
+            with self.assertRaisesRegex(InteractionDenied,'SESSION_DENIED'):
+                view.run({'action':'read-note'})
+            view.page.evaluate.assert_not_called()
+            view.page.locator.assert_not_called()
+
+    def test_invalid_document_closes_allocated_page(self):
+        from active_view import ActiveView
+        from unittest.mock import MagicMock
+        context=MagicMock()
+        with self.assertRaises(InteractionDenied):
+            ActiveView(context,{'title':'x'*257,'text':'Evidence'})
+        context.new_page.return_value.close.assert_called_once()
+        context.new_page.return_value.set_content.assert_not_called()
