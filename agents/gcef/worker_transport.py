@@ -7,6 +7,7 @@ import re
 import signal
 import ssl
 import socket
+import sys
 import threading
 from socketserver import ThreadingMixIn
 from http.server import BaseHTTPRequestHandler, HTTPServer
@@ -35,6 +36,23 @@ def dispatch(ledger,path,payload,auth):
         ledger.finish(worker,token,payload['id'],payload['lease'],payload['result']); return {'ok':True}
     raise TransportDenied('REQUEST_DENIED')
 
+def report_server_error():
+    # Report only a trusted module label and numeric traceback location.
+    # Never include exception text, request contents, peer address or locals.
+    trace=sys.exc_info()[2]
+    line=0
+    module='external'
+    while trace is not None:
+        name=trace.tb_frame.f_globals.get('__name__')
+        if name in ('worker_transport', '__main__', 'execution', 'gcef'):
+            module='worker_transport' if name=='__main__' else name
+            line=trace.tb_lineno
+        elif line==0:
+            line=trace.tb_lineno
+        trace=trace.tb_next
+    print(f'GCEF_UNEXPECTED_SERVER_ERROR module={module} line={line}',file=sys.stderr,flush=True)
+
+
 class Handler(BaseHTTPRequestHandler):
     def setup(self):
         self.request.settimeout(5); super().setup()
@@ -53,6 +71,7 @@ class Handler(BaseHTTPRequestHandler):
         except (Denied,TransportDenied,ValueError,TypeError,RecursionError,OSError):
             self.send_json(403,{'error':'REQUEST_DENIED'}); return
         except Exception:
+            report_server_error()
             self.send_json(503,{'error':'SERVICE_UNAVAILABLE'}); return
         self.send_json(200,result)
     def send_error(self,code,message=None,explain=None): self.send_json(code,{'error':'REQUEST_DENIED'})
@@ -82,17 +101,21 @@ class TLSServer(ThreadingMixIn,HTTPServer):
             tls=self.context.wrap_socket(sock,server_side=True,do_handshake_on_connect=False)
             timer=threading.Timer(CONNECTION_DEADLINE,terminate_connection,args=(tls,))
             timer.daemon=True; timer.start()
-            tls.do_handshake()
-            self.finish_request(tls,address)
-        except (OSError,ValueError): pass
+            try:
+                tls.do_handshake()
+            except (OSError,ValueError):
+                return  # Expected peer or TLS negotiation failure.
+            try:
+                self.finish_request(tls,address)
+            except (ConnectionError,TimeoutError,ssl.SSLError):
+                return  # Expected connection failure.
         except Exception: self.handle_error(sock,address)
         finally:
             if timer is not None: timer.cancel(); timer.join()
             self.shutdown_request(tls if tls is not None else sock)
             self.slots.release()
     def handle_error(self,request,client_address):
-        # Never emit an exception containing request data or credentials.
-        pass
+        report_server_error()
 
 def call(origin,path,payload,token,*,context=None):
     p=urlsplit(parse_endpoint(origin)); context=context or tls_context()

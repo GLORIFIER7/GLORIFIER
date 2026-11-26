@@ -16,6 +16,8 @@ from urllib.parse import urlsplit, urljoin
 
 MAX_BODY = 1_048_576
 MAX_TEXT = 32_768
+# Shared encoded receipt/result ceiling for the ledger and offline reader.
+MAX_RECEIPT_BYTES = 1_048_576
 TIMEOUT = 8
 HOST_RE = re.compile(r'[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\Z')
 

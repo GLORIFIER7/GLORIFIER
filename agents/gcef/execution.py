@@ -9,13 +9,13 @@ import sqlite3
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from gcef import inspect_page, validate_target, public_host, PolicyError
+from gcef import inspect_page, validate_target, public_host, PolicyError, MAX_RECEIPT_BYTES
 
 LEASE_SECONDS=45
 TTL_SECONDS=120
 # Worst-case ASCII JSON: 12 bytes per Unicode code point in title/text,
 # 2 bytes per ASCII URL character, plus bounded metadata and envelope.
-MAX_RESULT=1_048_576
+MAX_RESULT=MAX_RECEIPT_BYTES
 ID_RE=re.compile(r'[0-9a-f]{32}\Z')
 TOKEN_RE=re.compile(r'[A-Za-z0-9_-]{43}\Z')
 
