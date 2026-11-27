@@ -1182,7 +1182,9 @@ export default {
     }
 
     if (incomingUrl.pathname === A2A_OAUTH_METADATA_PATH) {
-      return workerNativeReadOnlyJson(request, () => buildA2AOAuthMetadata(incomingUrl.origin));
+      // Advertise the same canonical issuer the backend stamps into token `iss`.
+      const canonicalOrigin = configured(env.GLORIFIER_PUBLIC_URL) || incomingUrl.origin;
+      return workerNativeReadOnlyJson(request, () => buildA2AOAuthMetadata(canonicalOrigin));
     }
 
     if (stripTrailingSlashes(incomingUrl.pathname) === GITHUB_MCP_PATH) {
