@@ -262,12 +262,15 @@ const a2aMachineAuthDependencies: A2AMachineAuthDependencies = {
   requireOwner,
 };
 const resolveA2AMachineIdentity = createA2AMachineIdentityResolver(a2aMachineAuthDependencies);
+// Machine-auth limiters key only on the socket peer; caller-supplied forwarding headers are ignored.
+const a2aMachineRateLimitKeyGenerator = (req: Request): string =>
+  ipKeyGenerator(req.socket.remoteAddress || 'unknown');
 const a2aMachineRegistrationRateLimit = rateLimit({
   windowMs: 60 * 60_000,
   limit: 20,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
-  keyGenerator: rateLimitKeyGenerator,
+  keyGenerator: a2aMachineRateLimitKeyGenerator,
   handler: rateLimitProblem('Too many A2A client registrations from this client.'),
 });
 const a2aMachineTokenRateLimit = rateLimit({
@@ -275,7 +278,7 @@ const a2aMachineTokenRateLimit = rateLimit({
   limit: 60,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
-  keyGenerator: rateLimitKeyGenerator,
+  keyGenerator: a2aMachineRateLimitKeyGenerator,
   handler: rateLimitProblem('Too many A2A token requests from this client.'),
 });
 app.use('/api/a2a/oauth/register', a2aMachineRegistrationRateLimit);
