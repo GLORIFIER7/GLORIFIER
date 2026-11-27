@@ -68,13 +68,15 @@ export function createGithubEvidence({api,resolveManifest}={}){
   const branch='digital-me/repair-'+digest(base+missionId+hash);
   const match=p=>p?.number===pr&&p.state==='open'&&p.draft===true&&p.user?.login===BOT&&p.base?.ref==='main'&&p.base?.sha===base&&p.base?.repo?.full_name===REPO&&p.head?.sha===head&&p.head?.ref===branch&&p.head?.repo?.full_name===REPO;
   requireThat(match(await api(ROOT+'/pulls/'+pr)));
-  const runs=await api(ROOT+'/actions/runs?event=pull_request&head_sha='+head+'&per_page=100');
+  // Pull-request workflows run on the synthetic merge commit, so the run is located by
+  // branch and bound to this PR and its head SHA via the run's pull_requests metadata.
+  const runs=await api(ROOT+'/actions/runs?event=pull_request&branch='+branch+'&per_page=100');
   if (!runs || !Array.isArray(runs.workflow_runs)) throw denied();
   requireThat(Number.isSafeInteger(runs.total_count)&&runs.total_count===runs.workflow_runs.length&&runs.total_count<100);
-  const relevant=runs.workflow_runs.filter(r=>r&&r.head_sha===head&&r.event==='pull_request'&&r.path==='.github/workflows/ci.yml'&&r.pull_requests?.some(p=>p.number===pr)).sort((a,b)=>b.id-a.id);
+  const relevant=runs.workflow_runs.filter(r=>r&&sha(r.head_sha)&&r.event==='pull_request'&&r.path==='.github/workflows/ci.yml'&&r.pull_requests?.some(p=>p.number===pr&&p.head?.sha===head)).sort((a,b)=>b.id-a.id);
   const run=relevant[0];
   if (!run || !positive(run.id) || run.conclusion==='startup_failure' || run.conclusion==='cancelled') throw denied();
-  const j=await api(ROOT+'/actions/runs/'+run.id+'/jobs?per_page=100');requireThat(Array.isArray(j?.jobs)&&j.jobs.length>0&&j.total_count===j.jobs.length&&j.total_count<100&&j.jobs.every(x=>positive(x.id)&&x.run_id===run.id&&x.head_sha===head));
+  const j=await api(ROOT+'/actions/runs/'+run.id+'/jobs?per_page=100');requireThat(Array.isArray(j?.jobs)&&j.jobs.length>0&&j.total_count===j.jobs.length&&j.total_count<100&&j.jobs.every(x=>positive(x.id)&&x.run_id===run.id&&x.head_sha===run.head_sha));
   requireThat(match(await api(ROOT+'/pulls/'+pr))&&(await readMain()).sha===base);
   return {missionId,base,digest:hash,head,pr,author:BOT,verified:true,reason:'valid',draft:true,ciJobsCreated:true,ciRunId:run.id};
  }
