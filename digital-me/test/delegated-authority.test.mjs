@@ -1,0 +1,18 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { evaluateDelegatedOperation } from '../src/delegated-authority.mjs';
+const NOW = Date.parse('2026-11-27T06:00:00Z');
+const scope = { principal:'digital-me', tenant:'GLORIFIER7', resource:'github:GLORIFIER7/GLORIFIER', adapter:'github', operation:'repository.audit' };
+const grant = { ...scope, grantId:'grant-audit-001', risk:'low', expiresAt:'2026-11-27T07:00:00Z', revoked:false, evidence:'VERIFIED', zeroCost:true };
+const candidate = { ...scope, risk:'low', maximumCostMicrousd:0 };
+const policy = (g=grant,c=candidate) => evaluateDelegatedOperation(c,g,NOW);
+test('exact current scoped grant yields candidate eligibility only',()=>{const r=policy();assert.equal(r.decision,'eligible');assert.equal(r.executionAuthorized,false);assert.equal(r.publicationAuthorized,false);assert.equal(r.grantId,grant.grantId);});
+test('absent grant denies',()=>assert.equal(evaluateDelegatedOperation(candidate,null,NOW).decision,'deny'));
+test('unknown or mismatched scope denies',()=>{for(const k of Object.keys(scope)) assert.equal(policy(grant,{...candidate,[k]:'other'}).decision,'deny',k);});
+test('revoked, expired, malformed and unverified grants deny',()=>{for(const g of [{revoked:true},{expiresAt:'2026-11-27T06:00:00Z'},{expiresAt:'tomorrow'},{evidence:'PARTIALLY VERIFIED'},{zeroCost:false}])assert.equal(policy({...grant,...g}).decision,'deny');});
+test('unknown or nonzero cost denies',()=>{for(const n of [1,-1,undefined,NaN,'0'])assert.equal(policy(grant,{...candidate,maximumCostMicrousd:n}).decision,'deny');});
+test('non-low risk requires independent authorization, never automatic execution',()=>{for(const risk of ['medium','high','critical']){const r=policy({...grant,risk},{...candidate,risk});assert.equal(r.decision,'require_approval');assert.equal(r.executionAuthorized,false);}});
+test('risk mismatch and unknown risk deny',()=>{assert.equal(policy(grant,{...candidate,risk:'critical'}).decision,'deny');assert.equal(policy({...grant,risk:'unknown'},{...candidate,risk:'unknown'}).decision,'deny');});
+test('reject inherited fields, wildcards, injected extra fields and unsupported operations',()=>{assert.equal(policy(grant,Object.create(candidate)).decision,'deny');assert.equal(policy({...grant,resource:'*'},{...candidate,resource:'*'}).decision,'deny');assert.equal(policy({...grant,token:'fake-secret'}).decision,'deny');assert.equal(policy({...grant,operation:'permission.escalate'},{...candidate,operation:'permission.escalate'}).decision,'deny');});
+test('missing or invalid trusted time denies',()=>{for(const now of [undefined,NaN,Infinity,'2026-11-27'])assert.equal(evaluateDelegatedOperation(candidate,grant,now).decision,'deny');});
+test('sensitive operation cannot be marked low risk',()=>{for(const operation of ['repository.publish','deployment.promote','credential.rotate','finance.transfer'])assert.equal(policy({...grant,operation},{...candidate,operation}).decision,'deny');});
