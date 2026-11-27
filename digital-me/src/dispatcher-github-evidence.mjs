@@ -44,7 +44,7 @@ export function createGithubEvidence({api,resolveManifest}={}){
   const match=p=>p?.number===pr&&p.state==='open'&&p.draft===true&&p.user?.login===BOT&&p.base?.ref==='main'&&p.base?.sha===base&&p.base?.repo?.full_name===REPO&&p.head?.sha===head&&p.head?.ref===branch&&p.head?.repo?.full_name===REPO;
   requireThat(match(await api(ROOT+'/pulls/'+pr)));
   const runs=await api(ROOT+'/actions/runs?event=pull_request&head_sha='+head+'&per_page=100');requireThat(Array.isArray(runs?.workflow_runs)&&Number.isSafeInteger(runs.total_count)&&runs.total_count===runs.workflow_runs.length&&runs.total_count<100);
-  const relevant=runs.workflow_runs.filter(r=>r.head_sha===head&&r.event==='pull_request'&&r.path==='.github/workflows/ci.yml'&&r.pull_requests?.some(p=>p.number===pr)).sort((a,b)=>b.id-a.id);
+  const relevant=runs.workflow_runs.filter(r=>r.head_sha===head&&r.event==='pull_request'&&(r.path==='.github/workflows/ci.yml'||r.path?.startsWith('.github/workflows/ci.yml@'))&&r.pull_requests?.some(p=>p.number===pr)).sort((a,b)=>b.id-a.id);
   const run=relevant[0];requireThat(positive(run?.id)&&run.conclusion!=='startup_failure'&&run.conclusion!=='cancelled');
   const j=await api(ROOT+'/actions/runs/'+run.id+'/jobs?per_page=100');requireThat(Array.isArray(j?.jobs)&&j.jobs.length>0&&j.total_count===j.jobs.length&&j.total_count<100&&j.jobs.every(x=>positive(x.id)&&x.run_id===run.id&&x.head_sha===head));
   requireThat(match(await api(ROOT+'/pulls/'+pr))&&(await readMain()).sha===base);
@@ -52,3 +52,4 @@ export function createGithubEvidence({api,resolveManifest}={}){
  }
  return Object.freeze({readMain,readPublication});
 }
+
