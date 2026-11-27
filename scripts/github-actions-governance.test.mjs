@@ -128,6 +128,18 @@ test('GitHub Actions governance tests are required by GLORIFIER CI', () => {
   assert.match(ci, /node --test scripts\/github-actions-governance\.test\.mjs/);
 });
 
+test('A2A machine authentication tests are mandatory after the Express endpoint tests', () => {
+  const build = sliceBetweenMarkers(ci, '\n  build:\n', '\n  agent-state-postgres-integration:\n');
+  const steps = build.split(/\n {6}- /);
+  const expressIndex = steps.findIndex((step) => step.startsWith('name: A2A 1.0 Express endpoint tests\n'));
+  assert.ok(expressIndex >= 0, 'the Express endpoint test step must exist');
+  assert.equal(
+    steps[expressIndex + 1]?.trimEnd(),
+    'name: A2A machine authentication regression tests\n        run: npm run test:a2a-machine-auth',
+    'the next CI step must run the machine authentication suite without any overrides',
+  );
+});
+
 
 test('CodeQL PR checkout uses the native test-merge commit without retaining credentials', () => {
   const checkout = codeql.split('      - name: Checkout\n')[1]?.split('      - name: Initialize CodeQL')[0] ?? '';
