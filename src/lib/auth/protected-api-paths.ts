@@ -39,6 +39,8 @@ export const isProtectedApiReadPath = (pathname: string): boolean => {
 const LINUX_HOST_AGENT_POST_PATH =
   /^\/(?:api\/)?linux\/agent\/linux-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/(?:heartbeat|tasks\/claim|tasks\/linux-task-[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\/result)$/i;
 
+const A2A_MACHINE_AUTH_POST_PATH = /^\/(?:api\/)?a2a\/oauth\/(?:register|token)$/;
+
 /**
  * Public API authentication bypass policy. Only preflight requests and
  * unprotected read-only paths bypass identity verification; all mutations
@@ -47,6 +49,8 @@ const LINUX_HOST_AGENT_POST_PATH =
 export const shouldBypassApiAuthentication = (method: string, pathname: string): boolean => {
   if (method.toUpperCase() === 'OPTIONS') return true;
   if (method.toUpperCase() === 'POST' && LINUX_HOST_AGENT_POST_PATH.test(pathname)) return true;
+  // Self-service A2A machine registration and token issuance authenticate the client themselves.
+  if (method.toUpperCase() === 'POST' && A2A_MACHINE_AUTH_POST_PATH.test(pathname)) return true;
   if (method.toUpperCase() !== 'GET' && method.toUpperCase() !== 'HEAD') return false;
   return !isProtectedApiReadPath(pathname);
 };

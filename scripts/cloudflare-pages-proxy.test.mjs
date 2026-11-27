@@ -15,6 +15,7 @@ test('forwards API, auth, MCP and Agent Card requests through the private Worker
     '/auth/callback',
     '/mcp',
     '/.well-known/agent-card.json',
+    '/.well-known/oauth-authorization-server',
   ];
   for (const path of paths) {
     let forwarded;
@@ -155,6 +156,7 @@ test('Pages Functions are invoked only for the explicit backend route allowlist'
       '/auth/*',
       '/mcp',
       '/.well-known/agent-card.json',
+      '/.well-known/oauth-authorization-server',
     ],
     exclude: [],
   });

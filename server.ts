@@ -86,6 +86,7 @@ import { getAgentMinerSnapshot, runAgentMinerCycle, setAgentMinerRunning, setCom
 import { initializeAgentMinerState } from './src/lib/agent-miner-state';
 import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, getA2ATaskForProtocol, getA2ATaskForRequesterProtocol, getA2ATaskForIdempotencyKeyForProtocol, createA2ATaskForProtocol, listA2ATasks, listA2ATaskPageForProtocol, cancelA2ATaskForRequesterProtocol, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';
 import { createA2AExpressRouter, configureA2AJsonRpcBodyParsing } from './src/lib/a2a-v1-express';
+import { createA2AMachineAuthRouter, createA2AMachineIdentityResolver, createPostgresA2AMachineClientStore, type A2AMachineAuthDependencies } from './src/lib/a2a-machine-auth';
 import { isAuthorizedA2AExecution } from './src/lib/a2a-v1';
 import { canonicalActionHash, buildEvidenceRecord, getEconomicIntegrityPolicy, listApiAssets, registerApiAsset, problemDetails } from './src/lib/governance/geas-architecture-controls';
 import { startGlorifierDaemon, getGlorifierDaemonSnapshot, runGlorifierDaemonCycle, stopGlorifierDaemon } from './src/lib/glorifier-daemon';
@@ -253,10 +254,46 @@ app.use((req: Request, res: Response, next) => {
 // This keeps authentication and authorization separate while preventing
 // unauthenticated writes into orchestration, integrations, finance, evidence,
 // synchronization, or AI execution.
-app.use('/api', (req: Request, res: Response, next) => {
+const a2aMachineClientStore = createPostgresA2AMachineClientStore(getPostgresPool);
+const a2aMachineAuthDependencies: A2AMachineAuthDependencies = {
+  getStore: () => (process.env.DATABASE_URL ? a2aMachineClientStore : null),
+  getSigningSecret: () => String(process.env.GLORIFIER_A2A_SIGNING_SECRET || ''),
+  getPublicBaseUrl: () => String(process.env.GLORIFIER_PUBLIC_URL || ''),
+  requireOwner,
+};
+const resolveA2AMachineIdentity = createA2AMachineIdentityResolver(a2aMachineAuthDependencies);
+const a2aMachineRegistrationRateLimit = rateLimit({
+  windowMs: 60 * 60_000,
+  limit: 20,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  keyGenerator: rateLimitKeyGenerator,
+  handler: rateLimitProblem('Too many A2A client registrations from this client.'),
+});
+const a2aMachineTokenRateLimit = rateLimit({
+  windowMs: 60_000,
+  limit: 60,
+  standardHeaders: 'draft-8',
+  legacyHeaders: false,
+  keyGenerator: rateLimitKeyGenerator,
+  handler: rateLimitProblem('Too many A2A token requests from this client.'),
+});
+app.use('/api/a2a/oauth/register', a2aMachineRegistrationRateLimit);
+app.use('/api/a2a/oauth/token', a2aMachineTokenRateLimit);
+
+app.use('/api', async (req: Request, res: Response, next) => {
   if (shouldBypassApiAuthentication(req.method, req.path || '')) return next();
+  // Machine tokens are accepted only on the A2A JSON-RPC endpoint.
+  if (req.method === 'POST' && (req.path || '').replace(/\/+$/, '') === '/a2a/v1') {
+    const machineUid = await resolveA2AMachineIdentity(req.get('authorization'));
+    if (machineUid) {
+      (req as AuthenticatedRequest).auth = { uid: machineUid } as AuthenticatedRequest['auth'];
+      return next();
+    }
+  }
   return requireAuthentication(req, res, next);
 });
+app.use(createA2AMachineAuthRouter(a2aMachineAuthDependencies));
 
 // GEAS architecture-control surfaces: economic integrity, evidence, canonical action identity, and API inventory.
 app.get('/api/governance/geas/financial-integrity', geasRateLimit, requireOwnerOrInternalService, (_req: Request, res: Response) => {
