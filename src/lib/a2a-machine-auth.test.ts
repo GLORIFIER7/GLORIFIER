@@ -59,28 +59,29 @@ test('an agent self-registers, obtains a token and is resolved to a requester id
     assert.equal(metadata.registration_endpoint, `${ORIGIN}/api/a2a/oauth/register`);
     assert.deepEqual(metadata.grant_types_supported, ['client_credentials']);
 
-    const registered = await register(base);
-    assert.equal(registered.status, 201);
-    assert.equal(registered.headers.get('cache-control'), 'no-store');
-    const client = await registered.json();
-    assert.match(client.client_id, /^a2a-client-/);
-    assert.match(client.client_secret, /^a2as_/);
-    assert.equal(client.client_secret_expires_at, 0);
-    assert.equal(client.scope, 'a2a:tasks');
-
-    for (const request of [
-      () => tokenRequest(base, { grant_type: 'client_credentials' }, { Authorization: basic(client.client_id, client.client_secret) }),
-      () => tokenRequest(base, { grant_type: 'client_credentials', scope: 'a2a:tasks', client_id: client.client_id, client_secret: client.client_secret }),
-    ]) {
-      const response = await request();
+    for (const method of ['client_secret_basic', 'client_secret_post']) {
+      const registered = await register(base, { token_endpoint_auth_method: method });
+      assert.equal(registered.status, 201);
+      assert.equal(registered.headers.get('cache-control'), 'no-store');
+      const client = await registered.json();
+      assert.match(client.client_id, /^a2a-client-/);
+      assert.match(client.client_secret, /^a2as_/);
+      assert.ok(client.client_secret_expires_at > client.client_id_issued_at);
+      assert.equal(client.scope, 'a2a:tasks');
+      const viaBasic = () => tokenRequest(base, { grant_type: 'client_credentials' }, { Authorization: basic(client.client_id, client.client_secret) });
+      const viaPost = () => tokenRequest(base, { grant_type: 'client_credentials', scope: 'a2a:tasks', client_id: client.client_id, client_secret: client.client_secret });
+      const correct = method === 'client_secret_basic' ? viaBasic : viaPost;
+      const incorrect = method === 'client_secret_basic' ? viaPost : viaBasic;
+      assert.equal((await incorrect()).status, 401);
+      const response = await correct();
       assert.equal(response.status, 200);
       const token = await response.json();
       assert.equal(token.token_type, 'Bearer');
       assert.equal(token.expires_in, A2A_MACHINE_TOKEN_TTL_SECONDS);
       assert.equal(await resolve(`Bearer ${token.access_token}`), `a2a-client:${client.client_id}`);
-      assert.equal(await resolve(`bearer ${token.access_token}`), `a2a-client:${client.client_id}`, 'auth scheme is case-insensitive');
+      assert.equal(await resolve(`bearer ${token.access_token}`), `a2a-client:${client.client_id}`);
       advance(A2A_MACHINE_TOKEN_TTL_SECONDS * 1000);
-      assert.equal(await resolve(`Bearer ${token.access_token}`), null, 'expired tokens are rejected');
+      assert.equal(await resolve(`Bearer ${token.access_token}`), null);
     }
   });
 });
