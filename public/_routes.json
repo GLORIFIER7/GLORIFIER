@@ -6,7 +6,8 @@
     "/auth",
     "/auth/*",
     "/mcp",
-    "/.well-known/agent-card.json"
+    "/.well-known/agent-card.json",
+    "/.well-known/oauth-authorization-server"
   ],
   "exclude": []
 }
