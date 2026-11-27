@@ -96,3 +96,35 @@ test('denies drift from exact mission authority', async () => {
     assert.equal(await fixture({ ...grant, ...patch }).getAuthorization(request), null, JSON.stringify(patch));
   }
 });
+
+test('PostgreSQL grant reader has lookup-only access and sees revocation immediately', {
+  skip: !process.env.DISPATCHER_TEST_DATABASE_URL,
+}, async () => {
+  const { Client } = await import('pg');
+  const db = new Client({ connectionString: process.env.DISPATCHER_TEST_DATABASE_URL });
+  await db.connect();
+  try {
+    await db.query('BEGIN');
+    await db.query(`INSERT INTO public.glorifier_autopilot_missions
+      (id, requester, idempotency_key, status, payload, created_at, updated_at)
+      VALUES ($1, 'github:32674233', $1, 'blocked', '{}', now(), now())`, [request.missionId]);
+    await db.query(`INSERT INTO public.digital_me_dispatcher_grants
+      (mission_id, base_sha, envelope, expires_at) VALUES ($1, $2, $3, $4)`,
+    [request.missionId, request.base, grant, grant.expiresAt]);
+    await db.query('SET LOCAL ROLE glorifier_dispatcher_grant_reader');
+    const getAuthorization = createDispatcherAuthorization(db);
+    assert.equal((await getAuthorization(request))?.grantId, grant.delegationId);
+    assert.equal(await getAuthorization({ ...request, base: 'c'.repeat(40) }), null);
+    const { rows: [privileges] } = await db.query(`SELECT
+      has_table_privilege(current_user, 'public.digital_me_dispatcher_grants', 'SELECT') AS can_read,
+      has_table_privilege(current_user, 'public.digital_me_dispatcher_grants', 'UPDATE') AS can_update`);
+    assert.deepEqual(privileges, { can_read: false, can_update: false });
+    await db.query('RESET ROLE');
+    await db.query('UPDATE public.digital_me_dispatcher_grants SET revoked_at = now() WHERE mission_id = $1', [request.missionId]);
+    await db.query('SET LOCAL ROLE glorifier_dispatcher_grant_reader');
+    assert.equal(await getAuthorization(request), null);
+    await db.query('ROLLBACK');
+  } finally {
+    await db.end();
+  }
+});

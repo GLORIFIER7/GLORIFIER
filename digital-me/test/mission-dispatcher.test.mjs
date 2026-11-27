@@ -28,10 +28,63 @@ test('lease expiry during candidate work prevents publication',async()=>{const f
 test('concurrent workers cannot both publish',async()=>{const f=fixture();await Promise.all([dispatchMission(id,f.deps),dispatchMission(id,{...f.deps,workerId:'dispatcher-run-2'})]);assert.equal(f.writes(),1);});
 test('cancelled or generic queued missions are not claimable',async()=>{const f=fixture();f.row().status='queued';assert.equal((await dispatchMission(id,f.deps)).status,'NOT_ELIGIBLE');assert.equal(f.writes(),0);});
 
-test('scheduled tick selects only the scoped ledger partition and bounded eligible work',async()=>{const {dispatchTick}=await import('../src/mission-dispatcher.mjs');const f=fixture();f.deps.store.list=async(requester,limit,all)=>{assert.equal(requester,'github:32674233');assert.equal(limit,100);assert.equal(all,false);return [{...f.row(),requester:'other'},f.row(),f.row()];};const r=await dispatchTick({...f.deps,enabled:true});assert.equal(r.status,'TICK_COMPLETE');assert.equal(r.results.length,1);assert.equal(r.results[0].status,'SIGNED_DRAFT_VERIFIED');assert.equal(f.writes(),1);});
-test('scheduled tick is disabled without explicit activation',async()=>{const {dispatchTick}=await import('../src/mission-dispatcher.mjs');const f=fixture();f.deps.store.list=async()=>{throw Error('must not access store');};assert.equal((await dispatchTick({...f.deps,enabled:false})).status,'DISABLED');assert.equal(f.writes(),0);});
-test('scheduled tick rejects truncated/oversized evidence or wrong scope',async()=>{const {dispatchTick}=await import('../src/mission-dispatcher.mjs');const f=fixture();f.deps.store.list=async()=>Array(101).fill(f.row());assert.equal((await dispatchTick({...f.deps,enabled:true})).status,'INVENTORY_INCOMPLETE');assert.equal(f.writes(),0);});
+test('scheduled tick selects only the scoped ledger partition and bounded eligible work',async()=>{const {dispatchTick}=await import('../src/mission-dispatcher.mjs');const f=fixture();f.deps.store.listCodingDispatchPage=async(requester,limit,all)=>{assert.equal(requester,'github:32674233');assert.equal(limit,100);assert.equal(all,null);return [{...f.row(),requester:'other'},f.row(),f.row()];};const r=await dispatchTick({...f.deps,enabled:true});assert.equal(r.status,'TICK_COMPLETE');assert.equal(r.results.length,1);assert.equal(r.results[0].status,'SIGNED_DRAFT_VERIFIED');assert.equal(f.writes(),1);});
+test('scheduled tick is disabled without explicit activation',async()=>{const {dispatchTick}=await import('../src/mission-dispatcher.mjs');const f=fixture();f.deps.store.listCodingDispatchPage=async()=>{throw Error('must not access store');};assert.equal((await dispatchTick({...f.deps,enabled:false})).status,'DISABLED');assert.equal(f.writes(),0);});
+test('scheduled tick rejects truncated/oversized evidence or wrong scope',async()=>{const {dispatchTick}=await import('../src/mission-dispatcher.mjs');const f=fixture();f.deps.store.listCodingDispatchPage=async()=>Array(101).fill(f.row());assert.equal((await dispatchTick({...f.deps,enabled:true})).status,'INVENTORY_INCOMPLETE');assert.equal(f.writes(),0);});
 test('wrong bot cannot satisfy signature readback',async()=>{const f=fixture();f.published.author='other-bot';assert.equal((await dispatchMission(id,f.deps)).status,'RECONCILIATION_REQUIRED');});
 test('missing CI startup cannot be treated as signed-draft acceptance',async()=>{const f=fixture();f.published.ciJobsCreated=false;assert.equal((await dispatchMission(id,f.deps)).status,'RECONCILIATION_REQUIRED');});
 test('persisted publishing intent after crash is never auto-replayed',async()=>{const f=fixture();f.row().status='executing';f.row().dispatcher={phase:'publishing',attempts:1};assert.equal((await dispatchMission(id,f.deps)).status,'NOT_ELIGIBLE');assert.equal(f.writes(),0);});
 test('preparation exception after lease expiry quarantines rather than requeues',async()=>{const f=fixture();f.deps.prepare=async()=>{f.advance(301_000);throw Error('expired');};assert.equal((await dispatchMission(id,f.deps)).status,'RECONCILIATION_REQUIRED');assert.equal(f.row().status,'reconciliation-required');assert.equal(f.writes(),0);});
+
+test('a full page of ungranted missions does not starve the next page',async()=>{
+ const {dispatchTick}=await import('../src/mission-dispatcher.mjs');
+ const f=fixture();
+ const firstPage=Array.from({length:100},(_,index)=>({...f.row(),id:'unrelated-'+index}));
+ let pages=0;
+ f.deps.store.listCodingDispatchPage=async(_requester,_limit,cursor)=>{
+  pages++;
+  if(!cursor)return firstPage;
+  assert.equal(cursor.id,'unrelated-99');
+  return [f.row()];
+ };
+ const result=await dispatchTick({...f.deps,enabled:true});
+ assert.equal(pages,2);
+ assert.equal(result.results[0].status,'SIGNED_DRAFT_VERIFIED');
+});
+
+test('tick continues after explicit pre-claim denial',async()=>{
+ const {dispatchTick}=await import('../src/mission-dispatcher.mjs');
+ const f=fixture();
+ const deniedKey='github:'+repo+':comment:124';
+ const deniedId='mission-coding-'+createHash('sha256').update(deniedKey).digest('hex');
+ const denied={...f.row(),id:deniedId,idempotencyKey:deniedKey,
+   objective:JSON.stringify({...JSON.parse(f.row().objective),commentId:124})};
+ const get=f.deps.store.get;
+ f.deps.store.get=async id=>id===deniedId?denied:get(id);
+ f.deps.getAuthorization=async({missionId})=>missionId===deniedId?null:f.auth;
+ f.deps.store.listCodingDispatchPage=async()=>[denied,f.row()];
+ const result=await dispatchTick({...f.deps,enabled:true});
+ assert.deepEqual(result.results.map(result=>result.status),['DENIED','SIGNED_DRAFT_VERIFIED']);
+ assert.equal(f.writes(),1);
+});
+
+test('candidate verification renews the lease before publishing with the renewed fence',async t=>{
+ t.mock.timers.enable({apis:['setInterval']});
+ const f=fixture();
+ f.deps.verifyCandidate=async()=>{
+  for(let renewal=0;renewal<4;renewal++){
+   f.advance(100_000);
+   // Drain the promises scheduled by the fake timer before advancing again.
+   t.mock.timers.tick(100_000);
+   await new Promise(resolve=>setImmediate(resolve));
+  }
+  return true;
+ };
+ const publish=f.deps.publish;
+ f.deps.publish=async(candidate,fence)=>{
+  assert.equal(fence.version,f.row().version);
+  assert.equal(fence.leaseExpiresAt,new Date(start+700_000).toISOString());
+  return publish(candidate,fence);
+ };
+ assert.equal((await dispatchMission(id,f.deps)).status,'SIGNED_DRAFT_VERIFIED');
+});

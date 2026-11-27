@@ -2,7 +2,7 @@ import * as admissionSqlstate from './coding-repair-recipe.mjs';
 
 const recipes = new Map([[admissionSqlstate.recipeId, admissionSqlstate]]);
 
-export function prepareDispatcherCandidate(checkout, { missionId, base, recipeId }) {
+export async function prepareDispatcherCandidate(checkout, { missionId, base, recipeId }) {
   const recipe = recipes.get(recipeId);
   if (!recipe) throw Error('REPAIR_RECIPE_NOT_REVIEWED');
   if (typeof missionId !== 'string' || !/^mission-coding-[a-f0-9]{64}$/.test(missionId)) {
@@ -10,7 +10,7 @@ export function prepareDispatcherCandidate(checkout, { missionId, base, recipeId
   }
 
   const files = recipe.readRepairFiles(checkout, base);
-  const proof = recipe.verifyCandidate(checkout, base);
+  const proof = await recipe.verifyCandidate(checkout, base);
   if (proof.outcome === 'already-applied') return { status: 'already-applied' };
 
   const manifest = recipe.deriveRepair(files);
@@ -32,13 +32,13 @@ export function prepareDispatcherCandidate(checkout, { missionId, base, recipeId
 }
 
 /** Run in a second isolated checkout of trusted source, with mission inputs from GEAS. */
-export function verifyDispatcherCandidate(checkout, request, candidate) {
+export async function verifyDispatcherCandidate(checkout, request, candidate) {
   if (!candidate || candidate.status !== 'candidate-created' ||
       candidate.missionId !== request.missionId || candidate.base !== request.base ||
       candidate.recipeId !== request.recipeId || candidate.baselinePassed !== true ||
       candidate.redReproduced !== true || candidate.greenPassed !== true) return false;
   try {
-    const expected = prepareDispatcherCandidate(checkout, request);
+    const expected = await prepareDispatcherCandidate(checkout, request);
     return expected.status === 'candidate-created' && expected.digest === candidate.digest &&
       JSON.stringify(expected.changes) === JSON.stringify(candidate.changes);
   } catch {

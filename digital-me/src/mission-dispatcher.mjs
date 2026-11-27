@@ -37,11 +37,12 @@ export async function dispatchMission(id,deps={}){
   const {base,attempts}=info;
   let grant;
   try{grant=await getAuthorization({missionId:id,repository:REPO,base});
-    const m=await readMain();if(!grantValid(grant,id,base,now())||m?.sha!==base||m.verified!==true||m.reason!=='valid')return result('DENIED');
+    const m=await readMain();if(!grantValid(grant,id,base,now())||m?.sha!==base||m.verified!==true||m.reason!=='valid')return result('DENIED',{preClaim:true});
   }catch{return result('DENIED');}
   // Snapshot trusted authorization fields; a mutated adapter result cannot change the binding.
   const recipeId=grant.recipeId,grantId=grant.grantId;
-  const stamp=now(),expires=stamp+LEASE_MS;
+  const stamp=now();
+  let expires=stamp+LEASE_MS;
   if(!Number.isSafeInteger(stamp)||stamp<0)return result('DENIED');
   const claim={...row,status:'executing',leaseOwner:workerId,leaseExpiresAt:iso(expires),updatedAt:iso(stamp),dispatcher:{phase:'preparing',attempts:attempts+1,recipeId,grantId,base}};
   row=await store.save(claim,row.version);
@@ -57,19 +58,38 @@ export async function dispatchMission(id,deps={}){
   const quarantine=async()=>{try{await transition('quarantined','reconciliation-required');}catch{/* persistent publishing marker must be reconciled */}return result('RECONCILIATION_REQUIRED');};
   const stop=async(status)=>{try{if(!await own())return quarantine();return await transition('retryable','blocked')?result(status):result('RECONCILIATION_REQUIRED');}catch{return result('RECONCILIATION_REQUIRED');}};
   const authorized=async()=>{const g=await getAuthorization({missionId:id,repository:REPO,base});const m=await readMain();return grantValid(g,id,base,now())&&g.recipeId===recipeId&&g.grantId===grantId&&m?.sha===base&&m.verified===true&&m.reason==='valid';};
+  // Renew only during candidate work. Drain any renewal before changing phase
+  // or handing the publisher a fence with a fixed version and expiry.
+  let renewal, leaseLost=false;
+  const heartbeat=setInterval(()=>{
+    if(renewal||leaseLost)return;
+    renewal=(async()=>{
+      const at=now();
+      if(at>=expires||!await own()){leaseLost=true;return;}
+      const nextExpiry=at+LEASE_MS;
+      const saved=await store.save({...row,updatedAt:iso(at),leaseExpiresAt:iso(nextExpiry)},row.version,{owner:workerId,expiresAt:iso(expires)});
+      if(!saved){leaseLost=true;return;}
+      row=saved;
+      expires=nextExpiry;
+    })().catch(()=>{leaseLost=true;}).finally(()=>{renewal=null;});
+  },LEASE_MS/3);
+  heartbeat.unref();
+  const drain=async()=>{clearInterval(heartbeat);await renewal;return !leaseLost&&await own();};
   let candidate;
   try{
     candidate=await prepare({missionId:id,base,recipeId});
-    if(!await own())return quarantine();
+    if(candidate?.status==='already-applied'&&!await drain())return quarantine();
     if(candidate?.status==='already-applied')return await transition('already-applied','blocked')?result('ALREADY_APPLIED'):result('RECONCILIATION_REQUIRED');
-    if(!candidateValid(candidate,base,recipeId))return stop('CANDIDATE_REJECTED');
+    if(!candidateValid(candidate,base,recipeId))return await drain()?stop('CANDIDATE_REJECTED'):quarantine();
+    if(leaseLost||now()>=expires){await drain();return quarantine();}
     // Immutable binding passed separately; verifier must reproduce and inspect the exact manifest.
     candidate=Object.freeze({...candidate});
-    if(await verifyCandidate(candidate)!==true)return stop('CANDIDATE_REJECTED');
-    if(!await own())return quarantine();
+    const verified=await verifyCandidate(candidate);
+    if(!await drain())return quarantine();
+    if(!verified)return stop('CANDIDATE_REJECTED');
     if(!await authorized())return stop('DENIED');
     if(!await own())return quarantine();
-  }catch{return stop('CANDIDATE_REJECTED');}
+  }catch{try{if(await drain())return stop('CANDIDATE_REJECTED');}catch{/* uncertain lease */}return quarantine();}
   // Durable intent BEFORE external writes. Never automatically retry from this phase.
   try{
     if(!await transition('publishing','executing',{digest:candidate.digest}))return result('RECONCILIATION_REQUIRED');
@@ -89,17 +109,26 @@ export async function dispatchMission(id,deps={}){
 // store and adapters and enforce a free execution budget. No generic workers.
 export async function dispatchTick(deps={}){
   if(deps.enabled!==true)return result('DISABLED');
-  if(typeof deps.store?.list!=='function')return result('DENIED');
-  let rows;try{rows=await deps.store.list(REQUESTER,100,false);}catch{return result('INVENTORY_INCOMPLETE');}
-  // A full page might hide older eligible work; do not silently treat as exhaustive.
-  if(!Array.isArray(rows)||rows.length>=100)return result('INVENTORY_INCOMPLETE');
-  const results=[],seen=new Set();
-  for(const row of rows){
-    if(!admission(row,row?.id)||seen.has(row.id))continue;
-    seen.add(row.id);
-    try{results.push(await dispatchMission(row.id,deps));}catch{results.push(result('RECONCILIATION_REQUIRED'));}
-    // One publication attempt per tick; no flood of independent repairs.
-    break;
+  if(typeof deps.store?.listCodingDispatchPage!=='function')return result('DENIED');
+  const results=[];
+  let cursor=deps.cursor??null;
+  // The scheduler persists this cursor between ticks. One claim per tick.
+  for(let page=0;page<4;page++){
+    let rows;
+    try{rows=await deps.store.listCodingDispatchPage(REQUESTER,100,cursor);}catch{return result('INVENTORY_INCOMPLETE',{results,cursor});}
+    if(!Array.isArray(rows)||rows.length>100)return result('INVENTORY_INCOMPLETE',{results,cursor});
+    for(const row of rows){
+      if(!row||typeof row.createdAt!=='string'||typeof row.id!=='string')return result('INVENTORY_INCOMPLETE',{results,cursor});
+      cursor={createdAt:row.createdAt,id:row.id};
+      if(!admission(row,row.id))continue;
+      let outcome;
+      try{outcome=await dispatchMission(row.id,deps);}catch{outcome=result('RECONCILIATION_REQUIRED');}
+      results.push(outcome);
+      if(outcome.status!=='NOT_ELIGIBLE'&&!(outcome.status==='DENIED'&&outcome.preClaim===true)){
+        return result('TICK_COMPLETE',{results,cursor});
+      }
+    }
+    if(rows.length<100)return result('TICK_COMPLETE',{results,cursor:null});
   }
-  return result('TICK_COMPLETE',{results});
+  return result('TICK_COMPLETE',{results,cursor});
 }

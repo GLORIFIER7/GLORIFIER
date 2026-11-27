@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFile, execFileSync } from 'node:child_process';
 import { lstatSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -88,33 +88,37 @@ export function readRepairFiles(cwd, sourceSha) {
 }
 
 function runTests(cwd, paths) {
-  // The candidate runs in its own Actions job. Child processes also get only
-  // an explicit environment, without Actions tokens, DB credentials or Node hooks.
-  const result = spawnSync(process.execPath, ['--test', '--test-reporter=tap', ...paths], {
-    cwd, env: { CI: 'true' },
-    encoding: 'utf8', timeout: 90_000, maxBuffer: 1024 * 1024,
+  // Keep the event loop available for lease renewals and pass no credentials.
+  return new Promise((resolve, reject) => {
+    execFile(process.execPath, ['--test', '--test-reporter=tap', ...paths], {
+      cwd, env: { CI: 'true' }, encoding: 'utf8', timeout: 90_000, maxBuffer: 1024 * 1024,
+    }, (error, stdout) => {
+      if (error && (error.killed || error.signal || typeof error.code !== 'number')) {
+        reject(new Error('REPAIR_TEST_PROCESS_FAILED'));
+        return;
+      }
+      resolve({status: error?.code ?? 0, stdout});
+    });
   });
-  if (result.error || result.signal || result.status === null) throw Error('REPAIR_TEST_PROCESS_FAILED');
-  return result;
 }
 
-export function verifyCandidate(cwd, sourceSha) {
+export async function verifyCandidate(cwd, sourceSha) {
   const files = readRepairFiles(cwd, sourceSha);
-  if (runTests(cwd, focusedTests).status !== 0) throw Error('BASELINE_TESTS_FAILED');
+  if ((await runTests(cwd, focusedTests)).status !== 0) throw Error('BASELINE_TESTS_FAILED');
   if (repairStatus(files) === 'already-applied') return { outcome: 'already-applied' };
 
   const manifest = deriveRepair(files);
   const write = (index, bytes) => writeFileSync(join(cwd, recipePaths[index]), bytes);
   try {
     write(1, Buffer.from(manifest.changes[1].contents, 'base64'));
-    const red = runTests(cwd, [recipePaths[1]]);
+    const red = await runTests(cwd, [recipePaths[1]]);
     if (red.status !== 1 || !/^# fail 1$/m.test(red.stdout) ||
         !/not ok \d+ - admission failure diagnostics distinguish configuration/.test(red.stdout) ||
         !red.stdout.includes('ADMISSION_DB_NETWORK_FAILED') || !red.stdout.includes('ADMISSION_DB_WRITE_FAILED')) {
       throw Error('EXPECTED_REGRESSION_NOT_REPRODUCED');
     }
     write(0, Buffer.from(manifest.changes[0].contents, 'base64'));
-    if (runTests(cwd, focusedTests).status !== 0) throw Error('REPAIRED_TESTS_FAILED');
+    if ((await runTests(cwd, focusedTests)).status !== 0) throw Error('REPAIRED_TESTS_FAILED');
     git(cwd, ['diff', '--check', '--', ...recipePaths]);
     if (repairStatus(recipePaths.map(path => readFileSync(join(cwd, path)))) !== 'already-applied') {
       throw Error('CANDIDATE_BYTES_CHANGED');
