@@ -55,7 +55,7 @@ export interface A2AAgentCard {
         description: string;
       };
     };
-    oauth2: {
+    oauth2?: {
       oauth2SecurityScheme: {
         description: string;
         flows: { clientCredentials: { tokenUrl: string; scopes: Record<string, string> } };
@@ -173,7 +173,7 @@ export function buildA2AOAuthMetadata(publicBaseUrl: string) {
   };
 }
 
-export function buildA2AAgentCard(publicBaseUrl: string, agentVersion = '0.2.1'): A2AAgentCard {
+export function buildA2AAgentCard(publicBaseUrl: string, agentVersion = '0.2.1', advertiseMachineAuth = false): A2AAgentCard {
   const origin = validatedA2AOrigin(publicBaseUrl);
 
   return {
@@ -201,7 +201,7 @@ export function buildA2AAgentCard(publicBaseUrl: string, agentVersion = '0.2.1')
           description: 'A GLORIFIER authenticated identity token is required for task submission, continuation, retrieval, and listing.',
         },
       },
-      oauth2: {
+      ...(advertiseMachineAuth ? { oauth2: {
         oauth2SecurityScheme: {
           description: 'Agents can self-register (RFC 7591) at the metadata registration_endpoint and use the client credentials grant; no human setup is required. Machine tokens are limited to requester-scoped task intake, and tasks still await human-owner approval.',
           flows: {
@@ -212,9 +212,9 @@ export function buildA2AAgentCard(publicBaseUrl: string, agentVersion = '0.2.1')
           },
           oauth2MetadataUrl: new URL(A2A_OAUTH_METADATA_PATH, origin).toString(),
         },
-      },
+      } } : {}),
     },
-    securityRequirements: [{ schemes: { bearer: { list: [] } } }, { schemes: { oauth2: { list: [A2A_MACHINE_SCOPE] } } }],
+    securityRequirements: [{ schemes: { bearer: { list: [] } } }, ...(advertiseMachineAuth ? [{ schemes: { oauth2: { list: [A2A_MACHINE_SCOPE] } } }] : [])],
     defaultInputModes: ['text/plain', 'application/json'],
     defaultOutputModes: ['application/json'],
     skills: [{
