@@ -19,7 +19,7 @@ on:
         required: true
         type: string
       allowed_paths:
-        description: Exact comma-separated reviewed source/test or Digital Me documentation paths
+        description: Exact comma-separated reviewed source/test or specifically allowed backend, routing and documentation paths
         required: true
         type: string
       review_digest:
@@ -79,7 +79,9 @@ jobs:
           export const digest=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
           export const blob=b=>createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${b.length}\0`),b])).digest('hex');
           const verified=(c,s)=>c?.sha===s&&c.commit?.verification?.verified===true&&c.commit.verification.reason==='valid';
-          const safe=p=>p.length<=180&&p.split('/').every(x=>/^[A-Za-z0-9_-][A-Za-z0-9_.-]*$/.test(x))&&(/^(src|tests|digital-me\/(src|test))\/.+\.(mjs|js|jsx|ts|tsx|py)$/.test(p)||/^digital-me\/docs\/.+\.md$/.test(p));
+          // Explicit review scope extension; no general config, workflow or deployment permissions.
+          const EXACT_REVIEWED_PATHS=new Set(['server.ts','package.json','docs/architecture/interoperability-gap-register.md','functions/_shared/proxy.mjs','public/_routes.json','scripts/cloudflare-pages-proxy.test.mjs']);
+          const safe=p=>p.length<=180&&p.split('/').every(x=>/^[A-Za-z0-9_-][A-Za-z0-9_.-]*$/.test(x))&&(EXACT_REVIEWED_PATHS.has(p)||/^(src|tests|digital-me\/(src|test))\/.+\.(mjs|js|jsx|ts|tsx|py)$/.test(p)||/^digital-me\/docs\/.+\.md$/.test(p));
           export function config(e){
            const required={GITHUB_REPOSITORY:REPO,GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'workflow_dispatch',GITHUB_ACTOR_ID:'32674233',GITHUB_ACTOR:'GLORIFIER7',GITHUB_TRIGGERING_ACTOR:'GLORIFIER7',GITHUB_RUN_ATTEMPT:'1',CONFIRM:'true'};
            ok(Object.entries(required).every(([k,v])=>e[k]===v),'OWNER_DISPATCH_REQUIRED');
@@ -175,6 +177,7 @@ jobs:
           test('publishes signed bot draft with exact data and never merges or closes source',async()=>{const f=fixture();const m=await inspect(f.cfg,f.api);const r=await publish(f.cfg,m,f.api);assert.equal(r.pr,1234);assert.equal(r.head,signed);assert.ok(f.calls.filter(x=>x.method!=='GET').every(x=>[root+'/git/refs','/graphql',root+'/pulls'].includes(x.p)));});
           test('wrong signer prevents draft creation; duplicates prevent writes',async()=>{for(const o of [{wrongSigner:true},{duplicate:true}]){const f=fixture(o);await assert.rejects(publish(f.cfg,await inspect(f.cfg,f.api),f.api));assert.ok(!f.calls.some(x=>x.method==='POST'&&x.p===root+'/pulls'));if(o.duplicate)assert.ok(f.calls.every(x=>x.method==='GET'));}});
           test('manifest mutation fails before writes',async()=>{const f=fixture();const m=await inspect(f.cfg,f.api);m.files[0].contents='altered';await assert.rejects(publish(f.cfg,m,f.api));assert.ok(f.calls.every(x=>x.method==='GET'));});
+          test('allows reviewed A2A backend and routing paths without allowing unrelated privileged files',()=>{for(const p of ['server.ts','package.json','docs/architecture/interoperability-gap-register.md','functions/_shared/proxy.mjs','public/_routes.json','scripts/cloudflare-pages-proxy.test.mjs'])assert.deepEqual(config({...env,PATHS:p}).paths,[p]);for(const p of ['package-lock.json','wrangler.toml','.env','.github/workflows/ci.yml','scripts/deploy.mjs','public/other.json','functions/admin.ts','docs/architecture/other.md','server.ts/../x.ts'])assert.throws(()=>config({...env,PATHS:p}));});
           PUBLISHER_TEST
           node --test publisher.test.mjs
       - name: Read-only reviewed proposal validation
