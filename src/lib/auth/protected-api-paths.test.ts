@@ -151,3 +151,9 @@ void test('agent and federated A2A task writes preserve owner attribution and du
     'legacy A2A requester identity must be derived from authenticated context',
   );
 });
+
+test('only exact A2A machine registration and token POSTs bypass user authentication', () => {
+  for (const path of ['/a2a/oauth/register', '/a2a/oauth/token', '/api/a2a/oauth/token']) assert.equal(shouldBypassApiAuthentication('POST', path), true, path);
+  for (const path of ['/a2a/oauth/clients/a2a-client-x/revoke', '/a2a/oauth/token/x', '/a2a/oauth/registerx', '/a2a/v1']) assert.equal(shouldBypassApiAuthentication('POST', path), false, path);
+  assert.equal(shouldBypassApiAuthentication('DELETE', '/a2a/oauth/token'), false);
+});

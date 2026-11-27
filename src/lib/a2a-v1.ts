@@ -16,6 +16,10 @@ export function isAuthorizedA2AExecution(authenticatedOwner: boolean, approval: 
 }
 export const A2A_JSONRPC_PATH = '/api/a2a/v1' as const;
 export const A2A_AGENT_CARD_PATH = '/.well-known/agent-card.json' as const;
+export const A2A_OAUTH_METADATA_PATH = '/.well-known/oauth-authorization-server' as const;
+export const A2A_OAUTH_TOKEN_PATH = '/api/a2a/oauth/token' as const;
+export const A2A_OAUTH_REGISTRATION_PATH = '/api/a2a/oauth/register' as const;
+export const A2A_MACHINE_SCOPE = 'a2a:tasks' as const;
 export const A2A_MAX_MESSAGE_TEXT_CHARS = 20_000;
 
 export interface A2AAgentSkill {
@@ -49,6 +53,13 @@ export interface A2AAgentCard {
         scheme: 'Bearer';
         bearerFormat?: string;
         description: string;
+      };
+    };
+    oauth2: {
+      oauth2SecurityScheme: {
+        description: string;
+        flows: { clientCredentials: { tokenUrl: string; scopes: Record<string, string> } };
+        oauth2MetadataUrl: string;
       };
     };
   };
@@ -126,8 +137,8 @@ const isJsonValue = (value: unknown): boolean => {
 const hasOwn = (value: object, key: string): boolean =>
   Object.prototype.hasOwnProperty.call(value, key);
 
-export function buildA2AAgentCard(publicBaseUrl: string, agentVersion = '0.2.1'): A2AAgentCard {
-  let origin: string;
+/** Validate a public A2A origin (HTTPS, or HTTP on loopback) and return its normalized origin. */
+export function validatedA2AOrigin(publicBaseUrl: string): string {
   try {
     const parsed = new URL(publicBaseUrl);
     const localHttp = parsed.protocol === 'http:' &&
@@ -141,11 +152,29 @@ export function buildA2AAgentCard(publicBaseUrl: string, agentVersion = '0.2.1')
     if (parsed.pathname !== '/' || parsed.search || parsed.hash) {
       throw new Error('A2A public URL must be an origin without a path, query, or fragment.');
     }
-    origin = parsed.origin;
+    return parsed.origin;
   } catch (error) {
     if (error instanceof Error && /A2A public/.test(error.message)) throw error;
     throw new Error('A2A public origin is invalid.');
   }
+}
+
+/** RFC 8414 authorization server metadata for self-service A2A machine clients. */
+export function buildA2AOAuthMetadata(publicBaseUrl: string) {
+  const origin = validatedA2AOrigin(publicBaseUrl);
+  return {
+    issuer: origin,
+    token_endpoint: new URL(A2A_OAUTH_TOKEN_PATH, origin).toString(),
+    registration_endpoint: new URL(A2A_OAUTH_REGISTRATION_PATH, origin).toString(),
+    grant_types_supported: ['client_credentials'],
+    response_types_supported: [] as string[],
+    token_endpoint_auth_methods_supported: ['client_secret_basic', 'client_secret_post'],
+    scopes_supported: [A2A_MACHINE_SCOPE],
+  };
+}
+
+export function buildA2AAgentCard(publicBaseUrl: string, agentVersion = '0.2.1'): A2AAgentCard {
+  const origin = validatedA2AOrigin(publicBaseUrl);
 
   return {
     name: 'GLORIFIER Services',
@@ -172,8 +201,20 @@ export function buildA2AAgentCard(publicBaseUrl: string, agentVersion = '0.2.1')
           description: 'A GLORIFIER authenticated identity token is required for task submission, continuation, retrieval, and listing.',
         },
       },
+      oauth2: {
+        oauth2SecurityScheme: {
+          description: 'Agents can self-register (RFC 7591) at the metadata registration_endpoint and use the client credentials grant; no human setup is required. Machine tokens are limited to requester-scoped task intake, and tasks still await human-owner approval.',
+          flows: {
+            clientCredentials: {
+              tokenUrl: new URL(A2A_OAUTH_TOKEN_PATH, origin).toString(),
+              scopes: { [A2A_MACHINE_SCOPE]: 'Submit, read, list and cancel your own A2A tasks.' },
+            },
+          },
+          oauth2MetadataUrl: new URL(A2A_OAUTH_METADATA_PATH, origin).toString(),
+        },
+      },
     },
-    securityRequirements: [{ schemes: { bearer: { list: [] } } }],
+    securityRequirements: [{ schemes: { bearer: { list: [] } } }, { schemes: { oauth2: { list: [A2A_MACHINE_SCOPE] } } }],
     defaultInputModes: ['text/plain', 'application/json'],
     defaultOutputModes: ['application/json'],
     skills: [{
