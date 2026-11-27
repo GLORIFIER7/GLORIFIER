@@ -21,6 +21,7 @@ function setup(overrides: Partial<A2AMachineAuthDependencies> = {}) {
   let now = Date.UTC(2026, 10, 27, 0, 0, 0);
   const store = createMemoryA2AMachineClientStore();
   const deps: A2AMachineAuthDependencies = {
+    isEnabled: () => true,
     getStore: () => store,
     getSigningSecret: () => SECRET,
     getPublicBaseUrl: () => ORIGIN,
@@ -59,28 +60,29 @@ test('an agent self-registers, obtains a token and is resolved to a requester id
     assert.equal(metadata.registration_endpoint, `${ORIGIN}/api/a2a/oauth/register`);
     assert.deepEqual(metadata.grant_types_supported, ['client_credentials']);
 
-    const registered = await register(base);
-    assert.equal(registered.status, 201);
-    assert.equal(registered.headers.get('cache-control'), 'no-store');
-    const client = await registered.json();
-    assert.match(client.client_id, /^a2a-client-/);
-    assert.match(client.client_secret, /^a2as_/);
-    assert.equal(client.client_secret_expires_at, 0);
-    assert.equal(client.scope, 'a2a:tasks');
-
-    for (const request of [
-      () => tokenRequest(base, { grant_type: 'client_credentials' }, { Authorization: basic(client.client_id, client.client_secret) }),
-      () => tokenRequest(base, { grant_type: 'client_credentials', scope: 'a2a:tasks', client_id: client.client_id, client_secret: client.client_secret }),
-    ]) {
-      const response = await request();
+    for (const method of ['client_secret_basic', 'client_secret_post']) {
+      const registered = await register(base, { token_endpoint_auth_method: method });
+      assert.equal(registered.status, 201);
+      assert.equal(registered.headers.get('cache-control'), 'no-store');
+      const client = await registered.json();
+      assert.match(client.client_id, /^a2a-client-/);
+      assert.match(client.client_secret, /^a2as_/);
+      assert.ok(client.client_secret_expires_at > client.client_id_issued_at);
+      assert.equal(client.scope, 'a2a:tasks');
+      const viaBasic = () => tokenRequest(base, { grant_type: 'client_credentials' }, { Authorization: basic(client.client_id, client.client_secret) });
+      const viaPost = () => tokenRequest(base, { grant_type: 'client_credentials', scope: 'a2a:tasks', client_id: client.client_id, client_secret: client.client_secret });
+      const correct = method === 'client_secret_basic' ? viaBasic : viaPost;
+      const incorrect = method === 'client_secret_basic' ? viaPost : viaBasic;
+      assert.equal((await incorrect()).status, 401);
+      const response = await correct();
       assert.equal(response.status, 200);
       const token = await response.json();
       assert.equal(token.token_type, 'Bearer');
       assert.equal(token.expires_in, A2A_MACHINE_TOKEN_TTL_SECONDS);
       assert.equal(await resolve(`Bearer ${token.access_token}`), `a2a-client:${client.client_id}`);
-      assert.equal(await resolve(`bearer ${token.access_token}`), `a2a-client:${client.client_id}`, 'auth scheme is case-insensitive');
+      assert.equal(await resolve(`bearer ${token.access_token}`), `a2a-client:${client.client_id}`);
       advance(A2A_MACHINE_TOKEN_TTL_SECONDS * 1000);
-      assert.equal(await resolve(`Bearer ${token.access_token}`), null, 'expired tokens are rejected');
+      assert.equal(await resolve(`Bearer ${token.access_token}`), null);
     }
   });
 });
@@ -181,4 +183,33 @@ test('identity resolver ignores non-machine credentials and unknown clients', as
   for (const header of [undefined, '', 'Basic abc', 'Bearer ', `Bearer ${unknown}`, 'Bearer firebase-id-token']) {
     assert.equal(await resolve(header), null, String(header));
   }
+});
+
+test('concurrent registrations cannot exceed the global hourly quota', async () => {
+  const { deps } = setup();
+  await withServer(deps, async (base) => {
+    const responses = await Promise.all(Array.from({ length: 101 }, () => register(base)));
+    assert.equal(responses.filter((r) => r.status === 201).length, 100);
+    assert.equal(responses.filter((r) => r.status === 503).length, 1);
+    await Promise.all(responses.map((r) => r.text()));
+  });
+});
+
+test('expired client secrets cannot obtain tokens', async () => {
+  const { deps, advance } = setup();
+  await withServer(deps, async (base) => {
+    const client = await (await register(base)).json();
+    const headers = { Authorization: basic(client.client_id, client.client_secret) };
+    advance(30 * 24 * 60 * 60 * 1000);
+    assert.equal((await tokenRequest(base, { grant_type: 'client_credentials' }, headers)).status, 401);
+  });
+});
+
+test('machine authentication is disabled by default, including discovery', async () => {
+  const { deps } = setup({ isEnabled: undefined });
+  await withServer(deps, async (base) => {
+    assert.equal((await fetch(`${base}/.well-known/oauth-authorization-server`)).status, 503);
+    assert.equal((await register(base)).status, 503);
+    assert.equal((await tokenRequest(base, { grant_type: 'client_credentials' })).status, 503);
+  });
 });

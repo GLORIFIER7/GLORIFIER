@@ -1,6 +1,6 @@
 import { stripTrailingSlashes } from './lib/linear-string.js';
 import { getBusinessModel } from './lib/business-model-contract';
-import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH, A2A_OAUTH_METADATA_PATH, buildA2AAgentCard, buildA2AOAuthMetadata } from './lib/a2a-v1';
+import { A2A_AGENT_CARD_PATH, A2A_JSONRPC_PATH, A2A_OAUTH_METADATA_PATH, buildA2AAgentCard } from './lib/a2a-v1';
 import { openSeaWorkerRoute } from './lib/opensea-worker';
 import { GITHUB_MCP_PATH, githubMcpRoute, type GithubMcpRateLimiter } from './lib/github-mcp';
 import { readNeonOperationalCounts, type NeonHyperdriveBinding, type NeonOperationalCounts } from './lib/neon-worker';
@@ -1182,7 +1182,8 @@ export default {
     }
 
     if (incomingUrl.pathname === A2A_OAUTH_METADATA_PATH) {
-      return workerNativeReadOnlyJson(request, () => buildA2AOAuthMetadata(incomingUrl.origin));
+      // Edge discovery stays fail-closed until backend issuer/readiness is verified.
+      return Response.json({ error: 'temporarily_unavailable' }, { status: 503, headers: { 'Cache-Control': 'no-store' } });
     }
 
     if (stripTrailingSlashes(incomingUrl.pathname) === GITHUB_MCP_PATH) {

@@ -17,17 +17,30 @@ const SECRET_PATTERN = /^a2as_[A-Za-z0-9_-]{43}$/;
 const B64URL = /^[A-Za-z0-9_-]+$/;
 const TOKEN_TYPE = 'at+jwt';
 
+type A2AClientAuthMethod = 'client_secret_basic' | 'client_secret_post';
+const A2A_CLIENT_SECRET_TTL_SECONDS = 30 * 24 * 60 * 60;
+const A2A_GLOBAL_REGISTRATION_LIMIT = 100;
+const A2A_REGISTRATION_WINDOW_MS = 60 * 60 * 1000;
+const A2A_RETIRED_CLIENT_RETENTION_MS = 24 * 60 * 60 * 1000;
+
 export interface A2AMachineClientRecord {
   clientId: string;
   clientName: string;
   secretSha256: string;
   createdAt: string;
   revokedAt: string | null;
+  authMethod: A2AClientAuthMethod | null;
+  expiresAt: string | null;
+}
+
+function isActiveClient(client: A2AMachineClientRecord, now: number): boolean {
+  return client.revokedAt === null &&
+    (client.authMethod === 'client_secret_basic' || client.authMethod === 'client_secret_post') &&
+    client.expiresAt !== null && Date.parse(client.expiresAt) > now * 1000;
 }
 
 export interface A2AMachineClientStore {
-  countActive(): Promise<number>;
-  insert(record: A2AMachineClientRecord): Promise<void>;
+  admit(record: A2AMachineClientRecord): Promise<boolean>;
   get(clientId: string): Promise<A2AMachineClientRecord | null>;
   revoke(clientId: string, revokedAt: string): Promise<boolean>;
 }
@@ -35,10 +48,17 @@ export interface A2AMachineClientStore {
 export function createMemoryA2AMachineClientStore(): A2AMachineClientStore {
   const clients = new Map<string, A2AMachineClientRecord>();
   return {
-    async countActive() { return [...clients.values()].filter((c) => !c.revokedAt).length; },
-    async insert(record) {
+    async admit(record) {
       if (clients.has(record.clientId)) throw new Error('A2A client already exists.');
+      const cutoff = Date.parse(record.createdAt) - A2A_REGISTRATION_WINDOW_MS;
+      for (const [id, client] of clients) {
+        const retiredAt = Date.parse(client.revokedAt ?? client.expiresAt ?? client.createdAt);
+        if (retiredAt <= Date.parse(record.createdAt) - A2A_RETIRED_CLIENT_RETENTION_MS) clients.delete(id);
+      }
+      if (clients.size >= A2A_MAX_MACHINE_CLIENTS ||
+          [...clients.values()].filter((c) => Date.parse(c.createdAt) > cutoff).length >= A2A_GLOBAL_REGISTRATION_LIMIT) return false;
       clients.set(record.clientId, { ...record });
+      return true;
     },
     async get(clientId) { const c = clients.get(clientId); return c ? { ...c } : null; },
     async revoke(clientId, revokedAt) {
@@ -56,7 +76,8 @@ export function createPostgresA2AMachineClientStore(getPool: () => Pool): A2AMac
   let ready: Promise<unknown> | null = null;
   const pool = async () => {
     const p = getPool();
-    ready ??= p.query(`CREATE TABLE IF NOT EXISTS ${TABLE} (client_id TEXT PRIMARY KEY, client_name TEXT NOT NULL, secret_sha256 TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL, revoked_at TIMESTAMPTZ)`)
+    ready ??= p.query(`CREATE TABLE IF NOT EXISTS ${TABLE} (client_id TEXT PRIMARY KEY, client_name TEXT NOT NULL, secret_sha256 TEXT NOT NULL, created_at TIMESTAMPTZ NOT NULL, revoked_at TIMESTAMPTZ, auth_method TEXT, expires_at TIMESTAMPTZ)`)
+      .then(() => p.query(`ALTER TABLE ${TABLE} ADD COLUMN IF NOT EXISTS auth_method TEXT, ADD COLUMN IF NOT EXISTS expires_at TIMESTAMPTZ`))
       .catch((error) => { ready = null; throw error; });
     await ready;
     return p;
@@ -67,17 +88,33 @@ export function createPostgresA2AMachineClientStore(getPool: () => Pool): A2AMac
     secretSha256: String(row.secret_sha256),
     createdAt: new Date(row.created_at as string).toISOString(),
     revokedAt: row.revoked_at ? new Date(row.revoked_at as string).toISOString() : null,
+    authMethod: row.auth_method === 'client_secret_basic' || row.auth_method === 'client_secret_post' ? row.auth_method : null,
+    expiresAt: row.expires_at ? new Date(row.expires_at as string).toISOString() : null,
   });
   return {
-    async countActive() {
-      const r = await (await pool()).query(`SELECT COUNT(*)::int AS n FROM ${TABLE} WHERE revoked_at IS NULL`);
-      return Number(r.rows[0]?.n ?? 0);
-    },
-    async insert(c) {
-      await (await pool()).query(`INSERT INTO ${TABLE} (client_id, client_name, secret_sha256, created_at, revoked_at) VALUES ($1, $2, $3, $4, NULL)`, [c.clientId, c.clientName, c.secretSha256, c.createdAt]);
+    async admit(c) {
+      const connection = await (await pool()).connect();
+      let discard = false;
+      try {
+        await connection.query('BEGIN ISOLATION LEVEL READ COMMITTED');
+        await connection.query(`LOCK TABLE ${TABLE} IN SHARE ROW EXCLUSIVE MODE`);
+        await connection.query(`DELETE FROM ${TABLE} WHERE COALESCE(revoked_at, expires_at, created_at) <= $1::timestamptz - interval '1 day'`, [c.createdAt]);
+        const r = await connection.query(`SELECT COUNT(*)::int AS total, COUNT(*) FILTER (WHERE created_at > $1::timestamptz - interval '1 hour')::int AS recent FROM ${TABLE}`, [c.createdAt]);
+        const { total, recent } = r.rows[0];
+        if (total >= A2A_MAX_MACHINE_CLIENTS || recent >= A2A_GLOBAL_REGISTRATION_LIMIT) {
+          await connection.query('COMMIT');
+          return false;
+        }
+        await connection.query(`INSERT INTO ${TABLE} (client_id, client_name, secret_sha256, created_at, revoked_at, auth_method, expires_at) VALUES ($1, $2, $3, $4, NULL, $5, $6)`, [c.clientId, c.clientName, c.secretSha256, c.createdAt, c.authMethod, c.expiresAt]);
+        await connection.query('COMMIT');
+        return true;
+      } catch (error) {
+        try { await connection.query('ROLLBACK'); } catch { discard = true; }
+        throw error;
+      } finally { connection.release(discard); }
     },
     async get(clientId) {
-      const r = await (await pool()).query(`SELECT client_id, client_name, secret_sha256, created_at, revoked_at FROM ${TABLE} WHERE client_id = $1`, [clientId]);
+      const r = await (await pool()).query(`SELECT client_id, client_name, secret_sha256, created_at, revoked_at, auth_method, expires_at FROM ${TABLE} WHERE client_id = $1`, [clientId]);
       return r.rows[0] ? toRecord(r.rows[0]) : null;
     },
     async revoke(clientId, revokedAt) {
@@ -147,6 +184,7 @@ export function verifyA2AMachineAccessToken(key: Buffer, origin: string, token: 
 }
 
 export interface A2AMachineAuthDependencies {
+  isEnabled?(): boolean;
   getStore(): A2AMachineClientStore | null;
   getSigningSecret(): string;
   getPublicBaseUrl(): string;
@@ -178,6 +216,7 @@ const nowSeconds = (deps: A2AMachineAuthDependencies) => Math.floor((deps.nowMs?
  */
 export function createA2AMachineIdentityResolver(deps: A2AMachineAuthDependencies) {
   return async (authorization: string | undefined): Promise<string | null> => {
+    if (deps.isEnabled?.() !== true) return null;
     const match = /^Bearer +([A-Za-z0-9_.-]{1,2048})$/i.exec(authorization ?? '');
     if (!match) return null;
     const config = resolveConfig(deps);
@@ -186,7 +225,7 @@ export function createA2AMachineIdentityResolver(deps: A2AMachineAuthDependencie
     if (!clientId) return null;
     try {
       const client = await config.store.get(clientId);
-      return client && !client.revokedAt ? A2A_MACHINE_SUBJECT_PREFIX + clientId : null;
+      return client && isActiveClient(client, nowSeconds(deps)) ? A2A_MACHINE_SUBJECT_PREFIX + clientId : null;
     } catch {
       return null;
     }
@@ -223,6 +262,7 @@ export function createA2AMachineAuthRouter(deps: A2AMachineAuthDependencies) {
 
   router.get('/.well-known/oauth-authorization-server', (_req: Request, res: Response) => {
     noStore(res);
+    if (deps.isEnabled?.() !== true || !resolveConfig(deps)) return oauthError(res, 503, 'temporarily_unavailable', 'A2A machine authentication is disabled or not configured.');
     try {
       return res.json(buildA2AOAuthMetadata(deps.getPublicBaseUrl().trim()));
     } catch {
@@ -232,6 +272,7 @@ export function createA2AMachineAuthRouter(deps: A2AMachineAuthDependencies) {
 
   router.post('/api/a2a/oauth/register', async (req: Request, res: Response) => {
     noStore(res);
+    if (deps.isEnabled?.() !== true) return oauthError(res, 503, 'temporarily_unavailable', 'A2A machine authentication is disabled.');
     const config = resolveConfig(deps);
     if (!config) return oauthError(res, 503, 'temporarily_unavailable', 'A2A machine registration is not configured.');
     if (!req.is('application/json')) return oauthError(res, 400, 'invalid_client_metadata', 'Content-Type must be application/json.');
@@ -249,16 +290,17 @@ export function createA2AMachineAuthRouter(deps: A2AMachineAuthDependencies) {
     if (method !== 'client_secret_basic' && method !== 'client_secret_post') return oauthError(res, 400, 'invalid_client_metadata', 'Unsupported token_endpoint_auth_method.');
     if (body.scope !== undefined && body.scope !== A2A_MACHINE_SCOPE) return oauthError(res, 400, 'invalid_client_metadata', `Only the ${A2A_MACHINE_SCOPE} scope is available.`);
     try {
-      if (await config.store.countActive() >= A2A_MAX_MACHINE_CLIENTS) return oauthError(res, 503, 'temporarily_unavailable', 'A2A machine client capacity reached.');
       const clientId = `a2a-client-${crypto.randomUUID()}`;
       const clientSecret = `a2as_${crypto.randomBytes(32).toString('base64url')}`;
       const issuedAt = nowSeconds(deps);
-      await config.store.insert({ clientId, clientName: name, secretSha256: sha256Hex(clientSecret), createdAt: new Date(issuedAt * 1000).toISOString(), revokedAt: null });
+      const expiresAt = issuedAt + A2A_CLIENT_SECRET_TTL_SECONDS;
+      const admitted = await config.store.admit({ clientId, clientName: name, secretSha256: sha256Hex(clientSecret), createdAt: new Date(issuedAt * 1000).toISOString(), revokedAt: null, authMethod: method, expiresAt: new Date(expiresAt * 1000).toISOString() });
+      if (!admitted) return oauthError(res, 503, 'temporarily_unavailable', 'A2A machine client capacity reached.');
       return res.status(201).json({
         client_id: clientId,
         client_secret: clientSecret,
         client_id_issued_at: issuedAt,
-        client_secret_expires_at: 0,
+        client_secret_expires_at: expiresAt,
         client_name: name,
         grant_types: ['client_credentials'],
         response_types: [],
@@ -272,6 +314,7 @@ export function createA2AMachineAuthRouter(deps: A2AMachineAuthDependencies) {
 
   router.post('/api/a2a/oauth/token', express.urlencoded({ extended: false, limit: '4kb', parameterLimit: 10 }), async (req: Request, res: Response) => {
     noStore(res);
+    if (deps.isEnabled?.() !== true) return oauthError(res, 503, 'temporarily_unavailable', 'A2A machine authentication is disabled.');
     const config = resolveConfig(deps);
     if (!config) return oauthError(res, 503, 'temporarily_unavailable', 'A2A machine token issuance is not configured.');
     if (!req.is('application/x-www-form-urlencoded')) return oauthError(res, 400, 'invalid_request', 'Content-Type must be application/x-www-form-urlencoded.');
@@ -297,12 +340,14 @@ export function createA2AMachineAuthRouter(deps: A2AMachineAuthDependencies) {
     } catch {
       return oauthError(res, 503, 'temporarily_unavailable', 'A2A machine client storage is unavailable.');
     }
-    if (!client || client.revokedAt || !safeEqual(client.secretSha256, sha256Hex(clientSecret))) {
+    const now = nowSeconds(deps);
+    const method = basic ? 'client_secret_basic' : 'client_secret_post';
+    if (!client || !isActiveClient(client, now) || client.authMethod !== method || !client.expiresAt || Date.parse(client.expiresAt) < (now + A2A_MACHINE_TOKEN_TTL_SECONDS) * 1000 || !safeEqual(client.secretSha256, sha256Hex(clientSecret))) {
       challenge();
       return oauthError(res, 401, 'invalid_client', 'Client authentication failed.');
     }
     return res.json({
-      access_token: issueA2AMachineAccessToken(config.key, config.origin, clientId, nowSeconds(deps)),
+      access_token: issueA2AMachineAccessToken(config.key, config.origin, clientId, now),
       token_type: 'Bearer',
       expires_in: A2A_MACHINE_TOKEN_TTL_SECONDS,
       scope: A2A_MACHINE_SCOPE,

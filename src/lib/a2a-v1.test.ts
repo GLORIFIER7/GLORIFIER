@@ -45,7 +45,10 @@ const createTestHandler = () => {
 };
 
 void test('A2A v1 Agent Card advertises a valid protocol and requires owner approval', () => {
-  const card = buildA2AAgentCard('https://glorifier.glorifier.workers.dev', '0.2.1');
+  const card = buildA2AAgentCard('https://glorifier.glorifier.workers.dev', '0.2.1', true);
+  const defaultCard = buildA2AAgentCard('https://glorifier.glorifier.workers.dev');
+  assert.equal(defaultCard.securitySchemes.oauth2, undefined);
+  assert.deepEqual(defaultCard.securityRequirements, [{ schemes: { bearer: { list: [] } } }]);
 
   assert.equal(A2A_PROTOCOL_VERSION, '1.0');
   assert.equal(isCompatibleA2AProtocolVersion('1.0'), true);
@@ -82,8 +85,8 @@ void test('A2A v1 Agent Card advertises a valid protocol and requires owner appr
   assert.ok(card.skills.some((skill) => skill.id === 'governed-task-intake'));
   assert.ok(card.securitySchemes.bearer.httpAuthSecurityScheme);
   assert.deepEqual(card.securityRequirements, [{ schemes: { bearer: { list: [] } } }, { schemes: { oauth2: { list: ['a2a:tasks'] } } }]);
-  assert.equal(card.securitySchemes.oauth2.oauth2SecurityScheme.flows.clientCredentials.tokenUrl, 'https://glorifier.glorifier.workers.dev/api/a2a/oauth/token');
-  assert.equal(card.securitySchemes.oauth2.oauth2SecurityScheme.oauth2MetadataUrl, 'https://glorifier.glorifier.workers.dev/.well-known/oauth-authorization-server');
+  assert.equal(card.securitySchemes.oauth2!.oauth2SecurityScheme.flows.clientCredentials.tokenUrl, 'https://glorifier.glorifier.workers.dev/api/a2a/oauth/token');
+  assert.equal(card.securitySchemes.oauth2!.oauth2SecurityScheme.oauth2MetadataUrl, 'https://glorifier.glorifier.workers.dev/.well-known/oauth-authorization-server');
   assert.deepEqual(
     card.securityRequirements.flatMap((requirement) => Object.keys(requirement.schemes)).sort(),
     Object.keys(card.securitySchemes).sort(),
