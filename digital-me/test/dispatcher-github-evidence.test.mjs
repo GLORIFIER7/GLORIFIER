@@ -40,6 +40,14 @@ test('missing API evidence returns the explicit denial instead of dereferencing 
   state => { state.commit = null; },
   state => { state.runs = null; },
   state => { state.runs = { total_count: 0, workflow_runs: [] }; },
+  state => { state.runs = undefined; },
+  state => { state.runs.workflow_runs = null; },
+  state => { state.runs.total_count = 2; },
+  state => { state.jobs = null; },
+  state => { state.jobs = undefined; },
+  state => { state.jobs.jobs = null; },
+  state => { state.jobs.total_count = 2; },
+  state => { state.jobs = { total_count: 0, jobs: [] }; },
  ];
  for (const remove of missing) {
   const { state, e } = fixture();
