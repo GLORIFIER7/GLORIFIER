@@ -241,6 +241,27 @@ export class WorkerAutopilotMissionStore implements AutopilotMissionStore {
     }, true);
   }
 
+  async listCodingDispatchPage(requester: string, limit: number, cursor: { createdAt: string; id: string } | null): Promise<AutopilotMission[]> {
+    const owner = this.requireOwnRequester(requester, 'coding dispatch discovery');
+    if (!Number.isSafeInteger(limit) || limit < 1 || limit > 100) throw new Error('Invalid coding dispatch limit.');
+    if (cursor && (!Number.isFinite(Date.parse(cursor.createdAt)) || !/^mission-coding-[a-f0-9]{64}$/.test(cursor.id))) {
+      throw new Error('Invalid coding dispatch cursor.');
+    }
+    return this.withTransaction(async client => {
+      const result = await client.query(
+        `SELECT payload FROM ${TABLE_NAME}
+         WHERE requester = $1 AND id LIKE 'mission-coding-%' AND status = 'blocked'
+           AND lease_owner IS NULL AND lease_expires_at IS NULL
+           AND (payload->'dispatcher' IS NULL OR
+                (payload->'dispatcher'->>'phase' = 'retryable' AND payload->'dispatcher'->>'attempts' = '1'))
+           AND ($3::timestamptz IS NULL OR (created_at, id) > ($3::timestamptz, $4::text))
+         ORDER BY created_at, id LIMIT $2`,
+        [owner, limit, cursor?.createdAt ?? null, cursor?.id ?? null],
+      );
+      return result.rows.map(row => parseMission(row.payload));
+    }, true);
+  }
+
   async findByIdempotencyKey(requester: string, idempotencyKey: string): Promise<AutopilotMission | null> {
     const normalizedRequester = this.requireOwnRequester(requester, 'idempotency lookup');
     const key = typeof idempotencyKey === 'string' ? idempotencyKey.trim() : '';
@@ -256,7 +277,7 @@ export class WorkerAutopilotMissionStore implements AutopilotMissionStore {
     }, true);
   }
 
-  async save(mission: AutopilotMission, expectedVersion: number): Promise<AutopilotMission | null> {
+  async save(mission: AutopilotMission, expectedVersion: number, leaseFence?: { owner: string; expiresAt: string }): Promise<AutopilotMission | null> {
     if (!this.allowAll && mission.requester !== this.requester) {
       throw new Error('Autopilot mission update does not match the verified requester context.');
     }
@@ -278,11 +299,13 @@ export class WorkerAutopilotMissionStore implements AutopilotMissionStore {
              lease_expires_at = $7::timestamptz,
              updated_at = $8::timestamptz
          WHERE id = $1 AND requester = $9 AND version = $2
+           ${leaseFence ? "AND status = 'executing' AND lease_owner = $10 AND lease_expires_at = $11::timestamptz AND lease_expires_at > clock_timestamp()" : ''}
          RETURNING payload`,
         [
           mission.id, expectedVersion, next.status, payload,
           next.nextRunAt ?? null, next.leaseOwner ?? null, next.leaseExpiresAt ?? null,
           next.updatedAt, mission.requester,
+          ...(leaseFence ? [leaseFence.owner, leaseFence.expiresAt] : []),
         ],
       );
       return result.rows[0]?.payload ? parseMission(result.rows[0].payload) : null;
