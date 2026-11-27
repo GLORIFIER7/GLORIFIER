@@ -99,7 +99,8 @@ export function createGithubEvidence({api,resolveManifest}={}){
   const association=p=>p?.number===pr&&p.base?.sha===base&&p.base.ref==='main'&&p.base.repo?.id===REPOSITORY_ID&&
     p.head?.sha===head&&p.head.ref===branch&&p.head.repo?.id===REPOSITORY_ID;
   const runs=await api(ROOT+'/actions/runs?event=pull_request&branch='+encodeURIComponent(branch)+'&per_page=100');
-  requireThat(Array.isArray(runs?.workflow_runs)&&runs.total_count===runs.workflow_runs.length&&runs.total_count<100);
+  if (!runs || !Array.isArray(runs.workflow_runs)) throw denied();
+  requireThat(runs.total_count===runs.workflow_runs.length&&runs.total_count<100);
   const candidates=runs.workflow_runs.filter(r=>positive(r?.id)&&positive(r.check_suite_id)&&positive(r.run_attempt)&&
     r.head_branch===branch&&(r.head_sha===head||r.head_sha===tested)&&r.event==='pull_request'&&
     r.path==='.github/workflows/ci.yml'&&!['startup_failure','cancelled','skipped'].includes(r.conclusion))
@@ -118,7 +119,8 @@ export function createGithubEvidence({api,resolveManifest}={}){
   }
   requireThat(run);
   const jobs=await api(ROOT+'/actions/runs/'+run.id+'/attempts/'+run.run_attempt+'/jobs?per_page=100');
-  requireThat(Array.isArray(jobs?.jobs)&&jobs.total_count===jobs.jobs.length&&jobs.total_count<100);
+  if (!jobs || !Array.isArray(jobs.jobs)) throw denied();
+  requireThat(jobs.total_count===jobs.jobs.length&&jobs.total_count<100);
   requireThat(jobs.jobs.filter(job=>job?.name==='build'&&positive(job.id)&&job.run_id===run.id&&
     job.run_attempt===run.run_attempt&&job.head_sha===run.head_sha&&
     ['in_progress','completed'].includes(job.status)&&!['skipped','cancelled','startup_failure'].includes(job.conclusion)).length===1);
