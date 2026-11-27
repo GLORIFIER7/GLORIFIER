@@ -86,7 +86,7 @@ export async function dispatchMission(id,deps={}){
     candidate=Object.freeze({...candidate});
     const verified=await verifyCandidate(candidate);
     if(!await drain())return quarantine();
-    if(!verified)return stop('CANDIDATE_REJECTED');
+    if(verified!==true)return stop('CANDIDATE_REJECTED');
     if(!await authorized())return stop('DENIED');
     if(!await own())return quarantine();
   }catch{try{if(await drain())return stop('CANDIDATE_REJECTED');}catch{/* uncertain lease */}return quarantine();}
