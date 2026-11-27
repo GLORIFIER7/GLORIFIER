@@ -178,7 +178,7 @@ const nowSeconds = (deps: A2AMachineAuthDependencies) => Math.floor((deps.nowMs?
  */
 export function createA2AMachineIdentityResolver(deps: A2AMachineAuthDependencies) {
   return async (authorization: string | undefined): Promise<string | null> => {
-    const match = /^Bearer ([A-Za-z0-9_.-]{1,2048})$/.exec(authorization ?? '');
+    const match = /^Bearer +([A-Za-z0-9_.-]{1,2048})$/i.exec(authorization ?? '');
     if (!match) return null;
     const config = resolveConfig(deps);
     if (!config) return null;
@@ -203,7 +203,7 @@ const oauthError = (res: Response, status: number, error: string, description: s
 
 function parseBasicCredentials(header: string | undefined): { clientId: string; clientSecret: string } | null | 'invalid' {
   if (!header) return null;
-  const match = /^Basic ([A-Za-z0-9+/]+={0,2})$/.exec(header);
+  const match = /^Basic +([A-Za-z0-9+/]+={0,2})$/i.exec(header);
   if (!match) return 'invalid';
   const decoded = Buffer.from(match[1], 'base64').toString('utf8');
   const separator = decoded.indexOf(':');

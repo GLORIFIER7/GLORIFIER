@@ -78,6 +78,7 @@ test('an agent self-registers, obtains a token and is resolved to a requester id
       assert.equal(token.token_type, 'Bearer');
       assert.equal(token.expires_in, A2A_MACHINE_TOKEN_TTL_SECONDS);
       assert.equal(await resolve(`Bearer ${token.access_token}`), `a2a-client:${client.client_id}`);
+      assert.equal(await resolve(`bearer ${token.access_token}`), `a2a-client:${client.client_id}`, 'auth scheme is case-insensitive');
       advance(A2A_MACHINE_TOKEN_TTL_SECONDS * 1000);
       assert.equal(await resolve(`Bearer ${token.access_token}`), null, 'expired tokens are rejected');
     }
@@ -131,6 +132,8 @@ test('token endpoint enforces grant, scope and exactly one valid client authenti
       assert.equal(response.status, status, JSON.stringify(form));
       assert.equal((await response.json()).error, error);
     }
+    const lowercase = await tokenRequest(base, { grant_type: 'client_credentials' }, { Authorization: auth.Authorization.replace('Basic', 'basic') });
+    assert.equal(lowercase.status, 200, 'Basic scheme is case-insensitive');
     const json = await fetch(`${base}/api/a2a/oauth/token`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...auth }, body: JSON.stringify({ grant_type: 'client_credentials' }) });
     assert.equal(json.status, 400);
   });
