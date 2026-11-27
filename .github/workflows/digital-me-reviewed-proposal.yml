@@ -19,7 +19,7 @@ on:
         required: true
         type: string
       allowed_paths:
-        description: Exact comma-separated reviewed source/test or Digital Me documentation paths
+        description: Exact comma-separated reviewed source/test or specifically allowed backend, routing and documentation paths
         required: true
         type: string
       review_digest:
@@ -79,7 +79,9 @@ jobs:
           export const digest=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
           export const blob=b=>createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${b.length}\0`),b])).digest('hex');
           const verified=(c,s)=>c?.sha===s&&c.commit?.verification?.verified===true&&c.commit.verification.reason==='valid';
-          const safe=p=>p.length<=180&&p.split('/').every(x=>/^[A-Za-z0-9_-][A-Za-z0-9_.-]*$/.test(x))&&(/^(src|tests|digital-me\/(src|test))\/.+\.(mjs|js|jsx|ts|tsx|py)$/.test(p)||/^digital-me\/docs\/.+\.md$/.test(p));
+          // Explicit review scope extension; package.json has a separate exact-content restriction.
+          const EXACT_REVIEWED_PATHS=new Set(['server.ts','package.json','docs/architecture/interoperability-gap-register.md','functions/_shared/proxy.mjs','public/_routes.json','scripts/cloudflare-pages-proxy.test.mjs']);
+          const safe=p=>p.length<=180&&p.split('/').every(x=>/^[A-Za-z0-9_-][A-Za-z0-9_.-]*$/.test(x))&&(EXACT_REVIEWED_PATHS.has(p)||/^(src|tests|digital-me\/(src|test))\/.+\.(mjs|js|jsx|ts|tsx|py)$/.test(p)||/^digital-me\/docs\/.+\.md$/.test(p));
           export function config(e){
            const required={GITHUB_REPOSITORY:REPO,GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'workflow_dispatch',GITHUB_ACTOR_ID:'32674233',GITHUB_ACTOR:'GLORIFIER7',GITHUB_TRIGGERING_ACTOR:'GLORIFIER7',GITHUB_RUN_ATTEMPT:'1',CONFIRM:'true'};
            ok(Object.entries(required).every(([k,v])=>e[k]===v),'OWNER_DISPATCH_REQUIRED');
@@ -103,6 +105,14 @@ jobs:
            const f=await api(R+'/contents/'+path+'?ref='+commit);ok(f?.path===path&&f.type==='file'&&f.encoding==='base64'&&f.sha===expected&&typeof f.content==='string'&&f.content.length<=700000,'INVALID_CONTENT');
            const b=Buffer.from(f.content,'base64');ok(b.length<=500000&&!b.includes(0)&&Buffer.from(b.toString('utf8')).equals(b)&&blob(b)===expected,'CONTENT_HASH_MISMATCH');return b.toString('base64');
           }
+          // Package metadata is not a general proposal surface. Only this reviewed script insertion is permitted.
+          export function assertPackageChange(before,after){
+           const old=before.toString('utf8'), prior=JSON.parse(old);
+           const anchor='    "test:a2a-v1-express": "tsx src/lib/a2a-v1-express.test.ts",\n';
+           const addition='    "test:a2a-machine-auth": "tsx src/lib/a2a-machine-auth.test.ts",\n';
+           ok(prior.scripts&&Object.hasOwn(prior.scripts,'test:a2a-v1-express')&&!Object.hasOwn(prior.scripts,'test:a2a-machine-auth')&&!Object.hasOwn(prior.scripts,'pretest:a2a-machine-auth')&&!Object.hasOwn(prior.scripts,'posttest:a2a-machine-auth')&&old.split(anchor).length===2,'PACKAGE_SCRIPT_SCOPE_DENIED');
+           ok(Buffer.from(old.replace(anchor,anchor+addition),'utf8').equals(after),'PACKAGE_MANIFEST_CHANGE_DENIED');
+          }
           export async function inspect(c,api){
            await mainCheck(c,api);await proposalCheck(c,api);ok(verified(await api(R+'/commits/'+c.base),c.base),'PROPOSAL_BASE_UNSIGNED');
            if(c.main!==c.base){const a=await api(R+'/compare/'+c.base+'...'+c.main+'?per_page=1');ok(a?.status==='ahead'&&a.behind_by===0&&a.base_commit?.sha===c.base&&a.merge_base_commit?.sha===c.base,'BASE_NOT_ANCESTOR');}
@@ -110,6 +120,7 @@ jobs:
            ok(x?.status==='ahead'&&x.behind_by===0&&x.base_commit?.sha===c.base&&x.merge_base_commit?.sha===c.base&&Number.isSafeInteger(x.total_commits)&&x.total_commits>=1&&x.total_commits<=30&&x.ahead_by===x.total_commits&&x.commits?.length===x.total_commits&&x.commits.at(-1)?.sha===c.head&&x.commits.every((v,i)=>sha(v.sha)&&v.parents?.length===1&&v.parents[0].sha===(i?x.commits[i-1].sha:c.base)),'INVALID_PROPOSAL_HISTORY');
            ok(Array.isArray(x.files)&&x.files.length===c.paths.length&&eq(x.files.map(f=>f.filename).sort(),c.paths)&&x.files.every(f=>['added','modified'].includes(f.status)&&sha(f.sha)),'UNEXPECTED_DIFF');
            const files=[];for(const path of c.paths){const f=x.files.find(v=>v.filename===path),before=await entry(api,c.base,path),after=await entry(api,c.head,path),current=await entry(api,c.main,path);ok(before===current&&after===f.sha&&before!==after&&((f.status==='added'&&before===null)||(f.status==='modified'&&sha(before))),'PATH_CHANGED_OR_INVALID');files.push({path,before,after,status:f.status,contents:await contents(api,c.head,path,after)});}
+           const manifest=files.find(f=>f.path==='package.json');if(manifest){ok(manifest.status==='modified'&&sha(manifest.before)&&c.paths.includes('src/lib/a2a-machine-auth.test.ts'),'PACKAGE_TEST_COMPANION_REQUIRED');assertPackageChange(Buffer.from(await contents(api,c.base,manifest.path,manifest.before),'base64'),Buffer.from(manifest.contents,'base64'));}
            const review=digest({base:c.base,head:c.head,files:files.map(({path,before,after,status})=>({path,before,after,status}))});ok(review===c.review,'REVIEW_DIGEST_MISMATCH');
            await mainCheck(c,api);await proposalCheck(c,api);return {cfg:c,files};
           }
@@ -139,6 +150,8 @@ jobs:
           import test from 'node:test';
           import assert from 'node:assert/strict';
           import {config,inspect,publish,digest,blob} from './publisher.mjs';
+          import * as publisher from './publisher.mjs';
+          const assertPackageChange=publisher.assertPackageChange;
           const repo='GLORIFIER7/GLORIFIER',root='/repos/'+repo, base='a'.repeat(40), main='b'.repeat(40), head='c'.repeat(40), signed='d'.repeat(40), path='digital-me/docs/coding-agent.md';
           const old=Buffer.from('old\n'), next=Buffer.from('new\n');
           const records=[{path,before:blob(old),after:blob(next),status:'modified'}];
@@ -175,6 +188,14 @@ jobs:
           test('publishes signed bot draft with exact data and never merges or closes source',async()=>{const f=fixture();const m=await inspect(f.cfg,f.api);const r=await publish(f.cfg,m,f.api);assert.equal(r.pr,1234);assert.equal(r.head,signed);assert.ok(f.calls.filter(x=>x.method!=='GET').every(x=>[root+'/git/refs','/graphql',root+'/pulls'].includes(x.p)));});
           test('wrong signer prevents draft creation; duplicates prevent writes',async()=>{for(const o of [{wrongSigner:true},{duplicate:true}]){const f=fixture(o);await assert.rejects(publish(f.cfg,await inspect(f.cfg,f.api),f.api));assert.ok(!f.calls.some(x=>x.method==='POST'&&x.p===root+'/pulls'));if(o.duplicate)assert.ok(f.calls.every(x=>x.method==='GET'));}});
           test('manifest mutation fails before writes',async()=>{const f=fixture();const m=await inspect(f.cfg,f.api);m.files[0].contents='altered';await assert.rejects(publish(f.cfg,m,f.api));assert.ok(f.calls.every(x=>x.method==='GET'));});
+          test('allows reviewed A2A backend and routing paths without allowing unrelated privileged files',()=>{for(const p of ['server.ts','package.json','docs/architecture/interoperability-gap-register.md','functions/_shared/proxy.mjs','public/_routes.json','scripts/cloudflare-pages-proxy.test.mjs'])assert.deepEqual(config({...env,PATHS:p}).paths,[p]);for(const p of ['package-lock.json','wrangler.toml','.env','.github/workflows/ci.yml','scripts/deploy.mjs','public/other.json','functions/admin.ts','docs/architecture/other.md','server.ts/../x.ts'])assert.throws(()=>config({...env,PATHS:p}));});
+          test('package manifest is limited to the exact A2A test script insertion; rejects altered CI scripts, dependencies, hooks and other additions',()=>{
+           const old=Buffer.from(['{','  "scripts": {','    "test:a2a-v1-express": "tsx src/lib/a2a-v1-express.test.ts",','    "test": "node --test"','  },','  "dependencies": {"express":"5.0.0"}','}',''].join('\n'));
+           const added='    "test:a2a-machine-auth": "tsx src/lib/a2a-machine-auth.test.ts",\n';
+           const next=Buffer.from(old.toString().replace('    "test":',added+'    "test":'));
+           assert.doesNotThrow(()=>assertPackageChange(old,next));
+           for(const change of [next.toString().replace('node --test','true'),next.toString().replace('5.0.0','6.0.0'),next.toString().replace('    "test":','    "pretest": "true",\n    "test":'),next.toString().replace('tsx src/lib/a2a-machine-auth.test.ts','true'),old.toString()])assert.throws(()=>assertPackageChange(old,Buffer.from(change)));
+          });
           PUBLISHER_TEST
           node --test publisher.test.mjs
       - name: Read-only reviewed proposal validation
