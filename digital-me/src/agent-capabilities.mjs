@@ -47,9 +47,10 @@ function denialReason(collaborator, intent, observation) {
   if (!collaborator.intents.includes(intent)) return 'intent-unsupported';
   if (collaborator.integration !== 'source-integrated') return collaborator.integration;
   if (!isRecord(observation)) return 'not-observed';
-  if (observation.credentialConfigured !== true) return 'credential-not-configured';
-  if (observation.paidInferenceRequired !== false) return 'zero-budget-not-proven';
-  if (observation.evidence !== 'VERIFIED') return 'evidence-not-verified';
+  const own = (key) => (Object.hasOwn(observation, key) ? observation[key] : undefined);
+  if (own('credentialConfigured') !== true) return 'credential-not-configured';
+  if (own('paidInferenceRequired') !== false) return 'zero-budget-not-proven';
+  if (own('evidence') !== 'VERIFIED') return 'evidence-not-verified';
   return null;
 }
 
@@ -75,9 +76,12 @@ export function selectCollaborators(intent, observations = {}) {
   };
 }
 
-// Advisory Devin Review link for a public GLORIFIER PR (#1070). No fetch, no credentials;
+// Advisory Devin Review link for a public GLORIFIER PR (#1070). The URL is PR-scoped, not
+// SHA-pinned: headSha records the head the caller observed. No fetch, no credentials;
 // findings are untrusted input and never a GitHub approval.
-export function devinReviewLink({ repository, pullNumber, headSha } = {}) {
+export function devinReviewLink(input) {
+  if (!isRecord(input)) return null;
+  const { repository, pullNumber, headSha } = input;
   if (repository !== REPO || !Number.isSafeInteger(pullNumber) || pullNumber <= 0 ||
       typeof headSha !== 'string' || !/^[a-f0-9]{40}$/.test(headSha)) return null;
   return {

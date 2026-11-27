@@ -76,6 +76,14 @@ test('rejects unknown intents and inherited observation keys', () => {
   assert.deepEqual(selectCollaborators('plan', inherited).selected, []);
 });
 
+test('requires own observation fields, never inherited ones', () => {
+  const r = selectCollaborators('plan', { claude: Object.create(ready) });
+  assert.deepEqual(r.selected, []);
+  assert.deepEqual(r.denied.find((d) => d.id === 'claude'), { id: 'claude', reason: 'credential-not-configured' });
+  const partial = Object.assign(Object.create({ evidence: 'VERIFIED' }), { credentialConfigured: true, paidInferenceRequired: false });
+  assert.deepEqual(selectCollaborators('plan', { claude: partial }).denied.find((d) => d.id === 'claude'), { id: 'claude', reason: 'evidence-not-verified' });
+});
+
 test('Devin Review link is advisory, canonical and strictly validated', () => {
   assert.deepEqual(devinReviewLink({ repository: 'GLORIFIER7/GLORIFIER', pullNumber: 1071, headSha: sha }), {
     url: 'https://devinreview.com/GLORIFIER7/GLORIFIER/pull/1071', pullNumber: 1071, headSha: sha, advisory: true, approval: false, evidence: 'NOT VERIFIED',
@@ -88,8 +96,9 @@ test('Devin Review link is advisory, canonical and strictly validated', () => {
     { repository: 'GLORIFIER7/GLORIFIER', pullNumber: 1.5, headSha: sha },
     { repository: 'GLORIFIER7/GLORIFIER', pullNumber: 1, headSha: 'A'.repeat(40) },
     { repository: 'GLORIFIER7/GLORIFIER', pullNumber: 1, headSha: 'abc' },
-    undefined,
+    undefined, null, 'GLORIFIER7/GLORIFIER', 1071, [],
   ]) assert.equal(devinReviewLink(input), null);
+  assert.equal(devinReviewLink(), null);
   assert.equal(getCollaborator('devin').integration, 'advisory-link-only');
   assert.equal(getCollaborator('unknown'), null);
 });
