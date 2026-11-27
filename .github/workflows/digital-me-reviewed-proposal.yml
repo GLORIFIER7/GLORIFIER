@@ -1,0 +1,192 @@
+name: GLORIFIER Digital Me — reviewed AI proposal publisher
+on:
+  workflow_dispatch:
+    inputs:
+      expected_main:
+        description: Current signed main SHA (after bootstrap merge)
+        required: true
+        type: string
+      proposal_pr:
+        description: Open same-repository proposal PR number
+        required: true
+        type: string
+      proposal_base:
+        description: Original signed proposal base SHA
+        required: true
+        type: string
+      proposal_head:
+        description: Exact reviewed proposal head SHA
+        required: true
+        type: string
+      allowed_paths:
+        description: Exact comma-separated reviewed source/test or Digital Me documentation paths
+        required: true
+        type: string
+      review_digest:
+        description: SHA-256 of reviewed base/head and sorted before/after blob manifest
+        required: true
+        type: string
+      confirm_reviewed:
+        description: I reviewed this exact proposal and scope
+        required: true
+        type: boolean
+        default: false
+      publish:
+        description: Publish App-signed draft (false is read-only)
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  pull-requests: read
+concurrency:
+  group: glorifier-digital-me-reviewed-publication
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.repository == 'GLORIFIER7/GLORIFIER' && github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && github.actor_id == '32674233' && github.triggering_actor == 'GLORIFIER7' && inputs.confirm_reviewed == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: digital-me-publish
+    env:
+      EXPECTED_MAIN: ${{ inputs.expected_main }}
+      PROPOSAL_PR: ${{ inputs.proposal_pr }}
+      PROPOSAL_BASE: ${{ inputs.proposal_base }}
+      PROPOSAL_HEAD: ${{ inputs.proposal_head }}
+      PATHS: ${{ inputs.allowed_paths }}
+      REVIEW_DIGEST: ${{ inputs.review_digest }}
+      CONFIRM: ${{ inputs.confirm_reviewed }}
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Install trusted embedded publisher and test without credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir "$RUNNER_TEMP/glorifier-proposal-publisher"
+          cd "$RUNNER_TEMP/glorifier-proposal-publisher"
+          cat > publisher.mjs <<'PUBLISHER_JS'
+          import {createHash,createSign} from 'node:crypto';
+          import {readFileSync,writeFileSync} from 'node:fs';
+          import {pathToFileURL} from 'node:url';
+          const REPO='GLORIFIER7/GLORIFIER',R='/repos/'+REPO,APP=5876036,BOT='glorifier-digital-me[bot]';
+          const PERMS={contents:'write',pull_requests:'write'};
+          const sha=x=>typeof x==='string'&&/^[a-f0-9]{40}$/.test(x);
+          const eq=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
+          const ok=(v,code)=>{if(!v)throw Error(code);};
+          export const digest=x=>createHash('sha256').update(JSON.stringify(x)).digest('hex');
+          export const blob=b=>createHash('sha1').update(Buffer.concat([Buffer.from(`blob ${b.length}\0`),b])).digest('hex');
+          const verified=(c,s)=>c?.sha===s&&c.commit?.verification?.verified===true&&c.commit.verification.reason==='valid';
+          const safe=p=>p.length<=180&&p.split('/').every(x=>/^[A-Za-z0-9_-][A-Za-z0-9_.-]*$/.test(x))&&(/^(src|tests|digital-me\/(src|test))\/.+\.(mjs|js|jsx|ts|tsx|py)$/.test(p)||/^digital-me\/docs\/.+\.md$/.test(p));
+          export function config(e){
+           const required={GITHUB_REPOSITORY:REPO,GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'workflow_dispatch',GITHUB_ACTOR_ID:'32674233',GITHUB_ACTOR:'GLORIFIER7',GITHUB_TRIGGERING_ACTOR:'GLORIFIER7',GITHUB_RUN_ATTEMPT:'1',CONFIRM:'true'};
+           ok(Object.entries(required).every(([k,v])=>e[k]===v),'OWNER_DISPATCH_REQUIRED');
+           const main=e.EXPECTED_MAIN,base=e.PROPOSAL_BASE,head=e.PROPOSAL_HEAD,review=e.REVIEW_DIGEST,pr=Number(e.PROPOSAL_PR);
+           ok(sha(main)&&main===e.GITHUB_SHA&&sha(base)&&sha(head)&&head!==base&&head!==main&&/^[a-f0-9]{64}$/.test(review??'')&&/^[1-9][0-9]{0,15}$/.test(e.PROPOSAL_PR??'')&&Number.isSafeInteger(pr),'INVALID_IMMUTABLE_SCOPE');
+           const paths=(e.PATHS??'').split(',').map(x=>x.trim()).sort();ok(paths.length<=20&&paths.every(safe)&&new Set(paths).size===paths.length,'PATH_NOT_ALLOWED');
+           return {main,base,head,review,pr,paths,branch:'digital-me/proposal-'+digest({base,head,review})};
+          }
+          async function mainCheck(c,api){ok(verified(await api(R+'/commits/main'),c.main),'MAIN_STALE_OR_UNSIGNED');}
+          async function proposalCheck(c,api){const p=await api(R+'/pulls/'+c.pr);ok(p?.number===c.pr&&p.state==='open'&&p.head?.sha===c.head&&p.head?.repo?.full_name===REPO&&p.base?.repo?.full_name===REPO&&p.base.ref==='main','PROPOSAL_CHANGED');}
+          async function entry(api,commit,path){
+           const c=await api(R+'/git/commits/'+commit);ok(c?.sha===commit&&sha(c.tree?.sha),'INVALID_TREE');let tree=c.tree.sha;
+           const parts=path.split('/');for(let i=0;i<parts.length;i++){
+            const t=await api(R+'/git/trees/'+tree);ok(t?.sha===tree&&t.truncated===false&&Array.isArray(t.tree),'INCOMPLETE_TREE');
+            const matches=t.tree.filter(x=>x.path===parts[i]);if(!matches.length)return null;ok(matches.length===1,'AMBIGUOUS_TREE');const x=matches[0];
+            if(i===parts.length-1){ok(x.mode==='100644'&&x.type==='blob'&&sha(x.sha),'NONREGULAR_FILE');return x.sha;}
+            ok(x.mode==='040000'&&x.type==='tree'&&sha(x.sha),'INVALID_DIRECTORY');tree=x.sha;
+           }
+          }
+          async function contents(api,commit,path,expected){
+           const f=await api(R+'/contents/'+path+'?ref='+commit);ok(f?.path===path&&f.type==='file'&&f.encoding==='base64'&&f.sha===expected&&typeof f.content==='string'&&f.content.length<=700000,'INVALID_CONTENT');
+           const b=Buffer.from(f.content,'base64');ok(b.length<=500000&&!b.includes(0)&&Buffer.from(b.toString('utf8')).equals(b)&&blob(b)===expected,'CONTENT_HASH_MISMATCH');return b.toString('base64');
+          }
+          export async function inspect(c,api){
+           await mainCheck(c,api);await proposalCheck(c,api);ok(verified(await api(R+'/commits/'+c.base),c.base),'PROPOSAL_BASE_UNSIGNED');
+           if(c.main!==c.base){const a=await api(R+'/compare/'+c.base+'...'+c.main+'?per_page=1');ok(a?.status==='ahead'&&a.behind_by===0&&a.base_commit?.sha===c.base&&a.merge_base_commit?.sha===c.base,'BASE_NOT_ANCESTOR');}
+           const x=await api(R+'/compare/'+c.base+'...'+c.head+'?per_page=100');
+           ok(x?.status==='ahead'&&x.behind_by===0&&x.base_commit?.sha===c.base&&x.merge_base_commit?.sha===c.base&&Number.isSafeInteger(x.total_commits)&&x.total_commits>=1&&x.total_commits<=30&&x.ahead_by===x.total_commits&&x.commits?.length===x.total_commits&&x.commits.at(-1)?.sha===c.head&&x.commits.every((v,i)=>sha(v.sha)&&v.parents?.length===1&&v.parents[0].sha===(i?x.commits[i-1].sha:c.base)),'INVALID_PROPOSAL_HISTORY');
+           ok(Array.isArray(x.files)&&x.files.length===c.paths.length&&eq(x.files.map(f=>f.filename).sort(),c.paths)&&x.files.every(f=>['added','modified'].includes(f.status)&&sha(f.sha)),'UNEXPECTED_DIFF');
+           const files=[];for(const path of c.paths){const f=x.files.find(v=>v.filename===path),before=await entry(api,c.base,path),after=await entry(api,c.head,path),current=await entry(api,c.main,path);ok(before===current&&after===f.sha&&before!==after&&((f.status==='added'&&before===null)||(f.status==='modified'&&sha(before))),'PATH_CHANGED_OR_INVALID');files.push({path,before,after,status:f.status,contents:await contents(api,c.head,path,after)});}
+           const review=digest({base:c.base,head:c.head,files:files.map(({path,before,after,status})=>({path,before,after,status}))});ok(review===c.review,'REVIEW_DIGEST_MISMATCH');
+           await mainCheck(c,api);await proposalCheck(c,api);return {cfg:c,files};
+          }
+          export async function publish(c,m,api){
+           ok(eq(m,await inspect(c,api)),'MANIFEST_CHANGED');
+           const history=await api(R+'/pulls?state=all&head='+encodeURIComponent('GLORIFIER7:'+c.branch)+'&per_page=1');ok(Array.isArray(history)&&history.length===0,'DUPLICATE_PUBLICATION');
+           const refs=await api(R+'/git/matching-refs/heads/'+c.branch);ok(Array.isArray(refs)&&!refs.some(r=>r.ref==='refs/heads/'+c.branch),'ORPHAN_BRANCH_RECONCILE');
+           await mainCheck(c,api);await proposalCheck(c,api);
+           const ref='refs/heads/'+c.branch,r=await api(R+'/git/refs','POST',{ref,sha:c.main});ok(r?.ref===ref&&r.object?.sha===c.main,'BRANCH_UNCONFIRMED');
+           const result=await api('/graphql','POST',{query:'mutation($input:CreateCommitOnBranchInput!){createCommitOnBranch(input:$input){commit{oid}}}',variables:{input:{branch:{repositoryNameWithOwner:REPO,branchName:c.branch},expectedHeadOid:c.main,message:{headline:'feat: publish owner-reviewed AI proposal under Digital Me'},fileChanges:{additions:m.files.map(({path,contents})=>({path,contents}))}}}});
+           const head=result?.data?.createCommitOnBranch?.commit?.oid;ok(sha(head),'COMMIT_UNCONFIRMED');
+           const s=await api(R+'/commits/'+head);ok(verified(s,head)&&s.author?.login===BOT&&s.parents?.length===1&&s.parents[0].sha===c.main&&s.files?.length===m.files.length&&m.files.every(f=>s.files.some(x=>x.filename===f.path&&x.sha===f.after&&x.status===f.status)),'SIGNED_CONTENT_UNVERIFIED');
+           for(const f of m.files)ok(await entry(api,head,f.path)===f.after&&await contents(api,head,f.path,f.after)===f.contents,'SIGNED_READBACK_MISMATCH');
+           await mainCheck(c,api);await proposalCheck(c,api);
+           const p=await api(R+'/pulls','POST',{title:'feat: Digital Me signed proposal #'+c.pr,head:c.branch,base:'main',draft:true,body:`Source proposal #${c.pr}\nReviewed head: ${c.head}\nReview digest: ${c.review}\nSigned base: ${c.main}\nCandidate code was not executed. Required CI and independent review remain mandatory. Original PR preserved; no auto-merge.`});
+           const n=p?.number;const identity=x=>Number.isSafeInteger(n)&&n>0&&x?.number===n&&x.state==='open'&&x.draft===true&&x.user?.login===BOT&&x.head?.sha===head&&x.head.ref===c.branch&&x.head.repo?.full_name===REPO&&x.base?.sha===c.main&&x.base.ref==='main'&&x.base.repo?.full_name===REPO;
+           ok(identity(p),'DRAFT_UNCONFIRMED_RECONCILE');ok(identity(await api(R+'/pulls/'+n)),'DRAFT_READBACK_RECONCILE');await mainCheck(c,api);
+           return {status:'SIGNED_DRAFT_CREATED',pr:n,head,merged:false};
+          }
+          function github(token){return async(path,method='GET',body)=>{const r=await fetch('https://api.github.com'+path,{method,redirect:'error',signal:AbortSignal.timeout(30000),headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json','Content-Type':'application/json','X-GitHub-Api-Version':'2022-11-28'},...(body===undefined?{}:{body:JSON.stringify(body)})});ok(r.ok,'GITHUB_HTTP_'+r.status);if(r.status===204)return null;const j=await r.json();ok(!j?.errors?.length,'GITHUB_REJECTED');return j;};}
+          function jwt(pem){const enc=x=>Buffer.from(JSON.stringify(x)).toString('base64url'),now=Math.floor(Date.now()/1000),m=enc({alg:'RS256',typ:'JWT'})+'.'+enc({iss:String(APP),iat:now-30,exp:now+540});return m+'.'+createSign('RSA-SHA256').update(m).sign(pem).toString('base64url');}
+          async function withApp(pem,fn){const api=github(jwt(pem)),i=await api(R+'/installation');ok(i?.app_id===APP&&i.account?.login==='GLORIFIER7'&&i.repository_selection==='selected'&&Number.isSafeInteger(i.id)&&Object.entries(PERMS).every(([k,v])=>i.permissions?.[k]===v),'APP_SCOPE_MISMATCH');const t=await api('/app/installations/'+i.id+'/access_tokens','POST',{repositories:['GLORIFIER'],permissions:PERMS});ok(typeof t?.token==='string'&&t.token.length>0,'TOKEN_UNAVAILABLE');const scoped=github(t.token);try{ok(t.repository_selection==='selected'&&t.repositories?.length===1&&t.repositories[0].full_name===REPO&&Object.entries(PERMS).every(([k,v])=>t.permissions?.[k]===v)&&Object.entries(t.permissions).every(([k,v])=>k in PERMS||(k==='metadata'&&v==='read')),'TOKEN_SCOPE_MISMATCH');return await fn(scoped);}finally{try{await scoped('/installation/token','DELETE');}catch{console.warn('TOKEN_REVOCATION_UNCONFIRMED');}}}
+          async function run(){const c=config(process.env),mode=process.argv[2],file=process.argv[3];ok(typeof file==='string','MANIFEST_REQUIRED');if(mode==='prepare'){ok(!!process.env.GITHUB_TOKEN,'READ_TOKEN_REQUIRED');const m=await inspect(c,github(process.env.GITHUB_TOKEN));writeFileSync(file,JSON.stringify(m),{mode:0o600,flag:'wx'});console.log('REVIEWED_INERT_DATA_VALIDATED');}else if(mode==='publish'){const pem=process.env.DIGITAL_ME_APP_PRIVATE_KEY;delete process.env.DIGITAL_ME_APP_PRIVATE_KEY;ok(!!pem,'APP_KEY_REQUIRED');console.log(JSON.stringify(await withApp(pem,api=>publish(c,JSON.parse(readFileSync(file,'utf8')),api))));}else throw Error('INVALID_MODE');}
+          if(process.argv[1]&&import.meta.url===pathToFileURL(process.argv[1]).href)run().catch(e=>{console.error(/^[A-Z0-9_]{1,80}$/.test(e?.message??'')?e.message:'PUBLICATION_FAILED_RECONCILE');process.exitCode=1;});
+          PUBLISHER_JS
+          cat > publisher.test.mjs <<'PUBLISHER_TEST'
+          import test from 'node:test';
+          import assert from 'node:assert/strict';
+          import {config,inspect,publish,digest,blob} from './publisher.mjs';
+          const repo='GLORIFIER7/GLORIFIER',root='/repos/'+repo, base='a'.repeat(40), main='b'.repeat(40), head='c'.repeat(40), signed='d'.repeat(40), path='digital-me/docs/coding-agent.md';
+          const old=Buffer.from('old\n'), next=Buffer.from('new\n');
+          const records=[{path,before:blob(old),after:blob(next),status:'modified'}];
+          const env={GITHUB_REPOSITORY:repo,GITHUB_REF:'refs/heads/main',GITHUB_EVENT_NAME:'workflow_dispatch',GITHUB_ACTOR_ID:'32674233',GITHUB_ACTOR:'GLORIFIER7',GITHUB_TRIGGERING_ACTOR:'GLORIFIER7',GITHUB_RUN_ATTEMPT:'1',GITHUB_SHA:main,EXPECTED_MAIN:main,PROPOSAL_BASE:base,PROPOSAL_HEAD:head,PROPOSAL_PR:'1073',PATHS:path,REVIEW_DIGEST:digest({base,head,files:records}),CONFIRM:'true'};
+          const verified=sha=>({sha,commit:{verification:{verified:true,reason:'valid'}}});
+          function fixture(o={}){
+           const cfg=config(env),calls=[];const pr={number:1073,state:'open',head:{sha:head,ref:'devin/test',repo:{full_name:repo}},base:{ref:'main',repo:{full_name:repo}}};
+           const draft={number:1234,state:'open',draft:true,user:{login:'glorifier-digital-me[bot]'},head:{sha:signed,ref:cfg.branch,repo:{full_name:repo}},base:{sha:main,ref:'main',repo:{full_name:repo}}};
+           const treeByCommit={[base]:'1'.repeat(40),[main]:'2'.repeat(40),[head]:'3'.repeat(40),[signed]:'4'.repeat(40)};
+           const child=(s,n)=>s[0]+String(n).repeat(39);
+           const api=async(p,method='GET',body)=>{calls.push({p,method,body});
+            if(p===root+'/commits/main')return o.unsignedMain?{sha:main,commit:{verification:{verified:false}}}:verified(main);
+            if(p===root+'/commits/'+base)return verified(base);
+            if(p===root+'/pulls/1073')return {...pr,head:{...pr.head,sha:o.moved?main:head}};
+            if(p.includes('/compare/'+base+'...'+main))return {status:'ahead',behind_by:0,base_commit:{sha:base},merge_base_commit:{sha:base}};
+            if(p.includes('/compare/'+base+'...'+head))return {status:'ahead',behind_by:0,base_commit:{sha:base},merge_base_commit:{sha:base},total_commits:1,ahead_by:1,commits:[{sha:head,parents:[{sha:base}],commit:{verification:{verified:false}}}],files:[{filename:o.extra?'src/other.ts':path,sha:blob(next),status:'modified'}]};
+            if(p.includes('/git/commits/')){const sha=p.split('/').at(-1);return {sha,tree:{sha:treeByCommit[sha]}};}
+            if(p.includes('/git/trees/')){const sha=p.split('/').at(-1);const n=sha[0];const items=Object.values(treeByCommit);let tree;if(items.includes(sha))tree=[{path:'digital-me',mode:'040000',type:'tree',sha:child(sha,5)}];else if(sha.endsWith('5'.repeat(39)))tree=[{path:'docs',mode:'040000',type:'tree',sha:child(sha,6)}];else tree=[{path:'coding-agent.md',mode:o.symlink?'120000':'100644',type:'blob',sha:blob(n==='1'||(n==='2'&&!o.conflict)?old:next)}];return {sha,truncated:false,tree};}
+            if(p.includes('/contents/')){const b=p.endsWith(head)||p.endsWith(signed)?next:old;return {path,type:'file',encoding:'base64',sha:blob(b),content:(o.badBytes?old:b).toString('base64')};}
+            if(p.includes('/pulls?'))return o.duplicate?[draft]:[];
+            if(p.includes('/git/matching-refs/'))return [];
+            if(p===root+'/git/refs')return {ref:body.ref,object:{sha:main}};
+            if(p==='/graphql')return {data:{createCommitOnBranch:{commit:{oid:signed}}}};
+            if(p===root+'/commits/'+signed)return {...verified(signed),author:{login:o.wrongSigner?'other':'glorifier-digital-me[bot]'},parents:[{sha:main}],files:[{filename:path,sha:blob(next),status:'modified'}]};
+            if(p===root+'/pulls'&&method==='POST')return draft;
+            if(p===root+'/pulls/1234')return draft;
+            throw Error('unexpected '+p);
+           };return {cfg,api,calls};
+          }
+          test('owner-only config rejects workflows, unreviewed paths and wrong context',()=>{for(const patch of [{GITHUB_ACTOR_ID:'1'},{GITHUB_EVENT_NAME:'issue_comment'},{CONFIRM:'false'},{PATHS:'.github/workflows/evil.yml'},{PATHS:'digital-me/docs/../x.md'},{PATHS:path+','+path},{REVIEW_DIGEST:'bad'},{EXPECTED_MAIN:base}])assert.throws(()=>config({...env,...patch}));});
+          test('unsigned proposal is inert and exact reviewed bytes pass against unchanged signed main',async()=>{const f=fixture();const m=await inspect(f.cfg,f.api);assert.equal(m.files[0].contents,next.toString('base64'));assert.ok(f.calls.every(x=>x.method==='GET'));});
+          test('stale proposal, changed main path, extra files, symlink, byte mismatch or unsigned main fail closed',async()=>{for(const o of [{moved:true},{conflict:true},{extra:true},{symlink:true},{badBytes:true},{unsignedMain:true}]){const f=fixture(o);await assert.rejects(inspect(f.cfg,f.api));assert.ok(f.calls.every(x=>x.method==='GET'));}});
+          test('wrong reviewed digest stops preflight',async()=>{const f=fixture();await assert.rejects(inspect(config({...env,REVIEW_DIGEST:'0'.repeat(64)}),f.api));});
+          test('publishes signed bot draft with exact data and never merges or closes source',async()=>{const f=fixture();const m=await inspect(f.cfg,f.api);const r=await publish(f.cfg,m,f.api);assert.equal(r.pr,1234);assert.equal(r.head,signed);assert.ok(f.calls.filter(x=>x.method!=='GET').every(x=>[root+'/git/refs','/graphql',root+'/pulls'].includes(x.p)));});
+          test('wrong signer prevents draft creation; duplicates prevent writes',async()=>{for(const o of [{wrongSigner:true},{duplicate:true}]){const f=fixture(o);await assert.rejects(publish(f.cfg,await inspect(f.cfg,f.api),f.api));assert.ok(!f.calls.some(x=>x.method==='POST'&&x.p===root+'/pulls'));if(o.duplicate)assert.ok(f.calls.every(x=>x.method==='GET'));}});
+          test('manifest mutation fails before writes',async()=>{const f=fixture();const m=await inspect(f.cfg,f.api);m.files[0].contents='altered';await assert.rejects(publish(f.cfg,m,f.api));assert.ok(f.calls.every(x=>x.method==='GET'));});
+          PUBLISHER_TEST
+          node --test publisher.test.mjs
+      - name: Read-only reviewed proposal validation
+        shell: bash
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node "$RUNNER_TEMP/glorifier-proposal-publisher/publisher.mjs" prepare "$RUNNER_TEMP/glorifier-proposal-publisher/manifest.json"
+      - name: Publish verified App-signed draft only
+        if: inputs.publish == true
+        shell: bash
+        env:
+          DIGITAL_ME_APP_PRIVATE_KEY: ${{ secrets.DIGITAL_ME_APP_PRIVATE_KEY }}
+        run: |
+          node "$RUNNER_TEMP/glorifier-proposal-publisher/publisher.mjs" publish "$RUNNER_TEMP/glorifier-proposal-publisher/manifest.json"
