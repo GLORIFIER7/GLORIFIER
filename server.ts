@@ -86,7 +86,7 @@ import { getAgentMinerSnapshot, runAgentMinerCycle, setAgentMinerRunning, setCom
 import { initializeAgentMinerState } from './src/lib/agent-miner-state';
 import { initializeA2ARuntime, getA2AProtocolManifest, discoverA2ACapabilities, createA2ATask, getA2ATask, getA2ATaskForProtocol, getA2ATaskForRequesterProtocol, getA2ATaskForIdempotencyKeyForProtocol, createA2ATaskForProtocol, listA2ATasks, listA2ATaskPageForProtocol, cancelA2ATaskForRequesterProtocol, executeA2ATask, verifySignedHandoff, runA2AE2ETest } from './src/lib/a2a-runtime';
 import { createA2AExpressRouter, configureA2AJsonRpcBodyParsing } from './src/lib/a2a-v1-express';
-import { createA2AMachineAuthRouter, createA2AMachineIdentityResolver, createPostgresA2AMachineClientStore, type A2AMachineAuthDependencies } from './src/lib/a2a-machine-auth';
+import { createA2AMachineAuthRouter, createA2AMachineIdentityResolver, createPostgresA2AMachineClientStore, isA2AMachineAuthReady, type A2AMachineAuthDependencies } from './src/lib/a2a-machine-auth';
 import { isAuthorizedA2AExecution } from './src/lib/a2a-v1';
 import { canonicalActionHash, buildEvidenceRecord, getEconomicIntegrityPolicy, listApiAssets, registerApiAsset, problemDetails } from './src/lib/governance/geas-architecture-controls';
 import { startGlorifierDaemon, getGlorifierDaemonSnapshot, runGlorifierDaemonCycle, stopGlorifierDaemon } from './src/lib/glorifier-daemon';
@@ -2657,6 +2657,8 @@ app.use(createA2AExpressRouter({
   getTaskForIdempotencyKey: (key, requesterAgentId) => getA2ATaskForIdempotencyKeyForProtocol(requesterAgentId, key),
   listTasks: (requesterAgentId, input) => listA2ATaskPageForProtocol({ ...input, requesterAgentId }),
   cancelTask: (id, requesterAgentId) => cancelA2ATaskForRequesterProtocol(id, requesterAgentId),
+  // Advertise OAuth in the agent card only when the machine auth endpoints actually accept requests.
+  isMachineAuthEnabled: () => isA2AMachineAuthReady(a2aMachineAuthDependencies),
 }));
 
 app.get('/.well-known/a2a-agent-card.json', (_req: Request, res: Response) => {
@@ -4431,6 +4433,13 @@ async function startServer() {
   void initializeBackgroundServices().catch(error => {
     console.warn('[BackendInit] background services startup deferred:', error instanceof Error ? error.message : error);
   });
+}
+
+void startServer().catch((error: unknown) => {
+  console.error('[ServerStartup] failed to start:', error instanceof Error ? error.message : error);
+  process.exitCode = 1;
+});
+;
 }
 
 void startServer().catch((error: unknown) => {

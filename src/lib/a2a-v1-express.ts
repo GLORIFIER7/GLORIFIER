@@ -24,6 +24,7 @@ export interface A2AExpressDependencies {
   getTaskForIdempotencyKey?(key: string, requesterAgentId: string): A2ATaskLike | null | Promise<A2ATaskLike | null>;
   listTasks(requesterAgentId: string, input: A2AListTasksInput): A2ATaskListPage | Promise<A2ATaskListPage>;
   cancelTask?(id: string, requesterAgentId: string): A2ATaskLike | null | Promise<A2ATaskLike | null>;
+  isMachineAuthEnabled?(): boolean;
 }
 
 function jsonRpcHttpError(
@@ -88,7 +89,7 @@ export function createA2AExpressRouter(dependencies: A2AExpressDependencies) {
     try {
       res.setHeader('Cache-Control', 'no-store');
       res.setHeader('X-Content-Type-Options', 'nosniff');
-      return res.json(buildA2AAgentCard(publicBaseUrl, dependencies.getAgentVersion()));
+      return res.json(buildA2AAgentCard(publicBaseUrl, dependencies.getAgentVersion(), dependencies.isMachineAuthEnabled?.() === true));
     } catch {
       return res.status(503).json({ ok: false, code: 'A2A_PUBLIC_URL_INVALID' });
     }

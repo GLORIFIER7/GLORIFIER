@@ -209,6 +209,11 @@ function resolveConfig(deps: A2AMachineAuthDependencies): ResolvedConfig | null 
 
 const nowSeconds = (deps: A2AMachineAuthDependencies) => Math.floor((deps.nowMs?.() ?? Date.now()) / 1000);
 
+/** True only when machine authentication is explicitly enabled and fully configured. */
+export function isA2AMachineAuthReady(deps: A2AMachineAuthDependencies): boolean {
+  return deps.isEnabled?.() === true && resolveConfig(deps) !== null;
+}
+
 /**
  * Resolve the requester identity for a machine bearer token on the A2A endpoint.
  * Returns null for anything that is not a valid, unrevoked machine token so the caller
