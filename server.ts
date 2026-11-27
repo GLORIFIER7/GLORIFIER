@@ -167,6 +167,12 @@ const rateLimitKeyGenerator = (req: Request): string => {
   return ipKeyGenerator(clientIp);
 };
 
+// A2A machine-auth limiters ignore caller-supplied forwarding headers entirely.
+const a2aMachineRateLimitKeyGenerator = (req: Request): string => {
+  const peer = req.socket.remoteAddress;
+  return peer ? ipKeyGenerator(peer) : 'unknown';
+};
+
 const rateLimitProblem = (detail: string) => (req: Request, res: Response) => {
   res.setHeader('Retry-After', '60');
   return res.status(429).json(problemDetails({
@@ -275,7 +281,7 @@ const a2aMachineTokenRateLimit = rateLimit({
   limit: 60,
   standardHeaders: 'draft-8',
   legacyHeaders: false,
-  keyGenerator: rateLimitKeyGenerator,
+  keyGenerator: a2aMachineRateLimitKeyGenerator,
   handler: rateLimitProblem('Too many A2A token requests from this client.'),
 });
 app.use('/api/a2a/oauth/register', a2aMachineRegistrationRateLimit);
