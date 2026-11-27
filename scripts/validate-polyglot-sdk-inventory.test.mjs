@@ -103,6 +103,17 @@ test('enforces committed Dart and Kotlin dependency lockfiles in CI', () => {
   assert.doesNotMatch(polyglotWorkflow, /--write-locks|Upload generated (?:Kotlin|Dart) dependency lock/);
 });
 
+test('probes the Rust SDK on Windows, macOS and Linux ARM64 without widening registry support', () => {
+  const job = polyglotWorkflow.match(/^  rust-platform-smoke:\n(?:(?: {4,}.*)?\n)+/m)?.[0];
+  assert.ok(job, 'rust-platform-smoke job must be defined');
+  assert.match(job, /os: \[windows-2022, macos-15, ubuntu-24\.04-arm\]/);
+  assert.match(job, /fail-fast: false/);
+  assert.match(job, /persist-credentials: false/);
+  assert.match(job, /dtolnay\/rust-toolchain@[0-9a-f]{40} # stable/);
+  assert.match(job, /cargo test --manifest-path sdk\/rust\/Cargo\.toml --all-targets/);
+  assert.match(polyglotWorkflow, /^  rust:\n    name: Rust SDK \(stable\)\n    runs-on: ubuntu-24\.04/m);
+});
+
 function tableColumnCount(line) {
   return line.split('|').filter((cell) => cell.trim().length > 0).length;
 }

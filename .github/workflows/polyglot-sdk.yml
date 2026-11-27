@@ -176,6 +176,27 @@ jobs:
 
   # These are supplementary probes. Their results do not widen registry support
   # until exact successful runs are added to the relevant capability records.
+  rust-platform-smoke:
+    name: Rust stable platform probe (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-2022, macos-15, ubuntu-24.04-arm]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+      - name: Ensure OpenSSL headers for native TLS on Linux
+        if: runner.os == 'Linux'
+        run: pkg-config --exists openssl || (sudo apt-get update && sudo apt-get install -y --no-install-recommends pkg-config libssl-dev)
+      - name: Record exact Rust compiler and host
+        run: rustc -vV
+      - name: Run native Rust SDK and shared fixture tests
+        run: cargo test --manifest-path sdk/rust/Cargo.toml --all-targets
+
   python-platform-smoke:
     name: Python 3.12 platform probe (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
