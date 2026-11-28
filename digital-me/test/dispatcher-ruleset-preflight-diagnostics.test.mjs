@@ -115,3 +115,43 @@ test('genuine marker mismatch reports only strictly validated UTC timestamps and
  assert.equal(unsafe.exit,1);
  assert.ok(!unsafe.messages.some(x=>x.startsWith('RULESET_RUNTIME_MARKER_VALUES ')));
 });
+
+test('real preflight accepts observed GitHub offset representation without authorizing execution',async()=>{
+ const {githubReadApi,createGithubEvidence}=await import('../src/dispatcher-github-evidence.mjs');
+ const {makeRulesetAttestation,createAttestedReadApi}=await import('../src/dispatcher-ruleset-attestation.mjs');
+ const full={...ruleset,updated_at:'2026-11-28T20:52:48.235+07:00',created_at:'2026-11-28T20:52:48.100+07:00',target:'branch',enforcement:'active',conditions:{ref_name:{include:['refs/heads/main'],exclude:[]}},rules:[
+  {type:'required_signatures'},{type:'non_fast_forward'},{type:'deletion'},
+  {type:'pull_request',parameters:{required_approving_review_count:1,dismiss_stale_reviews_on_push:true,require_code_owner_review:true,required_review_thread_resolution:true}},
+  {type:'required_status_checks',parameters:{strict_required_status_checks_policy:true,required_status_checks:['Required CI','CodeQL (python, none)','CodeQL (javascript-typescript, none)','npm-security','Dependency Review','validate-and-build'].map(context=>({context,integration_id:15368}))}},
+  {type:'code_scanning',parameters:{code_scanning_tools:[{tool:'CodeQL',security_alerts_threshold:'high_or_higher',alerts_threshold:'errors'}]}},
+  {type:'code_quality',parameters:{severity:'all'}}]};
+ const ordinaryToken='ordinary-fixture-token';
+ for(const [ordinaryMarker,expected] of [['2026-11-28T13:52:48.235Z',0],['2026-11-28T13:52:48.235000001Z',1]]){
+  const messages=[];
+  const process={env:{RULESET_ATTEST_TOKEN:secret,GITHUB_TOKEN:ordinaryToken,GITHUB_SHA:sha,GITHUB_RUN_ID:'1'},exitCode:0};
+  const console={log:x=>messages.push(x),error:x=>messages.push(x)};
+  const fetch=async(url,options)=>{
+   assert.equal(options.method,'GET');
+   const privileged=options.headers.Authorization==='Bearer '+secret;
+   if(url.pathname.endsWith('/commits/main')){
+    assert.equal(privileged,false);
+    return {ok:true,json:async()=>({sha,commit:{verification:{verified:true,reason:'valid'}}})};
+   }
+   assert.equal(url.pathname,'/repos/GLORIFIER7/GLORIFIER/rulesets/28293483');
+   const {bypass_actors,...visible}=full;
+   return {ok:true,json:async()=>privileged?full:{...visible,updated_at:ordinaryMarker,created_at:'2026-11-28T13:52:48.1Z'}};
+  };
+  await new AsyncFunction('process','console','fetch','githubReadApi','makeRulesetAttestation','createAttestedReadApi','createGithubEvidence','canonicalRulesetMarker',code)(process,console,fetch,githubReadApi,makeRulesetAttestation,createAttestedReadApi,createGithubEvidence,canonicalRulesetMarker);
+  assert.equal(process.exitCode,expected);
+  assert.ok(messages.every(x=>!x.includes(secret)&&!x.includes(ordinaryToken)));
+  const receipt=JSON.parse(messages.find(x=>x.startsWith('{')));
+  assert.equal(receipt.executionAuthorized,false);
+  assert.equal(receipt.publicationAuthorized,false);
+  assert.equal(receipt.driftMarkerSemanticsVerified,false);
+  if(expected===0)assert.equal(receipt.status,'RULESET_PREFLIGHT_VERIFIED_READ_ONLY');
+  else{
+   assert.equal(receipt.status,'RULESET_STATIC_GOVERNANCE_VERIFIED_READ_ONLY');
+   assert.ok(messages.includes('RULESET_PREFLIGHT_DENIED RULESET_MARKER_MISMATCH'));
+  }
+ }
+});
