@@ -34,18 +34,43 @@ jobs:
           node --input-type=module <<'NODE'
           import {makeRulesetAttestation,createAttestedReadApi} from './digital-me/src/dispatcher-ruleset-attestation.mjs';
           import {githubReadApi,createGithubEvidence} from './digital-me/src/dispatcher-github-evidence.mjs';
+          let stage='PREFLIGHT_INITIALIZATION';
           try {
             const token=process.env.RULESET_ATTEST_TOKEN;
             const readToken=process.env.GITHUB_TOKEN;
             delete process.env.RULESET_ATTEST_TOKEN;
             delete process.env.GITHUB_TOKEN;
+            stage='ATTEST_TOKEN_INVALID';
+            if(typeof token!=='string'||!token)throw Error('TOKEN_INVALID');
+            stage='READ_TOKEN_INVALID';
+            if(typeof readToken!=='string'||!readToken)throw Error('TOKEN_INVALID');
             const sourceSha=process.env.GITHUB_SHA,runId=process.env.GITHUB_RUN_ID;
-            const ruleset=await githubReadApi(token)('/repos/GLORIFIER7/GLORIFIER/rulesets/27616646');
+            // Only fixed stage names and allowlisted HTTP codes enter logs.
+            const observe=(prefix)=>async(url,options)=>{
+              stage=prefix+'_REQUEST_FAILED';
+              const response=await fetch(url,options);
+              if(!response.ok)stage=prefix+'_HTTP_'+([401,403,404,429,500,502,503,504].includes(response.status)?response.status:'OTHER');
+              return response;
+            };
+            stage='ATTEST_REQUEST_FAILED';
+            const ruleset=await githubReadApi(token,observe('ATTEST'))('/repos/GLORIFIER7/GLORIFIER/rulesets/27616646');
+            stage='BYPASS_ACTORS_UNAVAILABLE';
+            if(!Array.isArray(ruleset?.bypass_actors))throw Error('BYPASS_ACTORS_UNAVAILABLE');
+            stage='BYPASS_ACTORS_PRESENT';
+            if(ruleset.bypass_actors.length!==0)throw Error('BYPASS_ACTORS_PRESENT');
+            stage='ATTESTATION_INVALID';
             const attestation=makeRulesetAttestation({ruleset,sourceSha,runId});
-            const api=createAttestedReadApi({api:githubReadApi(readToken),attestation,sourceSha,runId});
+            const ordinary=githubReadApi(readToken,observe('READ'));
+            const api=createAttestedReadApi({api:async path=>{
+              const result=await ordinary(path);
+              stage='GOVERNANCE_OR_SIGNATURE_DENIED';
+              return result;
+            },attestation,sourceSha,runId});
             const evidence=createGithubEvidence({api,resolveManifest:()=>{throw Error('PREFLIGHT_ONLY');}});
+            stage='GOVERNANCE_OR_SIGNATURE_DENIED';
             const main=await evidence.readMain();
+            stage='MAIN_MISMATCH';
             if(main.sha!==sourceSha||main.verified!==true||main.reason!=='valid')throw Error('MAIN_MISMATCH');
             console.log(JSON.stringify({status:'RULESET_PREFLIGHT_VERIFIED_READ_ONLY',sourceSha,runId,zeroBypass:true,signedMain:true,protectedMain:true,executionAuthorized:false,publicationAuthorized:false,driftMarkerSemanticsVerified:false}));
-          }catch{console.error('RULESET_PREFLIGHT_DENIED');process.exitCode=1;}
+          }catch{console.error('RULESET_PREFLIGHT_DENIED '+stage);process.exitCode=1;}
           NODE
