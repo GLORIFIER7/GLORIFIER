@@ -137,10 +137,15 @@ function mergeFixture(){
  const commit={...s.commit,files:structuredClone(mergeFiles),commit:{...s.commit.commit,tree:{sha:tree}}};
  const merged={sha:merge,parents:[{sha:base}],files:structuredClone(mergeFiles),commit:{tree:{sha:tree},verification:{verified:true,reason:'valid'}}};
  const reviews=[{id:1,state:'APPROVED',user:{login:'GLORIFIER7',id:32674233},commit_id:head,submitted_at:reviewAt}];
- const checks={total_count:6,check_runs:s.rules.rules[4].parameters.required_status_checks.map((c,i)=>({id:i+1,name:c.context,app:{id:15368},head_sha:head,status:'completed',conclusion:'success',completed_at:reviewAt}))};
+ const tested='7'.repeat(40);
+ const association={number:9,base:{sha:base,ref:'main',repo:{id:1377237797}},head:{sha:head,ref:branch,repo:{id:1377237797}}};
+ const checks={total_count:6,check_runs:s.rules.rules[4].parameters.required_status_checks.map((c,i)=>({id:i+1,name:c.context,app:{id:15368},head_sha:tested,status:'completed',conclusion:'success',completed_at:reviewAt}))};
  const compare={status:'ahead',behind_by:0,merge_base_commit:{sha:merge},base_commit:{sha:merge}};
- const state={pr,commit,merged,reviews,checks,compare};
- const api=async p=>{if(p===root+'/rulesets/28293483')return s.rules;if(p===root+'/commits/main')return s.main;if(p===root+'/pulls/9')return state.pr;if(p===root+'/commits/'+head)return state.commit;if(p===root+'/commits/'+merge)return state.merged;if(p===root+'/pulls/9/reviews?per_page=100')return state.reviews;if(p===root+'/commits/'+head+'/check-runs?per_page=100')return state.checks;if(p===root+'/compare/'+merge+'...'+main+'?per_page=1')return state.compare;throw Error('unexpected route '+p);};
+ const run={id:12,check_suite_id:14,run_attempt:1,head_branch:branch,head_sha:tested,event:'pull_request',path:'.github/workflows/ci.yml',conclusion:'success',pull_requests:[association]};
+ const suite={id:14,app:{id:15368},head_sha:tested,head_branch:branch,pull_requests:[association]};
+ const testedCommit={sha:tested,parents:[{sha:base},{sha:head}]};
+ const state={pr,commit,merged,reviews,checks,compare,run,suite,testedCommit,runs:{total_count:1,workflow_runs:[run]}};
+ const api=async p=>{if(p===root+'/rulesets/28293483')return s.rules;if(p===root+'/commits/main')return s.main;if(p===root+'/pulls/9')return state.pr;if(p===root+'/commits/'+head)return state.commit;if(p===root+'/commits/'+merge)return state.merged;if(p===root+'/commits/'+tested)return state.testedCommit;if(p===root+'/check-suites/14')return state.suite;if(p.startsWith(root+'/actions/runs?'))return state.runs;if(p===root+'/pulls/9/reviews?per_page=100')return state.reviews;if(p===root+'/commits/'+tested+'/check-runs?per_page=100')return state.checks;if(p===root+'/compare/'+merge+'...'+main+'?per_page=1')return state.compare;throw Error('unexpected route '+p);};
  return {state,read:()=>createGithubEvidence({api,resolveManifest:async()=>{throw Error('no publication');}}).readMergedReceipt({missionId:id,base,head,pr:9,digest:mergeDigest,sourceSha:main})};
 }
 test('historical signed squash merge matches the exact recipe, independent review, trusted checks and main ancestry',async()=>{const f=mergeFixture();const r=await f.read();assert.equal(r.status,'MERGED');assert.equal(r.mergeSha,merge);assert.equal(r.checkIds.length,6);});

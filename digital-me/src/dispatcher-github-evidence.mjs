@@ -159,9 +159,24 @@ export function createGithubEvidence({api,resolveManifest}={}){
   requireThat(Array.isArray(reviews)&&reviews.length<100);
   const ownerReviews=reviews.filter(r=>r?.user?.id===32674233&&r.user.login==='GLORIFIER7'&&['APPROVED','CHANGES_REQUESTED','DISMISSED'].includes(r.state)).sort((a,b)=>a.id-b.id);
   const review=ownerReviews.at(-1);requireThat(review?.state==='APPROVED'&&positive(review.id)&&review.commit_id===head&&Number.isFinite(Date.parse(review.submitted_at))&&Date.parse(review.submitted_at)<=stamp);
-  const checks=await api(ROOT+'/commits/'+head+'/check-runs?per_page=100');
+  // The pull_request workflow runs on GitHub's synthetic merge commit, so checks are
+  // bound to the tested SHA: the head itself, or a merge of exactly base and head.
+  const association=p=>p?.number===pr&&p.base?.sha===base&&p.base.ref==='main'&&p.base.repo?.id===REPOSITORY_ID&&p.head?.sha===head&&p.head.ref===branch&&p.head.repo?.id===REPOSITORY_ID;
+  const runs=await api(ROOT+'/actions/runs?event=pull_request&branch='+encodeURIComponent(branch)+'&per_page=100');
+  requireThat(Array.isArray(runs?.workflow_runs)&&runs.total_count===runs.workflow_runs.length&&runs.total_count<100);
+  let tested;
+  for(const run of runs.workflow_runs.filter(r=>positive(r?.id)&&positive(r.check_suite_id)&&r.head_branch===branch&&r.event==='pull_request'&&r.path==='.github/workflows/ci.yml'&&r.conclusion==='success'&&sha(r.head_sha)).sort((a,b)=>b.id-a.id)){
+   if(!run.pull_requests?.some(association))continue;
+   const suite=await api(ROOT+'/check-suites/'+run.check_suite_id);
+   if(suite?.id!==run.check_suite_id||suite.app?.id!==15368||suite.head_sha!==run.head_sha||suite.head_branch!==branch||!suite.pull_requests?.some(association))continue;
+   const testedCommit=await api(ROOT+'/commits/'+run.head_sha);
+   if(testedCommit?.sha!==run.head_sha||!(run.head_sha===head||(testedCommit.parents?.length===2&&testedCommit.parents[0]?.sha===base&&testedCommit.parents[1]?.sha===head)))continue;
+   tested=run.head_sha;break;
+  }
+  requireThat(tested);
+  const checks=await api(ROOT+'/commits/'+tested+'/check-runs?per_page=100');
   requireThat(Array.isArray(checks?.check_runs)&&checks.total_count===checks.check_runs.length&&checks.total_count<100);
-  const checkIds=CHECKS.map(name=>{const matching=checks.check_runs.filter(c=>c?.name===name&&c.app?.id===15368&&c.head_sha===head);requireThat(matching.length===1);const c=matching[0];requireThat(positive(c.id)&&c.status==='completed'&&c.conclusion==='success'&&Number.isFinite(Date.parse(c.completed_at))&&Date.parse(c.completed_at)<=stamp);return c.id;});
+  const checkIds=CHECKS.map(name=>{const matching=checks.check_runs.filter(c=>c?.name===name&&c.app?.id===15368&&c.head_sha===tested);requireThat(matching.length===1);const c=matching[0];requireThat(positive(c.id)&&c.status==='completed'&&c.conclusion==='success'&&Number.isFinite(Date.parse(c.completed_at))&&Date.parse(c.completed_at)<=stamp);return c.id;});
   requireThat(new Set(checkIds).size===CHECKS.length);
   const final=await api(ROOT+'/pulls/'+pr);requireThat(match(final)&&final.merged===true&&final.state==='closed'&&final.draft===false&&final.merge_commit_sha===mergeSha&&final.merged_at===mergedAt&&(await readMain()).sha===sourceSha);
   return {status:'MERGED',pr,base,head,mergeSha,mainSha:sourceSha,digest:hash,mergedAt,reviewerId:32674233,checkIds};
