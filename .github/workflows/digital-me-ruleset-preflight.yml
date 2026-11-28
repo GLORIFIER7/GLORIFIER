@@ -32,7 +32,7 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
         run: |
           node --input-type=module <<'NODE'
-          import {makeRulesetAttestation,createAttestedReadApi} from './digital-me/src/dispatcher-ruleset-attestation.mjs';
+          import {makeRulesetAttestation,createAttestedReadApi,canonicalRulesetMarker} from './digital-me/src/dispatcher-ruleset-attestation.mjs';
           import {githubReadApi,createGithubEvidence} from './digital-me/src/dispatcher-github-evidence.mjs';
           let stage='PREFLIGHT_INITIALIZATION';
           try {
@@ -84,10 +84,17 @@ jobs:
               if(path===rulesetPath){
                 let issue;
                 if(result?.id!==ruleset.id)issue='RULESET_RUNTIME_ID_MISMATCH';
-                else if(typeof result.updated_at!=='string'||!Number.isFinite(Date.parse(result.updated_at)))issue='RULESET_RUNTIME_MARKER_UNAVAILABLE';
-                else if(result.updated_at!==ruleset.updated_at)issue='RULESET_RUNTIME_MARKER_DIFFERENT';
+                else if(canonicalRulesetMarker(result.updated_at)===null)issue='RULESET_RUNTIME_MARKER_UNAVAILABLE';
+                else if(canonicalRulesetMarker(result.updated_at)!==canonicalRulesetMarker(ruleset.updated_at))issue='RULESET_RUNTIME_MARKER_DIFFERENT';
                 if(issue){
                   console.error(issue);
+                  if(issue==='RULESET_RUNTIME_MARKER_DIFFERENT'){
+                    // Both values are strictly validated UTC timestamps, never raw API data.
+                    console.log('RULESET_RUNTIME_MARKER_VALUES '+JSON.stringify({
+                      privileged:canonicalRulesetMarker(ruleset.updated_at),
+                      ordinary:canonicalRulesetMarker(result.updated_at)
+                    }));
+                  }
                   try{await verifyStatic();}catch{console.error('RULESET_STATIC_GOVERNANCE_DENIED');}
                 }
               }
