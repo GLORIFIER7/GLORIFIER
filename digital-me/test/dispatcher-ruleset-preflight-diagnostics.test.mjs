@@ -5,13 +5,13 @@ const workflow=readFileSync(new URL('../../.github/workflows/digital-me-ruleset-
 const code=workflow.split("node --input-type=module <<'NODE'\n")[1].split('\n          NODE')[0].replace(/^\s*import .*;$/gm,'');
 const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
 const sha='a'.repeat(40), secret='fixture-token-do-not-log', ruleset={id:28293483,bypass_actors:[],updated_at:'2026-11-28T00:00:00Z'};
-async function run({token=secret,readToken=secret,response=ruleset,http=200,ordinaryHttp=200,ordinary=ruleset,main={sha,verified:true,reason:'valid'},protection=false,network=false,diagnosticCode}={}){
+async function run({token=secret,readToken=secret,response=ruleset,http=200,ordinaryHttp=200,ordinary=ruleset,main={sha,verified:true,reason:'valid'},protection=false,network=false,diagnosticCode,staticResponse=response}={}){
  const messages=[],calls=[];const process={env:{RULESET_ATTEST_TOKEN:token,GITHUB_TOKEN:readToken,GITHUB_SHA:sha,GITHUB_RUN_ID:'1'},exitCode:0};
  const console={log:x=>messages.push(x),error:x=>messages.push(x)};
- const fetch=async(url,options)=>{calls.push([String(url),options.method]);if(network)throw Error(secret); const status=calls.length===1?http:ordinaryHttp;return {ok:status===200,status,json:async()=>calls.length===1?response:ordinary};};
+ const fetch=async(url,options)=>{calls.push([String(url),options.method]);if(network)throw Error(secret); const status=calls.length===1?http:ordinaryHttp;return {ok:status===200,status,json:async()=>calls.length===1?response:calls.length===2?ordinary:staticResponse};};
  const githubReadApi=(t,f=fetch)=>async path=>{const r=await f('https://api.github.com'+path,{method:'GET'});if(!r.ok)throw Error(secret);return r.json();};
  const makeRulesetAttestation=({ruleset:r})=>{if(!Array.isArray(r?.bypass_actors)||r.bypass_actors.length||!r.updated_at)throw Error(secret);return {ruleset:r};};
- const createAttestedReadApi=({api,attestation})=>async path=>{const live=await api(path);if(live.updated_at!==attestation.ruleset.updated_at)throw Error(secret);return attestation.ruleset;};
+ const createAttestedReadApi=({api,attestation})=>async path=>{const live=await api(path);if(live.id!==attestation.ruleset.id||live.updated_at!==attestation.ruleset.updated_at)throw Object.assign(Error(secret),{code:'RULESET_MARKER_MISMATCH'});return attestation.ruleset;};
  const createGithubEvidence=({api})=>({readMain:async()=>{await api('/repos/GLORIFIER7/GLORIFIER/rulesets/28293483');if(protection)throw Object.assign(Error(secret),{code:diagnosticCode});return main;}});
  await new AsyncFunction('process','console','fetch','githubReadApi','makeRulesetAttestation','createAttestedReadApi','createGithubEvidence',code)(process,console,fetch,githubReadApi,makeRulesetAttestation,createAttestedReadApi,createGithubEvidence);
  assert.ok(messages.every(x=>!String(x).includes(secret)));assert.ok(calls.every(([,method])=>method==='GET'));assert.equal(process.env.RULESET_ATTEST_TOKEN,undefined);assert.equal(process.env.GITHUB_TOKEN,undefined);
@@ -41,5 +41,58 @@ test('workflow emits only allowlisted failure codes, never arbitrary exception d
   const r=await run({protection:true,diagnosticCode});
   assert.equal(r.exit,1);
   assert.deepEqual(r.messages,['RULESET_PREFLIGHT_DENIED '+expected]);
+ }
+});
+
+test('missing ordinary revision marker verifies static protection separately but never authorizes runtime',async()=>{
+ const {updated_at,...ordinary}=ruleset;
+ const r=await run({ordinary});
+ assert.equal(r.exit,1);
+ assert.ok(r.messages.includes('RULESET_RUNTIME_MARKER_UNAVAILABLE'));
+ const receipt=JSON.parse(r.messages.find(x=>x.startsWith('{')));
+ assert.equal(receipt.status,'RULESET_STATIC_GOVERNANCE_VERIFIED_READ_ONLY');
+ assert.equal(receipt.runtimeCompatibilityVerified,false);
+ assert.equal(receipt.executionAuthorized,false);
+ assert.equal(receipt.publicationAuthorized,false);
+ assert.ok(r.messages.includes('RULESET_PREFLIGHT_DENIED RULESET_MARKER_MISMATCH'));
+});
+
+for(const [name,ordinary,code] of [
+ ['different marker',{...ruleset,updated_at:'2026-11-28T00:01:00Z'},'RULESET_RUNTIME_MARKER_DIFFERENT'],
+ ['wrong identity',{...ruleset,id:1},'RULESET_RUNTIME_ID_MISMATCH'],
+])test(name+' remains blocked even with a static proof',async()=>{const r=await run({ordinary});assert.equal(r.exit,1);assert.ok(r.messages.includes(code));assert.ok(r.messages.includes('RULESET_PREFLIGHT_DENIED RULESET_MARKER_MISMATCH'));});
+test('changed privileged bypass list prevents static proof',async()=>{const r=await run({ordinary:{...ruleset,updated_at:undefined},staticResponse:{...ruleset,bypass_actors:[{}]}});assert.equal(r.exit,1);assert.ok(r.messages.includes('RULESET_STATIC_GOVERNANCE_DENIED'));assert.ok(r.messages.every(x=>!x.startsWith('{')));});
+test('changed privileged revision prevents static proof',async()=>{const r=await run({ordinary:{...ruleset,updated_at:undefined},staticResponse:{...ruleset,updated_at:'2026-11-28T00:01:00Z'}});assert.equal(r.exit,1);assert.ok(r.messages.includes('RULESET_STATIC_GOVERNANCE_DENIED'));assert.ok(r.messages.every(x=>!x.startsWith('{')));});
+
+test('real evidence verifier separates live static proof from missing ordinary revision marker',async()=>{
+ const {githubReadApi,createGithubEvidence}=await import('../src/dispatcher-github-evidence.mjs');
+ const {makeRulesetAttestation,createAttestedReadApi}=await import('../src/dispatcher-ruleset-attestation.mjs');
+ const full={...ruleset,target:'branch',enforcement:'active',conditions:{ref_name:{include:['refs/heads/main'],exclude:[]}},rules:[
+  {type:'required_signatures'},{type:'non_fast_forward'},{type:'deletion'},
+  {type:'pull_request',parameters:{required_approving_review_count:1,dismiss_stale_reviews_on_push:true,require_code_owner_review:true,required_review_thread_resolution:true}},
+  {type:'required_status_checks',parameters:{strict_required_status_checks_policy:true,required_status_checks:['Required CI','CodeQL (python, none)','CodeQL (javascript-typescript, none)','npm-security','Dependency Review','validate-and-build'].map(context=>({context,integration_id:15368}))}},
+  {type:'code_scanning',parameters:{code_scanning_tools:[{tool:'CodeQL',security_alerts_threshold:'high_or_higher',alerts_threshold:'errors'}]}},
+  {type:'code_quality',parameters:{severity:'all'}}]};
+ const ordinaryToken='ordinary-fixture-token';
+ for(const corrupt of [false,true]){
+  const messages=[];
+  const process={env:{RULESET_ATTEST_TOKEN:secret,GITHUB_TOKEN:ordinaryToken,GITHUB_SHA:sha,GITHUB_RUN_ID:'1'},exitCode:0};
+  const console={log:x=>messages.push(x),error:x=>messages.push(x)};
+  const fetch=async(url,options)=>{
+   assert.equal(options.method,'GET');
+   const privileged=options.headers.Authorization==='Bearer '+secret;
+   if(url.pathname.endsWith('/commits/main')){
+    assert.equal(privileged,false);
+    return {ok:true,json:async()=>({sha,commit:{verification:{verified:!corrupt,reason:corrupt?'invalid':'valid'}}})};
+   }
+   assert.equal(url.pathname,'/repos/GLORIFIER7/GLORIFIER/rulesets/28293483');
+   const {updated_at,bypass_actors,...visible}=full;
+   return {ok:true,json:async()=>privileged?full:visible};
+  };
+  await new AsyncFunction('process','console','fetch','githubReadApi','makeRulesetAttestation','createAttestedReadApi','createGithubEvidence',code)(process,console,fetch,githubReadApi,makeRulesetAttestation,createAttestedReadApi,createGithubEvidence);
+  assert.equal(process.exitCode,1);
+  assert.ok(messages.includes('RULESET_PREFLIGHT_DENIED RULESET_MARKER_MISMATCH'));
+  assert.equal(messages.some(x=>x.includes('RULESET_STATIC_GOVERNANCE_VERIFIED_READ_ONLY')), !corrupt);
+  assert.ok(messages.every(x=>!x.includes(secret)&&!x.includes(ordinaryToken)));
  }
 });

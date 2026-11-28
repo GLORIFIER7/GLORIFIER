@@ -8,7 +8,7 @@ const read=()=>readFileSync(new URL('../../.github/workflows/digital-me-ruleset-
 // Normalize CRLF only for checkout portability. No other syntax is ignored.
 function assertReviewedWorkflow(text){
   assert.equal(createHash('sha256').update(text.replace(/\r\n/g,'\n')).digest('hex'),
-    'ce5e15fcc521e865f48a5f156054fb165aa2671127cb156f5199048ddd98d5ea',
+    'f0c5ab1b57c4251dcfe0f99109a5526ce21d3a39b9100d2578db6c3716dcff0d',
     'Credential-bearing workflow differs from reviewed source');
 }
 function assertOwnerGate(text){
