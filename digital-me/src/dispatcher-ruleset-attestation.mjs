@@ -1,7 +1,7 @@
 // The privileged read is isolated in a separate job. The dispatcher never
 // receives its credential. Missing bypass actors are NOT interpreted as zero.
 const path='/repos/GLORIFIER7/GLORIFIER/rulesets/28293483';
-const check=v=>{if(!v)throw Error('DISPATCHER_RULESET_ATTESTATION_DENIED');};
+const check=(v,code)=>{if(!v)throw Object.assign(Error('DISPATCHER_RULESET_ATTESTATION_DENIED'),code?{code}:{});};
 const sha=v=>typeof v==='string'&&/^[a-f0-9]{40}$/.test(v);
 const run=v=>typeof v==='string'&&/^\d{1,24}$/.test(v);
 const marker=r=>typeof r?.updated_at==='string'&&Number.isFinite(Date.parse(r.updated_at));
@@ -19,14 +19,14 @@ export function createAttestedReadApi({api,attestation,sourceSha,runId,now=Date.
   if(!attestation)throw Error('DISPATCHER_RULESET_ATTESTATION_DENIED');
   check(typeof api==='function'&&typeof now==='function'&&attestation.schemaVersion===1&&attestation.sourceSha===sourceSha&&attestation.runId===runId);
   const a=makeRulesetAttestation({ruleset:attestation.ruleset,sourceSha,runId,now:attestation.observedAt});
-  function fresh(){const age=now()-a.observedAt;check(Number.isFinite(age)&&age>=0&&age<=1200000);}
+  function fresh(){const age=now()-a.observedAt;check(Number.isFinite(age)&&age>=0&&age<=1200000,'ATTESTATION_EXPIRED');}
   return async p=>{
     if(p!==path)return api(p);
     fresh();const live=await api(p);fresh();
     if(!live)throw Error('DISPATCHER_RULESET_ATTESTATION_DENIED');
-    check(live.id===a.ruleset.id&&marker(live)&&live.updated_at===a.ruleset.updated_at);
-    check(!Object.hasOwn(live,'bypass_actors')||(Array.isArray(live.bypass_actors)&&live.bypass_actors.length===0));
-    check(visible(live)===visible(a.ruleset));
+    check(live.id===a.ruleset.id&&marker(live)&&live.updated_at===a.ruleset.updated_at,'RULESET_MARKER_MISMATCH');
+    check(!Object.hasOwn(live,'bypass_actors')||(Array.isArray(live.bypass_actors)&&live.bypass_actors.length===0),'LIVE_BYPASS_DENIED');
+    check(visible(live)===visible(a.ruleset),'RULESET_VISIBLE_FIELDS_MISMATCH');
     return structuredClone(a.ruleset);
   };
 }
