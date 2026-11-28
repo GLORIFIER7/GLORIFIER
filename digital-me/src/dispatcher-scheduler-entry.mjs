@@ -11,6 +11,7 @@ import {withDispatcherApp} from './dispatcher-app-transport.mjs';
 import {dispatchTick} from './mission-dispatcher.mjs';
 import {prepareDispatcherCandidate,verifyDispatcherCandidate} from './dispatcher-repair-recipes.mjs';
 import {createGithubEvidence,githubReadApi} from './dispatcher-github-evidence.mjs';
+import {createAttestedReadApi} from './dispatcher-ruleset-attestation.mjs';
 import {WorkerAutopilotMissionStore} from '../../src/lib/autopilot-worker-store.ts';
 import {createDispatcherAuthorization} from '../../src/lib/governance/digital-me-dispatcher-authority.ts';
 import pg from 'pg';
@@ -49,17 +50,22 @@ async function main(env){
   const base=env.GITHUB_SHA,workerId='github-run-'+env.GITHUB_RUN_ID,db=env.DIGITAL_ME_DISPATCHER_DATABASE_URL,pem=env.DIGITAL_ME_APP_PRIVATE_KEY,token=env.GITHUB_TOKEN;
   delete env.DIGITAL_ME_DISPATCHER_DATABASE_URL;delete env.DIGITAL_ME_APP_PRIVATE_KEY;delete env.GITHUB_TOKEN;
   requireThat(typeof pem==='string'&&pem.length>0&&typeof token==='string'&&token.length>0);
+  const encoded=env.DIGITAL_ME_RULESET_ATTESTATION;
+  delete env.DIGITAL_ME_RULESET_ATTESTATION;
+  requireThat(typeof encoded==='string'&&encoded.length>0&&encoded.length<=100000&&/^[A-Za-z0-9+/]+={0,2}$/.test(encoded));
+  const attestation=JSON.parse(Buffer.from(encoded,'base64').toString('utf8'));
+  const api=createAttestedReadApi({api:githubReadApi(token),attestation,sourceSha:base,runId:env.GITHUB_RUN_ID});
   const options=config(db),factory=()=>clientFactory(options),read=scopedRead(factory);
   const ledger=new WorkerAutopilotMissionStore({connectionString:db},{requester:owner,allowAll:false},factory);
   await ledger.initializeDispatcher();
   const getAuthorization=createDispatcherAuthorization({query:read});
-  // Filter stale snapshots and missing grants before pagination; bounded inventory
+  // Filter current-base grants before pagination; the existing admission parser
+  // rejects malformed or stale objective text per mission without SQL casts. Bounded inventory
   // fails closed instead of silently starving newer eligible missions.
   const {rows:eligible}=await read(`SELECT payload FROM public.glorifier_autopilot_missions
     WHERE requester=$1 AND id ~ '^mission-coding-[a-f0-9]{64}$' AND status='blocked'
       AND payload->>'title'='GitHub fix #471' AND lease_owner IS NULL AND lease_expires_at IS NULL
       AND (payload->'dispatcher' IS NULL OR (payload->'dispatcher'->>'phase'='retryable' AND payload->'dispatcher'->>'attempts'='1'))
-      AND (payload->>'objective')::jsonb->>'sourceSnapshotSha'=$2
       AND public.read_digital_me_dispatcher_grant(id,$2)->>'recipeId'='dispatcher-receipt-limit'
     ORDER BY created_at,id LIMIT 101`,[owner,base]);
   requireThat(eligible.length<=100);
@@ -69,7 +75,7 @@ async function main(env){
     const index=eligible.findIndex(row=>row.payload.id===cursor.id&&row.payload.createdAt===cursor.createdAt);requireThat(index>=0);return eligible.slice(index+1).map(row=>row.payload);
   }};
   let manifest;
-  const evidence=createGithubEvidence({api:githubReadApi(token),resolveManifest:async fence=>{requireThat(manifest?.missionId===fence.missionId&&manifest.base===fence.base&&manifest.digest===fence.digest);return manifest;}});
+  const evidence=createGithubEvidence({api,resolveManifest:async fence=>{requireThat(manifest?.missionId===fence.missionId&&manifest.base===fence.base&&manifest.digest===fence.digest);return manifest;}});
   const assertFence=createPublicationFence({store,getAuthorization,readMain:evidence.readMain});
   const result=await runSchedulerTick({enabled:true,sourceSha:base,workerId,now:Date.now,store,readMain:evidence.readMain,getAuthorization,dispatchTick,
     recoverExpired:async()=>{const now=Date.now();const {rows}=await read(`SELECT payload FROM public.glorifier_autopilot_missions WHERE requester=$1 AND id ~ '^mission-coding-[a-f0-9]{64}$' AND payload->>'title'='GitHub fix #471' AND status='executing' AND lease_expires_at <= $2::timestamptz ORDER BY lease_expires_at,id LIMIT 101`,[owner,new Date(now).toISOString()]);return quarantineExpired({rows:rows.map(r=>r.payload),store,now});},
