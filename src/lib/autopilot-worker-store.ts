@@ -185,6 +185,7 @@ export class WorkerAutopilotMissionStore implements AutopilotMissionStore {
            has_table_privilege(current_user, '${TABLE_NAME}', 'SELECT') AS can_select,
            (SELECT bool_and(has_column_privilege(current_user, '${TABLE_NAME}', col, 'UPDATE'))
               FROM unnest(ARRAY['status','version','payload','next_run_at','lease_owner','lease_expires_at','updated_at']) AS fields(col)) AS can_update,
+           has_any_column_privilege(current_user, '${TABLE_NAME}', 'id,requester,idempotency_key,created_at', 'UPDATE') AS can_update_identity,
            has_function_privilege(current_user, 'public.read_digital_me_dispatcher_grant(text,text)', 'EXECUTE') AS can_read_grant,
            has_any_column_privilege(current_user, '${TABLE_NAME}', 'INSERT') AS can_insert,
            has_table_privilege(current_user, '${TABLE_NAME}', 'DELETE,TRUNCATE') AS can_destroy,

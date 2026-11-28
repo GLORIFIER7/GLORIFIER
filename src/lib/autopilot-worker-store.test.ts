@@ -189,7 +189,7 @@ test('Worker Autopilot store rolls back a failed mission write and always closes
 const dispatcherReadiness = {
   table_name: 'glorifier_autopilot_missions',
   dispatcher_member: true, scoped_rls: true, can_select: true,
-  can_update: true, can_read_grant: true, can_insert: false,
+  can_update: true, can_update_identity: false, can_read_grant: true, can_insert: false,
   can_destroy: false, can_access_grant_table: false,
 };
 
@@ -205,7 +205,7 @@ test('dedicated dispatcher accepts column UPDATE without INSERT authority', asyn
 test('dispatcher readiness rejects missing or excessive privileges', async () => {
   for (const patch of [
     { dispatcher_member: false }, { scoped_rls: false }, { can_update: false },
-    { can_read_grant: false }, { can_insert: true }, { can_destroy: true },
+    { can_update_identity: true }, { can_read_grant: false }, { can_insert: true }, { can_destroy: true },
     { can_access_grant_table: true },
   ]) {
     const fake = fakeFactory(sql => ({ rows: sql.includes('to_regclass') ? [{ ...dispatcherReadiness, ...patch }] : [] }));
