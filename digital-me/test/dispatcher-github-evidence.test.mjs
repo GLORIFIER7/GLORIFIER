@@ -10,7 +10,7 @@ const changes=[{path:'digital-me/src/example.mjs',before:'3367afdbbf91e638efe983
 const digest=hash(JSON.stringify(changes)),branch='digital-me/repair-'+hash(base+id+digest), fence={base,missionId:id,digest};
 function fixture(){
  const checks=['Required CI','CodeQL (python, none)','CodeQL (javascript-typescript, none)','npm-security','Dependency Review','validate-and-build'];
- const rules={id:27616646,enforcement:'active',bypass_actors:[],target:'branch',conditions:{ref_name:{include:['refs/heads/main'],exclude:[]}},rules:[{type:'required_signatures'},{type:'non_fast_forward'},{type:'deletion'},{type:'pull_request',parameters:{required_approving_review_count:1,dismiss_stale_reviews_on_push:true,require_code_owner_review:true,required_review_thread_resolution:true}},{type:'required_status_checks',parameters:{strict_required_status_checks_policy:true,required_status_checks:checks.map(context=>({context,integration_id:15368}))}},{type:'code_scanning',parameters:{code_scanning_tools:[{tool:'CodeQL',security_alerts_threshold:'high_or_higher',alerts_threshold:'errors'}]}},{type:'code_quality',parameters:{severity:'all'}}]};
+ const rules={id:28293483,enforcement:'active',bypass_actors:[],target:'branch',conditions:{ref_name:{include:['refs/heads/main'],exclude:[]}},rules:[{type:'required_signatures'},{type:'non_fast_forward'},{type:'deletion'},{type:'pull_request',parameters:{required_approving_review_count:1,dismiss_stale_reviews_on_push:true,require_code_owner_review:true,required_review_thread_resolution:true}},{type:'required_status_checks',parameters:{strict_required_status_checks_policy:true,required_status_checks:checks.map(context=>({context,integration_id:15368}))}},{type:'code_scanning',parameters:{code_scanning_tools:[{tool:'CodeQL',security_alerts_threshold:'high_or_higher',alerts_threshold:'errors'}]}},{type:'code_quality',parameters:{severity:'all'}}]};
  const commit={sha:head,author:{login:bot,id:359913464},committer:{login:'web-flow',id:19864447},parents:[{sha:base}],commit:{verification:{verified:true,reason:'valid',signature:'-----BEGIN PGP SIGNATURE-----',payload:'author '+bot+' <359913464+'+bot+'@users.noreply.github.com> 123 +0000\ncommitter GitHub <noreply@github.com> 123 +0000\n\nmessage'}},files:changes.map(f=>({filename:f.path,sha:f.after,status:'modified'}))};
  const pr={number:9,state:'open',draft:true,user:{login:bot,id:359913464},merge_commit_sha:merge,base:{ref:'main',sha:base,repo:{full_name:repo}},head:{ref:branch,sha:head,repo:{full_name:repo}}};
  const association={number:9,base:{sha:base,ref:'main',repo:{id:1377237797}},head:{sha:head,ref:branch,repo:{id:1377237797}}};
@@ -20,7 +20,7 @@ function fixture(){
  const jobs={total_count:1,jobs:[{id:13,name:'build',run_id:12,run_attempt:1,head_sha:merge,status:'in_progress'}]};
  const state={repoInfo:{full_name:repo,default_branch:'main'},rules,commit,pr,run,suite,mergeCommit,runs:{total_count:1,workflow_runs:[run]},jobs,manifest:{changes},main:{sha:base,commit:{verification:{verified:true,reason:'valid'}}},file:{path:changes[0].path,type:'file',encoding:'base64',sha:changes[0].after,content:changes[0].contents}};
  const calls=[];
- const api=async p=>{calls.push(p);if(p===root)return state.repoInfo;if(p===root+'/rulesets/27616646')return state.rules;if(p===root+'/commits/main')return state.main;if(p===root+'/commits/'+head)return state.commit;if(p===root+'/commits/'+merge)return state.mergeCommit;if(p===root+'/check-suites/14')return state.suite;if(p===root+'/pulls/9')return state.pr;if(p.startsWith(root+'/contents/'))return state.file;if(p.startsWith(root+'/actions/runs?'))return state.runs;if(p===root+'/actions/runs/12/attempts/1/jobs?per_page=100')return state.jobs;throw Error('unknown route');};
+ const api=async p=>{calls.push(p);if(p===root)return state.repoInfo;if(p===root+'/rulesets/28293483')return state.rules;if(p===root+'/commits/main')return state.main;if(p===root+'/commits/'+head)return state.commit;if(p===root+'/commits/'+merge)return state.mergeCommit;if(p===root+'/check-suites/14')return state.suite;if(p===root+'/pulls/9')return state.pr;if(p.startsWith(root+'/contents/'))return state.file;if(p.startsWith(root+'/actions/runs?'))return state.runs;if(p===root+'/actions/runs/12/attempts/1/jobs?per_page=100')return state.jobs;throw Error('unknown route');};
  return {state,calls,e:createGithubEvidence({api,resolveManifest:async()=>state.manifest})};
 }
 test('current governance and signed main are independently read back',async()=>{let f=fixture();assert.deepEqual(await f.e.readMain(),{sha:base,verified:true,reason:'valid'});});
@@ -90,4 +90,13 @@ test('GitHub reader scopes GETs, rejects encoded paths and redacts failures',asy
   async()=>{throw new TypeError('safe-token');},
   async()=>({ok:true,json:async()=>{throw new Error('safe-token');}}),
  ]) await assert.rejects(githubReadApi('safe-token',fetcher)(root),rejected);
+});
+
+test('replacement ruleset is accepted and deleted ruleset identity is rejected',async()=>{
+ const f=fixture();
+ f.state.rules.id=28293483;
+ assert.equal((await f.e.readMain()).sha,base);
+ assert.ok(f.calls.includes(root+'/rulesets/28293483'));
+ f.state.rules.id=27616646;
+ await assert.rejects(f.e.readMain(),{message:'DISPATCHER_GITHUB_EVIDENCE_DENIED'});
 });
