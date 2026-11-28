@@ -1,6 +1,11 @@
 import * as admissionSqlstate from './coding-repair-recipe.mjs';
 
-const recipes = new Map([[admissionSqlstate.recipeId, admissionSqlstate]]);
+import * as dispatcherReceipt from './dispatcher-receipt-recipe.mjs';
+
+const recipes = new Map([
+  [admissionSqlstate.recipeId, admissionSqlstate],
+  [dispatcherReceipt.recipeId, dispatcherReceipt],
+]);
 
 export async function prepareDispatcherCandidate(checkout, { missionId, base, recipeId }) {
   const recipe = recipes.get(recipeId);
