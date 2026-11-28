@@ -56,12 +56,14 @@ export function createGithubEvidence({api,resolveManifest}={}){
   const one=t=>{const a=r.rules.filter(x=>x.type===t);requireThat(a.length===1,'RULE_TYPE_'+t.toUpperCase());return a[0].parameters;};
   for(const type of ['required_signatures','non_fast_forward','deletion'])one(type);
   const p=one('pull_request');
-  requireThat(p?.required_approving_review_count>=1&&Number.isSafeInteger(p.required_approving_review_count),'REQUIRED_APPROVAL');
+  if (!p) throw denied('REQUIRED_APPROVAL');
+  requireThat(p.required_approving_review_count>=1&&Number.isSafeInteger(p.required_approving_review_count),'REQUIRED_APPROVAL');
   requireThat(p.dismiss_stale_reviews_on_push===true,'STALE_APPROVAL_DISMISSAL');
   requireThat(p.require_code_owner_review===true,'CODEOWNER_REVIEW');
   requireThat(p.required_review_thread_resolution===true,'REVIEW_THREAD_RESOLUTION');
   const s=one('required_status_checks');
-  requireThat(s?.strict_required_status_checks_policy===true,'STRICT_STATUS_CHECKS');
+  if (!s) throw denied('STRICT_STATUS_CHECKS');
+  requireThat(s.strict_required_status_checks_policy===true,'STRICT_STATUS_CHECKS');
   requireThat(Array.isArray(s.required_status_checks)&&CHECKS.every(context=>s.required_status_checks.some(x=>x.context===context&&x.integration_id===15368)),'REQUIRED_CHECK_BINDING');
   const scanning=one('code_scanning');requireThat(scanning?.code_scanning_tools?.some(x=>x.tool==='CodeQL'&&x.security_alerts_threshold==='high_or_higher'&&x.alerts_threshold==='errors'),'CODE_SCANNING_POLICY');
   requireThat(one('code_quality')?.severity==='all','CODE_QUALITY_POLICY');
