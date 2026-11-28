@@ -41,3 +41,14 @@ test('uncertain publication retains candidate digest and never invents readback 
   const row=f.row();assert.equal(row.status,'reconciliation-required');assert.deepEqual(row.evidenceRefs,['existing-evidence']);
   assert.deepEqual(row.dispatcher.provenance.map(e=>e.outcome),['CLAIMED','CANDIDATE_VERIFIED','RECONCILIATION_REQUIRED']);assert.equal(row.dispatcher.provenance.at(-1).candidateDigest,digest);
 });
+test('each retry transition preserves only the newest five receipts',async()=>{
+  const f=fixture();
+  const row=await f.deps.store.get(id);
+  const prior=Array.from({length:5},(_,i)=>({outcome:`prior-${i}`}));
+  await f.deps.store.save({...row,dispatcher:{phase:'retryable',attempts:1,provenance:prior}},row.version);
+  let claim;
+  f.deps.prepare=async()=>{claim=f.row().dispatcher.provenance;throw Error('candidate rejected');};
+  assert.equal(await dispatchMission(id,f.deps).then(r=>r.status),'CANDIDATE_REJECTED');
+  assert.deepEqual(claim.map(e=>e.outcome),['prior-1','prior-2','prior-3','prior-4','CLAIMED']);
+  assert.deepEqual(f.row().dispatcher.provenance.map(e=>e.outcome),['prior-2','prior-3','prior-4','CLAIMED','CANDIDATE_REJECTED']);
+});
