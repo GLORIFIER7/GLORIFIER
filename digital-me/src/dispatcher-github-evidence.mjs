@@ -46,9 +46,9 @@ export function githubReadApi(token,fetcher=fetch){
 export function createGithubEvidence({api,resolveManifest}={}){
  requireThat(typeof api==='function'&&typeof resolveManifest==='function');
  async function readMain(){
-  const r=await api(ROOT+'/rulesets/27616646');
+  const r=await api(ROOT+'/rulesets/28293483');
   if (!r || !Array.isArray(r.rules)) throw denied();
-  requireThat(r.id===27616646&&r.enforcement==='active'&&r.target==='branch'&&Array.isArray(r.bypass_actors)&&r.bypass_actors.length===0);
+  requireThat(r.id===28293483&&r.enforcement==='active'&&r.target==='branch'&&Array.isArray(r.bypass_actors)&&r.bypass_actors.length===0);
   const scope=r.conditions?.ref_name;
   if (!scope || !Array.isArray(scope.include) || !Array.isArray(scope.exclude)) throw denied();
   requireThat((scope.include.includes('refs/heads/main')||scope.include.includes('~DEFAULT_BRANCH'))&&scope.exclude.length===0);

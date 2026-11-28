@@ -53,7 +53,7 @@ jobs:
               return response;
             };
             stage='ATTEST_REQUEST_FAILED';
-            const ruleset=await githubReadApi(token,observe('ATTEST'))('/repos/GLORIFIER7/GLORIFIER/rulesets/27616646');
+            const ruleset=await githubReadApi(token,observe('ATTEST'))('/repos/GLORIFIER7/GLORIFIER/rulesets/28293483');
             stage='BYPASS_ACTORS_UNAVAILABLE';
             if(!Array.isArray(ruleset?.bypass_actors))throw Error('BYPASS_ACTORS_UNAVAILABLE');
             stage='BYPASS_ACTORS_PRESENT';

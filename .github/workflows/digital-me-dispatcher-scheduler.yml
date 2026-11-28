@@ -44,7 +44,7 @@ jobs:
             const token=process.env.RULESET_ATTEST_TOKEN;
             delete process.env.RULESET_ATTEST_TOKEN;
             if(!token)throw Error('missing credential');
-            const r=await fetch('https://api.github.com/repos/GLORIFIER7/GLORIFIER/rulesets/27616646',{method:'GET',redirect:'error',signal:AbortSignal.timeout(15000),headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}});
+            const r=await fetch('https://api.github.com/repos/GLORIFIER7/GLORIFIER/rulesets/28293483',{method:'GET',redirect:'error',signal:AbortSignal.timeout(15000),headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}});
             if(!r.ok)throw Error('ruleset unavailable');
             const a=makeRulesetAttestation({ruleset:await r.json(),sourceSha:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID});
             appendFileSync(process.env.GITHUB_OUTPUT,'attestation='+Buffer.from(JSON.stringify(a)).toString('base64')+'\n');
