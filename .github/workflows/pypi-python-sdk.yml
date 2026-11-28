@@ -103,7 +103,7 @@ jobs:
       id-token: write
     steps:
       - name: Retrieve tested distributions
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: glorifier-neural-client-distributions
           path: dist/
