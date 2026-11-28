@@ -8,8 +8,10 @@ const deny=()=>{throw Error('MERGE_RECONCILIATION_DENIED');};
 const requireThat=v=>{if(!v)deny();};
 const same=(a,b)=>JSON.stringify(a)===JSON.stringify(b);
 function validate(row){
-  const p=row?.dispatcher;
-  requireThat(/^mission-coding-[a-f0-9]{64}$/.test(row?.id??'')&&row.requester===owner&&row.title==='GitHub fix #471'&&row.status==='blocked'&&positive(row.version)&&!row.leaseOwner&&!row.leaseExpiresAt&&p?.phase==='awaiting-review'&&p.recipeId===recipe&&sha(p.base)&&sha(p.head)&&p.base!==p.head&&positive(p.pr)&&hash(p.digest)&&[1,2].includes(p.attempts)&&p.grantId==='digital-me-grant-'+row.id.slice(15)&&Array.isArray(p.provenance)&&p.provenance.length<=5);
+  if(!row)throw Error('MERGE_RECONCILIATION_DENIED');
+  const p=row.dispatcher;
+  if(!p)throw Error('MERGE_RECONCILIATION_DENIED');
+  requireThat(/^mission-coding-[a-f0-9]{64}$/.test(row.id??'')&&row.requester===owner&&row.title==='GitHub fix #471'&&row.status==='blocked'&&positive(row.version)&&!row.leaseOwner&&!row.leaseExpiresAt&&p.phase==='awaiting-review'&&p.recipeId===recipe&&sha(p.base)&&sha(p.head)&&p.base!==p.head&&positive(p.pr)&&hash(p.digest)&&[1,2].includes(p.attempts)&&p.grantId==='digital-me-grant-'+row.id.slice(15)&&Array.isArray(p.provenance)&&p.provenance.length<=5);
   const match=e=>e?.schemaVersion===1&&e.missionId===row.id&&e.repository===repo&&e.base===p.base&&e.recipeId===recipe&&e.grantId===p.grantId&&e.attempt===p.attempts&&e.maximumCostMicrousd===0&&e.candidateDigest===p.digest&&Number.isFinite(Date.parse(e.at));
   const last=p.provenance.at(-1),candidate=p.provenance.at(-2);
   requireThat(match(last)&&last.outcome==='SIGNED_DRAFT_VERIFIED'&&last.phase==='awaiting-review'&&last.head===p.head&&last.pr===p.pr&&last.signatureVerified===true&&last.ciJobsCreated===true&&match(candidate)&&candidate.outcome==='CANDIDATE_VERIFIED'&&candidate.phase==='publishing'&&['baselinePassed','redReproduced','greenPassed','independentVerifierPassed'].every(k=>candidate.candidateVerification?.[k]===true));
