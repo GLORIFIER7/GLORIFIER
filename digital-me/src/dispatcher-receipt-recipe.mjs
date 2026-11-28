@@ -11,11 +11,15 @@ const originalHashes = ['85a4612df1807af39ea68dd838cab4c55f12ca94a1cfa374d6bd52c
 const repairedHashes = ['32124540b341fe98655b7c461a516313103ed635a65a1e87f2e3729a065582cb','f963f495695ee739e3797f3d69eaccdcb98c0cec8f1d4fe52f2ed8261895de9b'];
 const regression = "test('each retry transition preserves only the newest five receipts',async()=>{\n  const f=fixture();\n  const row=await f.deps.store.get(id);\n  const prior=Array.from({length:5},(_,i)=>({outcome:`prior-${i}`}));\n  await f.deps.store.save({...row,dispatcher:{phase:'retryable',attempts:1,provenance:prior}},row.version);\n  let claim;\n  f.deps.prepare=async()=>{claim=f.row().dispatcher.provenance;throw Error('candidate rejected');};\n  assert.equal(await dispatchMission(id,f.deps).then(r=>r.status),'CANDIDATE_REJECTED');\n  assert.deepEqual(claim.map(e=>e.outcome),['prior-1','prior-2','prior-3','prior-4','CLAIMED']);\n  assert.deepEqual(f.row().dispatcher.provenance.map(e=>e.outcome),['prior-2','prior-3','prior-4','CLAIMED','CANDIDATE_REJECTED']);\n});\n";
 const sha256 = x=>createHash('sha256').update(x).digest('hex');
-const blob = x=>createHash('sha1').update(Buffer.from(`blob ${x.length}\0`)).update(x).digest('hex');
+// Git object IDs are repository identifiers, not security digests. SHA-256 above
+// remains mandatory for content integrity; delegate Git-format hashing to Git.
+const blob = x=>execFileSync('/usr/bin/git',['hash-object','--stdin'],{
+  input:x,env:{GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null'},timeout:10000,
+}).toString('utf8').trim();
 const matches = (files,hashes,blobs)=>files.every((f,i)=>sha256(f)===hashes[i]&&blob(f)===blobs[i]);
 const git = (cwd,args)=>execFileSync('/usr/bin/git',args,{cwd,env:{GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:'/dev/null'},timeout:10000});
 export function repairStatus(files){
-  if(!Array.isArray(files)||files.length!==2||!files.every(Buffer.isBuffer))throw Error('REPAIR_FILES_INVALID');
+  if(!Array.isArray(files)||files.length!==2||!files.every(file=>Buffer.isBuffer(file)))throw Error('REPAIR_FILES_INVALID');
   if(matches(files,repairedHashes,repairedBlobs))return 'already-applied';
   if(matches(files,originalHashes,originalBlobs))return 'repair-required';
   throw Error('REPAIR_RULE_DENIED');
