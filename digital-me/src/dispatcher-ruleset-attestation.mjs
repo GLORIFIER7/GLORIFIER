@@ -1,6 +1,6 @@
 // The privileged read is isolated in a separate job. The dispatcher never
 // receives its credential. Missing bypass actors are NOT interpreted as zero.
-const path='/repos/GLORIFIER7/GLORIFIER/rulesets/27616646';
+const path='/repos/GLORIFIER7/GLORIFIER/rulesets/28293483';
 const check=v=>{if(!v)throw Error('DISPATCHER_RULESET_ATTESTATION_DENIED');};
 const sha=v=>typeof v==='string'&&/^[a-f0-9]{40}$/.test(v);
 const run=v=>typeof v==='string'&&/^\d{1,24}$/.test(v);
@@ -12,7 +12,7 @@ function canonical(v){
 }
 function visible(r){const {bypass_actors,...rest}=r;return JSON.stringify(canonical(rest));}
 export function makeRulesetAttestation({ruleset,sourceSha,runId,now=Date.now()}){
-  check(sha(sourceSha)&&run(runId)&&Number.isSafeInteger(now)&&now>0&&ruleset?.id===27616646&&marker(ruleset)&&Array.isArray(ruleset.bypass_actors)&&ruleset.bypass_actors.length===0);
+  check(sha(sourceSha)&&run(runId)&&Number.isSafeInteger(now)&&now>0&&ruleset?.id===28293483&&marker(ruleset)&&Array.isArray(ruleset.bypass_actors)&&ruleset.bypass_actors.length===0);
   return {schemaVersion:1,sourceSha,runId,observedAt:now,ruleset:structuredClone(ruleset)};
 }
 export function createAttestedReadApi({api,attestation,sourceSha,runId,now=Date.now}){
