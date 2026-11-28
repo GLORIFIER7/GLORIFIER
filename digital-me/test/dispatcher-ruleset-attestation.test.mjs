@@ -62,3 +62,16 @@ test('attestation diagnoses marker changes separately from ruleset response diff
   [{...ruleset,enforcement:'disabled'},'RULESET_VISIBLE_FIELDS_MISMATCH'],
  ])await assert.rejects(()=>create(read(live))(path),{message:'DISPATCHER_RULESET_ATTESTATION_DENIED',code});
 });
+
+test('equivalent UTC marker spellings preserve the full revision instant',async()=>{
+ const a=makeRulesetAttestation({ruleset:{...ruleset,updated_at:'2026-11-28T10:00:00.123456Z'},sourceSha,runId,now});
+ const live={...ruleset,updated_at:'2026-11-28T10:00:00.123456000+00:00'};
+ assert.deepEqual(await create(read(live),a)(path),a.ruleset);
+});
+test('submillisecond changes are denied, not rounded away',async()=>{
+ const a=makeRulesetAttestation({ruleset:{...ruleset,updated_at:'2026-11-28T10:00:00.123456Z'},sourceSha,runId,now});
+ await assert.rejects(()=>create(read({...ruleset,updated_at:'2026-11-28T10:00:00.123457Z'}),a)(path),{code:'RULESET_MARKER_MISMATCH'});
+});
+test('invalid calendar dates cannot be normalized into valid revisions',()=>{
+ assert.throws(()=>makeRulesetAttestation({ruleset:{...ruleset,updated_at:'2026-02-30T10:00:00Z'},sourceSha,runId,now}));
+});

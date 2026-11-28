@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {canonicalRulesetMarker} from '../src/dispatcher-ruleset-attestation.mjs';
 const workflow=readFileSync(new URL('../../.github/workflows/digital-me-ruleset-preflight.yml',import.meta.url),'utf8');
 const code=workflow.split("node --input-type=module <<'NODE'\n")[1].split('\n          NODE')[0].replace(/^\s*import .*;$/gm,'');
 const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
@@ -11,9 +12,9 @@ async function run({token=secret,readToken=secret,response=ruleset,http=200,ordi
  const fetch=async(url,options)=>{calls.push([String(url),options.method]);if(network)throw Error(secret); const status=calls.length===1?http:ordinaryHttp;return {ok:status===200,status,json:async()=>calls.length===1?response:calls.length===2?ordinary:staticResponse};};
  const githubReadApi=(t,f=fetch)=>async path=>{const r=await f('https://api.github.com'+path,{method:'GET'});if(!r.ok)throw Error(secret);return r.json();};
  const makeRulesetAttestation=({ruleset:r})=>{if(!Array.isArray(r?.bypass_actors)||r.bypass_actors.length||!r.updated_at)throw Error(secret);return {ruleset:r};};
- const createAttestedReadApi=({api,attestation})=>async path=>{const live=await api(path);if(live.id!==attestation.ruleset.id||live.updated_at!==attestation.ruleset.updated_at)throw Object.assign(Error(secret),{code:'RULESET_MARKER_MISMATCH'});return attestation.ruleset;};
+ const createAttestedReadApi=({api,attestation})=>async path=>{const live=await api(path);if(live.id!==attestation.ruleset.id||canonicalRulesetMarker(live.updated_at)!==canonicalRulesetMarker(attestation.ruleset.updated_at)||canonicalRulesetMarker(live.updated_at)===null)throw Object.assign(Error(secret),{code:'RULESET_MARKER_MISMATCH'});return attestation.ruleset;};
  const createGithubEvidence=({api})=>({readMain:async()=>{await api('/repos/GLORIFIER7/GLORIFIER/rulesets/28293483');if(protection)throw Object.assign(Error(secret),{code:diagnosticCode});return main;}});
- await new AsyncFunction('process','console','fetch','githubReadApi','makeRulesetAttestation','createAttestedReadApi','createGithubEvidence',code)(process,console,fetch,githubReadApi,makeRulesetAttestation,createAttestedReadApi,createGithubEvidence);
+ await new AsyncFunction('process','console','fetch','githubReadApi','makeRulesetAttestation','createAttestedReadApi','createGithubEvidence','canonicalRulesetMarker',code)(process,console,fetch,githubReadApi,makeRulesetAttestation,createAttestedReadApi,createGithubEvidence,canonicalRulesetMarker);
  assert.ok(messages.every(x=>!String(x).includes(secret)));assert.ok(calls.every(([,method])=>method==='GET'));assert.equal(process.env.RULESET_ATTEST_TOKEN,undefined);assert.equal(process.env.GITHUB_TOKEN,undefined);
  return {messages,exit:process.exitCode};
 }
@@ -89,10 +90,28 @@ test('real evidence verifier separates live static proof from missing ordinary r
    const {updated_at,bypass_actors,...visible}=full;
    return {ok:true,json:async()=>privileged?full:visible};
   };
-  await new AsyncFunction('process','console','fetch','githubReadApi','makeRulesetAttestation','createAttestedReadApi','createGithubEvidence',code)(process,console,fetch,githubReadApi,makeRulesetAttestation,createAttestedReadApi,createGithubEvidence);
+  await new AsyncFunction('process','console','fetch','githubReadApi','makeRulesetAttestation','createAttestedReadApi','createGithubEvidence','canonicalRulesetMarker',code)(process,console,fetch,githubReadApi,makeRulesetAttestation,createAttestedReadApi,createGithubEvidence,canonicalRulesetMarker);
   assert.equal(process.exitCode,1);
   assert.ok(messages.includes('RULESET_PREFLIGHT_DENIED RULESET_MARKER_MISMATCH'));
   assert.equal(messages.some(x=>x.includes('RULESET_STATIC_GOVERNANCE_VERIFIED_READ_ONLY')), !corrupt);
   assert.ok(messages.every(x=>!x.includes(secret)&&!x.includes(ordinaryToken)));
  }
+});
+
+ test('equivalent UTC formatting passes without false static fallback',async()=>{
+ const r=await run({ordinary:{...ruleset,updated_at:'2026-11-28T00:00:00.000+00:00'}});
+ assert.equal(r.exit,0);
+ assert.equal(JSON.parse(r.messages.at(-1)).status,'RULESET_PREFLIGHT_VERIFIED_READ_ONLY');
+ assert.ok(!r.messages.includes('RULESET_RUNTIME_MARKER_DIFFERENT'));
+ });
+
+test('genuine marker mismatch reports only strictly validated UTC timestamps and remains denied',async()=>{
+ const r=await run({ordinary:{...ruleset,updated_at:'2026-11-28T00:00:00.000001Z'}});
+ assert.equal(r.exit,1);
+ const line=r.messages.find(x=>x.startsWith('RULESET_RUNTIME_MARKER_VALUES '));
+ assert.deepEqual(JSON.parse(line.slice('RULESET_RUNTIME_MARKER_VALUES '.length)),{privileged:ruleset.updated_at,ordinary:'2026-11-28T00:00:00.000001Z'});
+ assert.ok(r.messages.includes('RULESET_PREFLIGHT_DENIED RULESET_MARKER_MISMATCH'));
+ const unsafe=await run({ordinary:{...ruleset,updated_at:secret}});
+ assert.equal(unsafe.exit,1);
+ assert.ok(!unsafe.messages.some(x=>x.startsWith('RULESET_RUNTIME_MARKER_VALUES ')));
 });
