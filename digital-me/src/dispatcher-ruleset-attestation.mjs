@@ -7,7 +7,7 @@ const run=v=>typeof v==='string'&&/^\d{1,24}$/.test(v);
 const marker=r=>typeof r?.updated_at==='string'&&Number.isFinite(Date.parse(r.updated_at));
 function canonical(v){
   if(Array.isArray(v))return v.map(canonical);
-  if(v&&typeof v==='object')return Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])]));
+  if(v&&typeof v==='object')return Object.fromEntries(Object.keys(v).sort((a,b)=>a.localeCompare(b,'en-US',{sensitivity:'variant'})||(a<b?-1:a>b?1:0)).map(k=>[k,canonical(v[k])]));
   return v;
 }
 function visible(r){const {bypass_actors,...rest}=r;return JSON.stringify(canonical(rest));}
