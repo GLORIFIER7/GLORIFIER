@@ -115,3 +115,15 @@ test('governance failure codes distinguish configuration from commit signatures'
   [s=>s.main.commit.verification.verified=false,'MAIN_SIGNATURE_INVALID'],
  ]){const {state,e}=fixture();change(state);await assert.rejects(e.readMain(),{message:'DISPATCHER_GITHUB_EVIDENCE_DENIED',code});}
 });
+
+test('missing or null governance rule parameters fail closed with explicit denial codes',async()=>{
+ for(const [type,code] of [['pull_request','REQUIRED_APPROVAL'],['required_status_checks','STRICT_STATUS_CHECKS']]){
+  for(const parameters of [undefined,null]){
+   const {state,e}=fixture();
+   const rule=state.rules.rules.find(r=>r.type===type);
+   if(parameters===undefined)delete rule.parameters;
+   else rule.parameters=parameters;
+   await assert.rejects(e.readMain(),{message:'DISPATCHER_GITHUB_EVIDENCE_DENIED',code});
+  }
+ }
+});
