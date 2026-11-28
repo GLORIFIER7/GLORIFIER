@@ -54,3 +54,7 @@ test('historic merge inventory is scoped and runs without a current grant before
   assert.ok(entry.indexOf('const reconciliation=await reconcileMergedMissions')<entry.indexOf('const result=await runSchedulerTick'));
   assert.ok(entry.includes('readMerge:evidence.readMergedReceipt')&&entry.includes('eligibleMissions:eligible.length,reconciliation,...result'));
 });
+test('historical reconciliation inventory selects only the reviewed recipe',()=>{
+  const selection=entry.slice(entry.indexOf('const {rows:awaiting}='),entry.indexOf('const reconciliation='));
+  assert.ok(selection.includes("payload->'dispatcher'->>'recipeId'='dispatcher-receipt-limit'"));
+});

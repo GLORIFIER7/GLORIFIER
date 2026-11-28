@@ -9,17 +9,28 @@ const proof={status:'MERGED',pr:1129,head,base,mergeSha:merge,mainSha:current,di
 function fixture(){let saved=structuredClone(row),writes=0;return {get row(){return saved},get writes(){return writes},deps:{rows:[structuredClone(row)],now,sourceSha:current,workerId:'github-run-2',readMerge:async()=>proof,store:{get:async()=>structuredClone(saved),save:async(next,version)=>{if(saved.version!==version)return null;writes++;saved={...next,version:version+1};return saved;}}}};}
 test('a proven historical merge reconciles without grant renewal or another publication',async()=>{const f=fixture();const r=await reconcileMergedMissions(f.deps);assert.equal(r.reconciled,1);assert.equal(f.row.status,'completed');assert.equal(f.row.dispatcher.phase,'merged-reconciled');assert.equal(f.row.verificationState,'pending-external-evidence');assert.equal(f.row.dispatcher.provenance.at(-1).outcome,'PROTECTED_MERGE_RECONCILED');assert.equal(f.row.dispatcher.provenance.at(-1).mergeSha,merge);assert.equal(f.row.version,5);assert.ok(f.row.evidenceRefs.includes('existing'));await reconcileMergedMissions(f.deps);assert.equal(f.writes,1);});
 test('open, closed without merge, unverifiable, or mismatched proof does not mark complete',async()=>{for(const result of [{status:'PENDING'},{status:'CLOSED_UNMERGED'},{...proof,head:base},{...proof,mainSha:base},{...proof,digest:'f'.repeat(64)}]){const f=fixture();f.deps.readMerge=async()=>result;await reconcileMergedMissions(f.deps);assert.equal(f.writes,0);assert.equal(f.row.status,'blocked');}});
-test('invalid durable provenance prevents external reads and writes',async()=>{const f=fixture();f.deps.rows[0].dispatcher.provenance.pop();f.deps.readMerge=async()=>{assert.fail('unexpected read');};await assert.rejects(()=>reconcileMergedMissions(f.deps));assert.equal(f.writes,0);});
-test('CAS failure does not claim completion',async()=>{const f=fixture();f.deps.store.save=async()=>null;await assert.rejects(()=>reconcileMergedMissions(f.deps));assert.equal(f.writes,0);});
+test('invalid durable provenance prevents external reads and writes',async()=>{const f=fixture();f.deps.rows[0].dispatcher.provenance.pop();f.deps.readMerge=async()=>{assert.fail('unexpected read');};assert.equal((await reconcileMergedMissions(f.deps)).rejected,1);assert.equal(f.writes,0);});
+test('CAS failure does not claim completion',async()=>{const f=fixture();f.deps.store.save=async()=>null;assert.equal((await reconcileMergedMissions(f.deps)).pending,1);assert.equal(f.writes,0);});
 
 test('explicit null guards reject absent rows and dispatcher payloads before property access',async()=>{
   for(const invalid of [null,undefined,{...row,dispatcher:null},{...row,dispatcher:undefined}]){
     const f=fixture();f.deps.rows=[invalid];f.deps.readMerge=async()=>assert.fail('unexpected external read');
-    await assert.rejects(()=>reconcileMergedMissions(f.deps),{message:'MERGE_RECONCILIATION_DENIED'});
+    assert.equal((await reconcileMergedMissions(f.deps)).rejected,1);
     assert.equal(f.writes,0);
   }
   const {readFileSync}=await import('node:fs');
   const source=readFileSync(new URL('../src/dispatcher-merge-reconciliation.mjs',import.meta.url),'utf8');
   assert.match(source,/if\s*\(!row\)\s*throw Error\('MERGE_RECONCILIATION_DENIED'\)/);
   assert.match(source,/if\s*\(!p\)\s*throw Error\('MERGE_RECONCILIATION_DENIED'\)/);
+});
+
+test('one invalid historical receipt does not prevent a later valid receipt from completing',async()=>{
+  const f=fixture();f.deps.rows=[{...structuredClone(row),dispatcher:null},structuredClone(row)];
+  const result=await reconcileMergedMissions(f.deps);
+  assert.equal(result.reconciled,1);assert.equal(result.rejected,1);assert.equal(f.writes,1);
+});
+test('unverifiable history is reported without aborting the reconciliation batch',async()=>{
+  const f=fixture();f.deps.readMerge=async()=>{throw Error('untrusted response');};
+  const result=await reconcileMergedMissions(f.deps);
+  assert.equal(result.rejected,1);assert.equal(result.reconciled,0);assert.equal(f.writes,0);
 });
