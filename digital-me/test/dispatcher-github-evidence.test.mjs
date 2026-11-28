@@ -100,3 +100,18 @@ test('replacement ruleset is accepted and deleted ruleset identity is rejected',
  f.state.rules.id=27616646;
  await assert.rejects(f.e.readMain(),{message:'DISPATCHER_GITHUB_EVIDENCE_DENIED'});
 });
+
+test('governance failure codes distinguish configuration from commit signatures',async()=>{
+ for(const [change,code] of [
+  [s=>s.rules.enforcement='disabled','RULESET_IDENTITY_OR_ENFORCEMENT'],
+  [s=>s.rules.rules[3].parameters.required_approving_review_count=0,'REQUIRED_APPROVAL'],
+  [s=>s.rules.rules[3].parameters.dismiss_stale_reviews_on_push=false,'STALE_APPROVAL_DISMISSAL'],
+  [s=>s.rules.rules[3].parameters.require_code_owner_review=false,'CODEOWNER_REVIEW'],
+  [s=>s.rules.rules[3].parameters.required_review_thread_resolution=false,'REVIEW_THREAD_RESOLUTION'],
+  [s=>s.rules.rules[4].parameters.strict_required_status_checks_policy=false,'STRICT_STATUS_CHECKS'],
+  [s=>s.rules.rules[4].parameters.required_status_checks[0].integration_id=0,'REQUIRED_CHECK_BINDING'],
+  [s=>s.rules.rules[5].parameters.code_scanning_tools=[],'CODE_SCANNING_POLICY'],
+  [s=>s.rules.rules[6].parameters.severity='none','CODE_QUALITY_POLICY'],
+  [s=>s.main.commit.verification.verified=false,'MAIN_SIGNATURE_INVALID'],
+ ]){const {state,e}=fixture();change(state);await assert.rejects(e.readMain(),{message:'DISPATCHER_GITHUB_EVIDENCE_DENIED',code});}
+});
