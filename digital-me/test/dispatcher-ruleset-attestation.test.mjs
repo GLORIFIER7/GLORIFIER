@@ -37,3 +37,12 @@ test('canonical comparison is independent of nested key insertion order even for
   assert.deepEqual(await api(path),original);
   await assert.rejects(()=>create(read({...reordered,metadata:{...reordered.metadata,'é':9}}),a)(path));
 });
+
+for (const variable of ['attestation','live']) {
+  test(`explicit null guard for ruleset ${variable}`,async()=>{
+    if(variable==='attestation')assert.throws(()=>create(read(),null),/DISPATCHER_RULESET_ATTESTATION_DENIED/);
+    else await assert.rejects(()=>create(read(null))(path),/DISPATCHER_RULESET_ATTESTATION_DENIED/);
+    const source=readFileSync(new URL('../src/dispatcher-ruleset-attestation.mjs',import.meta.url),'utf8');
+    assert.ok(source.includes(`if(!${variable})throw Error('DISPATCHER_RULESET_ATTESTATION_DENIED');`));
+  });
+}
