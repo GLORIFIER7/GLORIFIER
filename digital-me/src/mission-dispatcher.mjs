@@ -10,6 +10,9 @@ const hash=x=>typeof x==='string'&&/^[a-f0-9]{64}$/.test(x);
 const identifier=x=>typeof x==='string'&&/^[a-zA-Z0-9][a-zA-Z0-9_-]{0,127}$/.test(x);
 const result=(status,extra={})=>({status,...extra,merged:false,fullyVerified:false});
 const iso=n=>new Date(n).toISOString();
+// A bounded receipt in the existing mission payload, saved atomically with each
+// state transition. It is a checkpoint, not an independent merge attestation.
+const appendReceipt=(previous,event)=>[...(Array.isArray(previous)?previous.slice(-5):[]),event];
 function admission(row,id) {
   if(!row||row.id!==id||row.requester!==REQUESTER||row.status!=='blocked'||
      !Number.isSafeInteger(row.version)||row.version<1||row.leaseOwner||row.leaseExpiresAt||
@@ -44,19 +47,27 @@ export async function dispatchMission(id,deps={}){
   const stamp=now();
   let expires=stamp+LEASE_MS;
   if(!Number.isSafeInteger(stamp)||stamp<0)return result('DENIED');
-  const claim={...row,status:'executing',leaseOwner:workerId,leaseExpiresAt:iso(expires),updatedAt:iso(stamp),dispatcher:{phase:'preparing',attempts:attempts+1,recipeId,grantId,base}};
+  const receipt=(phase,outcome,at,details={})=>({schemaVersion:1,missionId:id,repository:REPO,base,recipeId,grantId,workerId,attempt:attempts+1,maximumCostMicrousd:0,phase,outcome,at,...details});
+  const claim={...row,status:'executing',leaseOwner:workerId,leaseExpiresAt:iso(expires),updatedAt:iso(stamp),dispatcher:{phase:'preparing',attempts:attempts+1,recipeId,grantId,base,provenance:appendReceipt(row.dispatcher?.provenance,receipt('preparing','CLAIMED',iso(stamp)))}};
   row=await store.save(claim,row.version);
   if(!row)return result('NOT_ELIGIBLE');
   const own=async()=>{const r=await store.get(id);return r?.version===row.version&&r.status==='executing'&&r.leaseOwner===workerId&&r.leaseExpiresAt===iso(expires)&&now()<expires;};
-  const transition=async(phase,status,extra={})=>{
-    const next={...row,status,updatedAt:iso(now()),dispatcher:{...row.dispatcher,phase,...extra}};
+  const transition=async(phase,status,outcome,extra={},details={})=>{
+    const at=iso(now());
+    const candidateDigest=extra.digest??row.dispatcher.digest;
+    const event=receipt(phase,outcome,at,{...(hash(candidateDigest)?{candidateDigest}:{}),...details});
+    const next={...row,status,updatedAt:at,dispatcher:{...row.dispatcher,phase,...extra,provenance:appendReceipt(row.dispatcher.provenance,event)}};
     if(status!=='executing'){delete next.leaseOwner;delete next.leaseExpiresAt;delete next.nextRunAt;}
-    if(phase==='awaiting-review')next.verificationState='pending-external-evidence';
+    if(phase==='awaiting-review'){
+      next.verificationState='pending-external-evidence';
+      const prior=Array.isArray(row.evidenceRefs)?row.evidenceRefs:[];
+      next.evidenceRefs=[...new Set([...prior,`https://github.com/${REPO}/pull/${extra.pr}`,`https://github.com/${REPO}/commit/${extra.head}`])];
+    }
     if(status==='reconciliation-required')next.verificationState='reconciliation-required';
     const saved=await store.save(next,row.version);if(saved)row=saved;return Boolean(saved);
   };
-  const quarantine=async()=>{try{await transition('quarantined','reconciliation-required');}catch{/* persistent publishing marker must be reconciled */}return result('RECONCILIATION_REQUIRED');};
-  const stop=async(status)=>{try{if(!await own())return quarantine();return await transition('retryable','blocked')?result(status):result('RECONCILIATION_REQUIRED');}catch{return result('RECONCILIATION_REQUIRED');}};
+  const quarantine=async()=>{try{await transition('quarantined','reconciliation-required','RECONCILIATION_REQUIRED');}catch{/* persistent publishing marker must be reconciled */}return result('RECONCILIATION_REQUIRED');};
+  const stop=async(status)=>{try{if(!await own())return quarantine();return await transition('retryable','blocked',status)?result(status):result('RECONCILIATION_REQUIRED');}catch{return result('RECONCILIATION_REQUIRED');}};
   const authorized=async()=>{const g=await getAuthorization({missionId:id,repository:REPO,base});const m=await readMain();return grantValid(g,id,base,now())&&g.recipeId===recipeId&&g.grantId===grantId&&m?.sha===base&&m.verified===true&&m.reason==='valid';};
   // Renew only during candidate work. Drain any renewal before changing phase
   // or handing the publisher a fence with a fixed version and expiry.
@@ -79,7 +90,7 @@ export async function dispatchMission(id,deps={}){
   try{
     candidate=await prepare({missionId:id,base,recipeId});
     if(candidate?.status==='already-applied'&&!await drain())return quarantine();
-    if(candidate?.status==='already-applied')return await transition('already-applied','blocked')?result('ALREADY_APPLIED'):result('RECONCILIATION_REQUIRED');
+    if(candidate?.status==='already-applied')return await transition('already-applied','blocked','ALREADY_APPLIED')?result('ALREADY_APPLIED'):result('RECONCILIATION_REQUIRED');
     if(!candidateValid(candidate,base,recipeId))return await drain()?stop('CANDIDATE_REJECTED'):quarantine();
     if(leaseLost||now()>=expires){await drain();return quarantine();}
     // Immutable binding passed separately; verifier must reproduce and inspect the exact manifest.
@@ -92,7 +103,7 @@ export async function dispatchMission(id,deps={}){
   }catch{try{if(await drain())return stop('CANDIDATE_REJECTED');}catch{/* uncertain lease */}return quarantine();}
   // Durable intent BEFORE external writes. Never automatically retry from this phase.
   try{
-    if(!await transition('publishing','executing',{digest:candidate.digest}))return result('RECONCILIATION_REQUIRED');
+    if(!await transition('publishing','executing','CANDIDATE_VERIFIED',{digest:candidate.digest},{candidateVerification:{baselinePassed:true,redReproduced:true,greenPassed:true,independentVerifierPassed:true}}))return result('RECONCILIATION_REQUIRED');
     if(!await own()||!await authorized()||!await own())return quarantine();
     // Adapter MUST recheck this fence immediately before GitHub mutation and use a
     // deterministic branch, expectedHeadOid and exact digest. Uncertain writes quarantine.
@@ -100,7 +111,7 @@ export async function dispatchMission(id,deps={}){
     const written=await publish(candidate,fence);
     const observed=await readPublication(fence,written);
     if(!await own()||!publicationValid(observed,written,id,base,candidate.digest))return quarantine();
-    if(!await transition('awaiting-review','blocked',{pr:observed.pr,head:observed.head}))return result('RECONCILIATION_REQUIRED');
+    if(!await transition('awaiting-review','blocked','SIGNED_DRAFT_VERIFIED',{pr:observed.pr,head:observed.head},{pr:observed.pr,head:observed.head,signatureVerified:true,ciJobsCreated:true}))return result('RECONCILIATION_REQUIRED');
     return result('SIGNED_DRAFT_VERIFIED',{pr:observed.pr,head:observed.head});
   }catch{return quarantine();}
 }
