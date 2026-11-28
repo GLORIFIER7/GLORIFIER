@@ -153,7 +153,7 @@
   },
   "dependencies": {
     "@capacitor/android": "^8.6.2",
-    "@capacitor/core": "^8.6.0",
+    "@capacitor/core": "^8.6.2",
     "@google/genai": "^3.6.1",
     "@tailwindcss/vite": "^4.3.5",
     "@vitejs/plugin-react": "^6.3.0",
