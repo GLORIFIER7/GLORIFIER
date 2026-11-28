@@ -184,3 +184,41 @@ test('Worker Autopilot store rolls back a failed mission write and always closes
   assert.equal(fake.connected, 1);
   assert.equal(fake.ended, 1);
 });
+
+
+const dispatcherReadiness = {
+  table_name: 'glorifier_autopilot_missions',
+  dispatcher_member: true, scoped_rls: true, can_select: true,
+  can_update: true, can_read_grant: true, can_insert: false,
+  can_destroy: false, can_access_grant_table: false,
+};
+
+test('dedicated dispatcher accepts column UPDATE without INSERT authority', async () => {
+  const fake = fakeFactory(sql => ({ rows: sql.includes('to_regclass') ? [dispatcherReadiness] : [] }));
+  const store = new WorkerAutopilotMissionStore(binding, { requester: 'github:32674233' }, fake.factory as never);
+  await store.initializeDispatcher();
+  assert.match(fake.statements.map(x => x.sql).join('\n'), /has_column_privilege/);
+  assert.equal(fake.statements.some(x => x.sql === 'BEGIN READ ONLY'), true);
+  assert.equal(fake.ended, 1);
+});
+
+test('dispatcher readiness rejects missing or excessive privileges', async () => {
+  for (const patch of [
+    { dispatcher_member: false }, { scoped_rls: false }, { can_update: false },
+    { can_read_grant: false }, { can_insert: true }, { can_destroy: true },
+    { can_access_grant_table: true },
+  ]) {
+    const fake = fakeFactory(sql => ({ rows: sql.includes('to_regclass') ? [{ ...dispatcherReadiness, ...patch }] : [] }));
+    const store = new WorkerAutopilotMissionStore(binding, { requester: 'github:32674233' }, fake.factory as never);
+    await assert.rejects(() => store.initializeDispatcher(), /dispatcher privileges/i);
+  }
+});
+
+test('dispatcher readiness rejects other requesters and allowAll', async () => {
+  for (const access of [{ requester: 'other' }, { requester: 'github:32674233', allowAll: true }]) {
+    const fake = fakeFactory(() => ({ rows: [] }));
+    const store = new WorkerAutopilotMissionStore(binding, access, fake.factory as never);
+    await assert.rejects(() => store.initializeDispatcher(), /fixed owner requester/i);
+    assert.equal(fake.connected, 0);
+  }
+});
