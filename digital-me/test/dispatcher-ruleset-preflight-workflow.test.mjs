@@ -20,6 +20,6 @@ test('preflight has one isolated read-only job without execution or publication 
 });
 test('preflight reuses exact attestation and governance checks without runtime activation',()=>{
   const text=read();
-  for(const marker of ['githubReadApi(token)','/repos/GLORIFIER7/GLORIFIER/rulesets/27616646','makeRulesetAttestation','createAttestedReadApi','createGithubEvidence','await evidence.readMain()','main.sha!==sourceSha','RULESET_PREFLIGHT_VERIFIED_READ_ONLY','RULESET_PREFLIGHT_DENIED','process.exitCode=1'])assert.ok(text.includes(marker),marker);
+  for(const marker of ["githubReadApi(token,observe('ATTEST'))",'/repos/GLORIFIER7/GLORIFIER/rulesets/27616646','makeRulesetAttestation','createAttestedReadApi','createGithubEvidence','await evidence.readMain()','main.sha!==sourceSha','RULESET_PREFLIGHT_VERIFIED_READ_ONLY','RULESET_PREFLIGHT_DENIED','process.exitCode=1'])assert.ok(text.includes(marker),marker);
   assert.doesNotMatch(text,/DIGITAL_ME_DISPATCHER_ENABLED|GITHUB_OUTPUT|console\.log\(token|console\.error\(error/);
 });
