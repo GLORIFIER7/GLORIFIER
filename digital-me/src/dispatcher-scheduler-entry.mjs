@@ -81,7 +81,7 @@ async function main(env){
   const {rows:awaiting}=await read(`SELECT payload FROM public.glorifier_autopilot_missions
     WHERE requester=$1 AND id ~ '^mission-coding-[a-f0-9]{64}$' AND status='blocked'
       AND payload->>'title'='GitHub fix #471' AND lease_owner IS NULL AND lease_expires_at IS NULL
-      AND payload->'dispatcher'->>'phase'='awaiting-review'
+      AND payload->'dispatcher'->>'phase'='awaiting-review' AND payload->'dispatcher'->>'recipeId'='dispatcher-receipt-limit'
     ORDER BY created_at,id LIMIT 101`,[owner]);
   requireThat(awaiting.length<=100);
   const reconciliation=await reconcileMergedMissions({rows:awaiting.map(r=>r.payload),store,now:Date.now(),sourceSha:base,workerId,readMerge:evidence.readMergedReceipt});
