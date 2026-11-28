@@ -2,9 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import {createAttestedReadApi,makeRulesetAttestation} from '../src/dispatcher-ruleset-attestation.mjs';
-const path='/repos/GLORIFIER7/GLORIFIER/rulesets/27616646';
+const path='/repos/GLORIFIER7/GLORIFIER/rulesets/28293483';
 const sourceSha='a'.repeat(40),runId='123456',now=Date.parse('2026-11-28T11:00:00Z');
-const ruleset={id:27616646,source_type:'Repository',source:'GLORIFIER7/GLORIFIER',target:'branch',enforcement:'active',updated_at:'2026-11-28T10:00:00Z',bypass_actors:[],conditions:{ref_name:{include:['refs/heads/main'],exclude:[]}},rules:[{type:'required_signatures'}]};
+const ruleset={id:28293483,source_type:'Repository',source:'GLORIFIER7/GLORIFIER',target:'branch',enforcement:'active',updated_at:'2026-11-28T10:00:00Z',bypass_actors:[],conditions:{ref_name:{include:['refs/heads/main'],exclude:[]}},rules:[{type:'required_signatures'}]};
 const read=(r=ruleset)=>async p=>p===path?r:{sha:sourceSha};
 const att=()=>makeRulesetAttestation({ruleset,sourceSha,runId,now});
 const create=(api,attestation=att(),stamp=now)=>createAttestedReadApi({api,attestation,sourceSha,runId,now:()=>stamp});
@@ -46,3 +46,11 @@ for (const variable of ['attestation','live']) {
     assert.ok(source.includes(`if(!${variable})throw Error('DISPATCHER_RULESET_ATTESTATION_DENIED');`));
   });
 }
+
+test('attestation binds only the replacement ruleset identity',async()=>{
+ const replacement={...ruleset,id:28293483};
+ const a=makeRulesetAttestation({ruleset:replacement,sourceSha,runId,now});
+ assert.deepEqual(await create(async()=>replacement,a)('/repos/GLORIFIER7/GLORIFIER/rulesets/28293483'),replacement);
+ assert.throws(()=>makeRulesetAttestation({ruleset:{...replacement,id:27616646},sourceSha,runId,now}));
+ await assert.rejects(()=>create(async()=>({...replacement,id:27616646}),a)('/repos/GLORIFIER7/GLORIFIER/rulesets/28293483'));
+});

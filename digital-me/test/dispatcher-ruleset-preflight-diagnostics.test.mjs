@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 const workflow=readFileSync(new URL('../../.github/workflows/digital-me-ruleset-preflight.yml',import.meta.url),'utf8');
 const code=workflow.split("node --input-type=module <<'NODE'\n")[1].split('\n          NODE')[0].replace(/^\s*import .*;$/gm,'');
 const AsyncFunction=Object.getPrototypeOf(async function(){}).constructor;
-const sha='a'.repeat(40), secret='fixture-token-do-not-log', ruleset={id:27616646,bypass_actors:[],updated_at:'2026-11-28T00:00:00Z'};
+const sha='a'.repeat(40), secret='fixture-token-do-not-log', ruleset={id:28293483,bypass_actors:[],updated_at:'2026-11-28T00:00:00Z'};
 async function run({token=secret,readToken=secret,response=ruleset,http=200,ordinaryHttp=200,ordinary=ruleset,main={sha,verified:true,reason:'valid'},protection=false,network=false}={}){
  const messages=[],calls=[];const process={env:{RULESET_ATTEST_TOKEN:token,GITHUB_TOKEN:readToken,GITHUB_SHA:sha,GITHUB_RUN_ID:'1'},exitCode:0};
  const console={log:x=>messages.push(x),error:x=>messages.push(x)};
@@ -12,7 +12,7 @@ async function run({token=secret,readToken=secret,response=ruleset,http=200,ordi
  const githubReadApi=(t,f=fetch)=>async path=>{const r=await f('https://api.github.com'+path,{method:'GET'});if(!r.ok)throw Error(secret);return r.json();};
  const makeRulesetAttestation=({ruleset:r})=>{if(!Array.isArray(r?.bypass_actors)||r.bypass_actors.length||!r.updated_at)throw Error(secret);return {ruleset:r};};
  const createAttestedReadApi=({api,attestation})=>async path=>{const live=await api(path);if(live.updated_at!==attestation.ruleset.updated_at)throw Error(secret);return attestation.ruleset;};
- const createGithubEvidence=({api})=>({readMain:async()=>{await api('/repos/GLORIFIER7/GLORIFIER/rulesets/27616646');if(protection)throw Error(secret);return main;}});
+ const createGithubEvidence=({api})=>({readMain:async()=>{await api('/repos/GLORIFIER7/GLORIFIER/rulesets/28293483');if(protection)throw Error(secret);return main;}});
  await new AsyncFunction('process','console','fetch','githubReadApi','makeRulesetAttestation','createAttestedReadApi','createGithubEvidence',code)(process,console,fetch,githubReadApi,makeRulesetAttestation,createAttestedReadApi,createGithubEvidence);
  assert.ok(messages.every(x=>!String(x).includes(secret)));assert.ok(calls.every(([,method])=>method==='GET'));assert.equal(process.env.RULESET_ATTEST_TOKEN,undefined);assert.equal(process.env.GITHUB_TOKEN,undefined);
  return {messages,exit:process.exitCode};
@@ -22,7 +22,7 @@ for(const [name,options,stage] of [
  ['missing ordinary token',{readToken:''},'READ_TOKEN_INVALID'],
  ['HTTP forbidden',{http:403},'ATTEST_HTTP_403'],
  ['network failure',{network:true},'ATTEST_REQUEST_FAILED'],
- ['hidden bypass actors',{response:{id:27616646,updated_at:ruleset.updated_at}},'BYPASS_ACTORS_UNAVAILABLE'],
+ ['hidden bypass actors',{response:{id:28293483,updated_at:ruleset.updated_at}},'BYPASS_ACTORS_UNAVAILABLE'],
  ['nonempty bypass actors',{response:{...ruleset,bypass_actors:[{}]}},'BYPASS_ACTORS_PRESENT'],
  ['invalid ruleset snapshot',{response:{...ruleset,updated_at:null}},'ATTESTATION_INVALID'],
  ['ordinary read forbidden',{ordinaryHttp:403},'READ_HTTP_403'],

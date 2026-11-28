@@ -8,7 +8,7 @@ const read=()=>readFileSync(new URL('../../.github/workflows/digital-me-ruleset-
 // Normalize CRLF only for checkout portability. No other syntax is ignored.
 function assertReviewedWorkflow(text){
   assert.equal(createHash('sha256').update(text.replace(/\r\n/g,'\n')).digest('hex'),
-    '2dacfe721355d9030074d07c6cd174bf523cf01525a27e73c861df4146cd833e',
+    'dfdaee6414bf5e1e5a29f55df6ea95d2d9f4cc283a6a45842fcd2c9e548f3e42',
     'Credential-bearing workflow differs from reviewed source');
 }
 function assertOwnerGate(text){
@@ -40,6 +40,6 @@ test('job contract rejects an inline second job',()=>{
 });
 test('preflight reuses exact attestation and governance checks without runtime activation',()=>{
   const text=read();
-  for(const marker of ["githubReadApi(token,observe('ATTEST'))",'/repos/GLORIFIER7/GLORIFIER/rulesets/27616646','makeRulesetAttestation','createAttestedReadApi','createGithubEvidence','await evidence.readMain()','main.sha!==sourceSha','RULESET_PREFLIGHT_VERIFIED_READ_ONLY','RULESET_PREFLIGHT_DENIED','process.exitCode=1'])assert.ok(text.includes(marker),marker);
+  for(const marker of ["githubReadApi(token,observe('ATTEST'))",'/repos/GLORIFIER7/GLORIFIER/rulesets/28293483','makeRulesetAttestation','createAttestedReadApi','createGithubEvidence','await evidence.readMain()','main.sha!==sourceSha','RULESET_PREFLIGHT_VERIFIED_READ_ONLY','RULESET_PREFLIGHT_DENIED','process.exitCode=1'])assert.ok(text.includes(marker),marker);
   assert.doesNotMatch(text,/DIGITAL_ME_DISPATCHER_ENABLED|GITHUB_OUTPUT|console\.log\(token|console\.error\(error/);
 });
