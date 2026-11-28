@@ -11,6 +11,7 @@ import {withDispatcherApp} from './dispatcher-app-transport.mjs';
 import {dispatchTick} from './mission-dispatcher.mjs';
 import {prepareDispatcherCandidate,verifyDispatcherCandidate} from './dispatcher-repair-recipes.mjs';
 import {createGithubEvidence,githubReadApi} from './dispatcher-github-evidence.mjs';
+import {reconcileMergedMissions} from './dispatcher-merge-reconciliation.mjs';
 import {createAttestedReadApi} from './dispatcher-ruleset-attestation.mjs';
 import {WorkerAutopilotMissionStore} from '../../src/lib/autopilot-worker-store.ts';
 import {createDispatcherAuthorization} from '../../src/lib/governance/digital-me-dispatcher-authority.ts';
@@ -76,6 +77,14 @@ async function main(env){
   }};
   let manifest;
   const evidence=createGithubEvidence({api,resolveManifest:async fence=>{requireThat(manifest?.missionId===fence.missionId&&manifest.base===fence.base&&manifest.digest===fence.digest);return manifest;}});
+  // Historical merge reconciliation is independent of current execution grants.
+  const {rows:awaiting}=await read(`SELECT payload FROM public.glorifier_autopilot_missions
+    WHERE requester=$1 AND id ~ '^mission-coding-[a-f0-9]{64}$' AND status='blocked'
+      AND payload->>'title'='GitHub fix #471' AND lease_owner IS NULL AND lease_expires_at IS NULL
+      AND payload->'dispatcher'->>'phase'='awaiting-review'
+    ORDER BY created_at,id LIMIT 101`,[owner]);
+  requireThat(awaiting.length<=100);
+  const reconciliation=await reconcileMergedMissions({rows:awaiting.map(r=>r.payload),store,now:Date.now(),sourceSha:base,workerId,readMerge:evidence.readMergedReceipt});
   const assertFence=createPublicationFence({store,getAuthorization,readMain:evidence.readMain});
   const result=await runSchedulerTick({enabled:true,sourceSha:base,workerId,now:Date.now,store,readMain:evidence.readMain,getAuthorization,dispatchTick,
     recoverExpired:async()=>{const now=Date.now();const {rows}=await read(`SELECT payload FROM public.glorifier_autopilot_missions WHERE requester=$1 AND id ~ '^mission-coding-[a-f0-9]{64}$' AND payload->>'title'='GitHub fix #471' AND status='executing' AND lease_expires_at <= $2::timestamptz ORDER BY lease_expires_at,id LIMIT 101`,[owner,new Date(now).toISOString()]);return quarantineExpired({rows:rows.map(r=>r.payload),store,now});},
@@ -83,7 +92,7 @@ async function main(env){
     publish:async(candidate,fence)=>{manifest=candidate;await assertFence(fence);return withDispatcherApp(pem,api=>createReceiptPublisher({api,assertFence})(candidate,fence));},
     readPublication:async(fence,written)=>{const deadline=Math.min(Date.now()+90000,Date.parse(fence.leaseExpiresAt)-20000);while(Date.now()<deadline){await assertFence(fence);try{return await evidence.readPublication(fence,written);}catch{const left=deadline-Date.now();if(left<=0)break;await pause(Math.min(5000,left));}}throw Error('DISPATCHER_PUBLICATION_RECONCILIATION_REQUIRED');}
   });
-  console.log(JSON.stringify({sourceSha:base,eligibleMissions:eligible.length,...result}));
+  console.log(JSON.stringify({sourceSha:base,eligibleMissions:eligible.length,reconciliation,...result}));
   if(result.status!=='TICK_COMPLETE'||result.results?.some(r=>r.status==='RECONCILIATION_REQUIRED'||r.status==='CANDIDATE_REJECTED'||r.status==='DENIED'))process.exitCode=1;
 }
 try{await main(process.env);}catch{console.error(JSON.stringify({status:'DISPATCHER_RUNTIME_DENIED',fullyVerified:false}));process.exitCode=1;}

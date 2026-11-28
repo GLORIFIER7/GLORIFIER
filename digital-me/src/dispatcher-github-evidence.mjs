@@ -136,5 +136,35 @@ export function createGithubEvidence({api,resolveManifest}={}){
   requireThat(match(finalPull)&&finalPull.user.id===BOT_ID&&finalPull.merge_commit_sha===tested&&(await readMain()).sha===base);
   return {missionId,base,digest:hash,head,pr,author:BOT,verified:true,reason:'valid',draft:true,ciJobsCreated:true,ciRunId:run.id};
  }
- return Object.freeze({readMain,readPublication});
+ // Historical receipt-limit recipe only. The digest and exact output blobs are
+ // independently fixed by the reviewed recipe and the durable publication.
+ async function readMergedReceipt({missionId,base,head,pr,digest:hash,sourceSha}={}){
+  const approvedDigest='6063d9806958746c1f97a97575f4423a35ad2265dfb6b74e52e3d202bce7e330';
+  const expected=[['digital-me/src/mission-dispatcher.mjs','95cc9c89bf26641ac278a64dd53e3717268a0175'],['digital-me/test/dispatcher-provenance.test.mjs','17e8f4fcdcbb6ff70e7e7bb4532853ebc83f6adb']];
+  requireThat(/^mission-coding-[a-f0-9]{64}$/.test(missionId??'')&&sha(base)&&sha(head)&&base!==head&&sha(sourceSha)&&positive(pr)&&hash===approvedDigest);
+  requireThat((await readMain()).sha===sourceSha);
+  const branch='digital-me/repair-'+digest(base+missionId+hash);
+  const match=p=>p?.number===pr&&p.user?.login===BOT&&p.user.id===BOT_ID&&p.base?.ref==='main'&&p.base.sha===base&&p.base.repo?.id===REPOSITORY_ID&&p.head?.sha===head&&p.head.ref===branch&&p.head.repo?.id===REPOSITORY_ID;
+  const pull=await api(ROOT+'/pulls/'+pr);requireThat(match(pull));
+  if(pull.merged!==true){requireThat(pull.merged===false&&['open','closed'].includes(pull.state));return {status:pull.state==='open'?'PENDING':'CLOSED_UNMERGED'};}
+  const mergeSha=pull.merge_commit_sha,mergedAt=pull.merged_at,stamp=Date.parse(mergedAt);
+  requireThat(pull.state==='closed'&&pull.draft===false&&sha(mergeSha)&&mergeSha!==base&&mergeSha!==head&&Number.isFinite(stamp));
+  // Exact protected history only; rebased or amended changes are not certified.
+  const filesMatch=c=>Array.isArray(c?.files)&&c.files.length===expected.length&&expected.every(([path,blob])=>c.files.some(f=>f?.filename===path&&f.sha===blob&&f.status==='modified'));
+  const commit=await api(ROOT+'/commits/'+head),merged=await api(ROOT+'/commits/'+mergeSha);
+  requireThat(appSigned(commit,head)&&commit.parents?.length===1&&commit.parents[0]?.sha===base&&filesMatch(commit));
+  requireThat(signed(merged,mergeSha)&&filesMatch(merged)&&sha(commit.commit?.tree?.sha)&&merged.commit?.tree?.sha===commit.commit.tree.sha&&[1,2].includes(merged.parents?.length)&&merged.parents[0]?.sha===base&&(merged.parents.length===1||merged.parents[1]?.sha===head));
+  if(mergeSha!==sourceSha){const ancestry=await api(ROOT+'/compare/'+mergeSha+'...'+sourceSha+'?per_page=1');requireThat(ancestry?.status==='ahead'&&ancestry.behind_by===0&&ancestry.base_commit?.sha===mergeSha&&ancestry.merge_base_commit?.sha===mergeSha);}
+  const reviews=await api(ROOT+'/pulls/'+pr+'/reviews?per_page=100');
+  requireThat(Array.isArray(reviews)&&reviews.length<100);
+  const ownerReviews=reviews.filter(r=>r?.user?.id===32674233&&r.user.login==='GLORIFIER7'&&['APPROVED','CHANGES_REQUESTED','DISMISSED'].includes(r.state)).sort((a,b)=>a.id-b.id);
+  const review=ownerReviews.at(-1);requireThat(review?.state==='APPROVED'&&positive(review.id)&&review.commit_id===head&&Number.isFinite(Date.parse(review.submitted_at))&&Date.parse(review.submitted_at)<=stamp);
+  const checks=await api(ROOT+'/commits/'+head+'/check-runs?per_page=100');
+  requireThat(Array.isArray(checks?.check_runs)&&checks.total_count===checks.check_runs.length&&checks.total_count<100);
+  const checkIds=CHECKS.map(name=>{const matching=checks.check_runs.filter(c=>c?.name===name&&c.app?.id===15368&&c.head_sha===head);requireThat(matching.length===1);const c=matching[0];requireThat(positive(c.id)&&c.status==='completed'&&c.conclusion==='success'&&Number.isFinite(Date.parse(c.completed_at))&&Date.parse(c.completed_at)<=stamp);return c.id;});
+  requireThat(new Set(checkIds).size===CHECKS.length);
+  const final=await api(ROOT+'/pulls/'+pr);requireThat(match(final)&&final.merged===true&&final.state==='closed'&&final.draft===false&&final.merge_commit_sha===mergeSha&&final.merged_at===mergedAt&&(await readMain()).sha===sourceSha);
+  return {status:'MERGED',pr,base,head,mergeSha,mainSha:sourceSha,digest:hash,mergedAt,reviewerId:32674233,checkIds};
+ }
+ return Object.freeze({readMain,readPublication,readMergedReceipt});
 }
