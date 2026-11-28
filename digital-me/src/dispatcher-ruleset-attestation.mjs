@@ -4,16 +4,25 @@ const path='/repos/GLORIFIER7/GLORIFIER/rulesets/28293483';
 const check=(v,code)=>{if(!v)throw Object.assign(Error('DISPATCHER_RULESET_ATTESTATION_DENIED'),code?{code}:{});};
 const sha=v=>typeof v==='string'&&/^[a-f0-9]{40}$/.test(v);
 const run=v=>typeof v==='string'&&/^\d{1,24}$/.test(v);
-// Compare UTC revision markers without rounding away fractional seconds.
-// Only equivalent UTC spellings are canonicalized; other forms fail closed.
+// Normalize explicit RFC3339 timezone offsets without rounding fractions.
+// Compare the complete instant, not the timestamp spelling or milliseconds alone.
 export function canonicalRulesetMarker(value){
   if(typeof value!=='string')return null;
-  const m=/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?(?:Z|\+00:00)$/.exec(value);
+  const m=/^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2})(?:\.(\d{1,9}))?(Z|[+-]\d{2}:\d{2})$/.exec(value);
   if(!m||m[0]!==value)return null;
   const seconds=Date.parse(m[1]+'Z');
   if(!Number.isFinite(seconds)||new Date(seconds).toISOString()!==m[1]+'.000Z')return null;
+  const zone=m[3];
+  let minutes=0;
+  if(zone!=='Z'){
+    const hours=Number(zone.slice(1,3)),part=Number(zone.slice(4,6));
+    if(hours>23||part>59||zone==='-00:00')return null;
+    minutes=(zone[0]==='-'?-1:1)*(hours*60+part);
+  }
+  const utc=new Date(seconds-minutes*60000).toISOString();
+  if(!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.000Z$/.test(utc))return null;
   const fraction=(m[2]??'').replace(/0+$/,'');
-  return m[1]+(fraction?'.'+fraction:'')+'Z';
+  return utc.slice(0,19)+(fraction?'.'+fraction:'')+'Z';
 }
 const marker=r=>canonicalRulesetMarker(r?.updated_at)!==null;
 function canonical(v){
@@ -21,7 +30,13 @@ function canonical(v){
   if(v&&typeof v==='object')return Object.fromEntries(Object.keys(v).sort((a,b)=>a.localeCompare(b,'en-US',{sensitivity:'variant'})||(a<b?-1:a>b?1:0)).map(k=>[k,canonical(v[k])]));
   return v;
 }
-function visible(r){const {bypass_actors,...rest}=r;return JSON.stringify(canonical({...rest,updated_at:canonicalRulesetMarker(rest.updated_at)}));}
+function visible(r){
+  const {bypass_actors,...rest}=r;
+  rest.updated_at=canonicalRulesetMarker(rest.updated_at);
+  // Preserve presence and value of every field; normalize valid creation instants too.
+  if(Object.hasOwn(rest,'created_at'))rest.created_at=canonicalRulesetMarker(rest.created_at)??rest.created_at;
+  return JSON.stringify(canonical(rest));
+}
 export function makeRulesetAttestation({ruleset,sourceSha,runId,now=Date.now()}){
   check(sha(sourceSha)&&run(runId)&&Number.isSafeInteger(now)&&now>0&&ruleset?.id===28293483&&marker(ruleset)&&Array.isArray(ruleset.bypass_actors)&&ruleset.bypass_actors.length===0);
   return {schemaVersion:1,sourceSha,runId,observedAt:now,ruleset:structuredClone(ruleset)};
