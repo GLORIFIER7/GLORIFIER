@@ -12,7 +12,7 @@ const result=(status,extra={})=>({status,...extra,merged:false,fullyVerified:fal
 const iso=n=>new Date(n).toISOString();
 // A bounded receipt in the existing mission payload, saved atomically with each
 // state transition. It is a checkpoint, not an independent merge attestation.
-const appendReceipt=(previous,event)=>[...(Array.isArray(previous)?previous.slice(-5):[]),event];
+const appendReceipt=(previous,event)=>[...(Array.isArray(previous)?previous.slice(-4):[]),event];
 function admission(row,id) {
   if(!row||row.id!==id||row.requester!==REQUESTER||row.status!=='blocked'||
      !Number.isSafeInteger(row.version)||row.version<1||row.leaseOwner||row.leaseExpiresAt||
