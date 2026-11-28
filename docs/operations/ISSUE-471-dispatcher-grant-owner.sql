@@ -6,21 +6,27 @@
 \set ON_ERROR_STOP on
 BEGIN;
 SET LOCAL lock_timeout = '3s';
-WITH eligible AS (
+WITH decoded AS (
+  SELECT *, CASE WHEN pg_input_is_valid(payload->>'objective', 'jsonb')
+    THEN (payload->>'objective')::jsonb ELSE NULL END AS objective
+  FROM public.glorifier_autopilot_missions WHERE id = :'mission_id'
+), eligible AS (
   SELECT id, requester, statement_timestamp() + interval '2 hours' AS expiry
-  FROM public.glorifier_autopilot_missions
+  FROM decoded
   WHERE id = :'mission_id' AND id ~ '^mission-coding-[a-f0-9]{64}$'
     AND requester = 'github:32674233' AND status = 'blocked' AND version = 1
     AND payload->>'title' = 'GitHub fix #471' AND payload->'dispatcher' IS NULL
     AND lease_owner IS NULL AND lease_expires_at IS NULL
     AND :'base_sha' ~ '^[a-f0-9]{40}$'
-    AND (payload->>'objective')::jsonb->>'sourceSnapshotSha' = :'base_sha'
-    AND (payload->>'objective')::jsonb->>'repository' = 'GLORIFIER7/GLORIFIER'
-    AND (payload->>'objective')::jsonb->>'intent' = 'fix'
-    AND (payload->>'objective')::jsonb->>'executionAuthorized' = 'false'
-    AND (payload->>'objective')::jsonb->'target'->>'kind' = 'issue'
-    AND (payload->>'objective')::jsonb->'target'->>'number' = '471'
-    AND (payload->>'objective')::jsonb->'target'->'headSha' = 'null'::jsonb
+    AND jsonb_typeof(payload->'objective') = 'string'
+    AND jsonb_typeof(objective) = 'object'
+    AND objective->>'sourceSnapshotSha' = :'base_sha'
+    AND objective->>'repository' = 'GLORIFIER7/GLORIFIER'
+    AND objective->>'intent' = 'fix'
+    AND objective->>'executionAuthorized' = 'false'
+    AND objective->'target'->>'kind' = 'issue'
+    AND objective->'target'->>'number' = '471'
+    AND objective->'target'->'headSha' = 'null'::jsonb
 )
 INSERT INTO public.digital_me_dispatcher_grants (mission_id,base_sha,envelope,expires_at)
 SELECT id, :'base_sha', jsonb_build_object(
