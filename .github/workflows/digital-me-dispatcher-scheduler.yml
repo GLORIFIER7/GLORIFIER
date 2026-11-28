@@ -1,0 +1,93 @@
+name: GLORIFIER Digital Me — governed mission scheduler
+on:
+  schedule:
+    - cron: '22 * * * *'
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: glorifier-digital-me-dispatcher-scheduler
+  cancel-in-progress: false
+jobs:
+  ruleset-attestation:
+    if: >-
+      github.repository == 'GLORIFIER7/GLORIFIER' &&
+      github.ref == 'refs/heads/main' && github.run_attempt == 1 &&
+      vars.DIGITAL_ME_DISPATCHER_ENABLED == 'true' &&
+      vars.DIGITAL_ME_DISPATCHER_FREE_TIER_CONFIRMED == 'true' &&
+      (github.event_name == 'schedule' ||
+       (github.event_name == 'workflow_dispatch' && github.actor_id == '32674233' && github.triggering_actor == 'GLORIFIER7'))
+    environment: digital-me-ruleset-attest
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      attestation: ${{ steps.ruleset.outputs.attestation }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Attest full ruleset with isolated credential
+        id: ruleset
+        env:
+          RULESET_ATTEST_TOKEN: ${{ secrets.DIGITAL_ME_RULESET_ATTEST_TOKEN }}
+        run: |
+          node --input-type=module <<'NODE'
+          import {appendFileSync} from 'node:fs';
+          import {makeRulesetAttestation} from './digital-me/src/dispatcher-ruleset-attestation.mjs';
+          try {
+            const token=process.env.RULESET_ATTEST_TOKEN;
+            delete process.env.RULESET_ATTEST_TOKEN;
+            if(!token)throw Error('missing credential');
+            const r=await fetch('https://api.github.com/repos/GLORIFIER7/GLORIFIER/rulesets/27616646',{method:'GET',redirect:'error',signal:AbortSignal.timeout(15000),headers:{Authorization:'Bearer '+token,Accept:'application/vnd.github+json','X-GitHub-Api-Version':'2022-11-28'}});
+            if(!r.ok)throw Error('ruleset unavailable');
+            const a=makeRulesetAttestation({ruleset:await r.json(),sourceSha:process.env.GITHUB_SHA,runId:process.env.GITHUB_RUN_ID});
+            appendFileSync(process.env.GITHUB_OUTPUT,'attestation='+Buffer.from(JSON.stringify(a)).toString('base64')+'\n');
+            console.log('RULESET_ATTESTED_ZERO_BYPASS');
+          }catch{console.error('RULESET_ATTESTATION_DENIED');process.exitCode=1;}
+          NODE
+  dispatcher:
+    needs: ruleset-attestation
+    if: >-
+      github.repository == 'GLORIFIER7/GLORIFIER' &&
+      github.ref == 'refs/heads/main' && github.run_attempt == 1 &&
+      vars.DIGITAL_ME_DISPATCHER_ENABLED == 'true' &&
+      vars.DIGITAL_ME_DISPATCHER_FREE_TIER_CONFIRMED == 'true' &&
+      (github.event_name == 'schedule' ||
+       (github.event_name == 'workflow_dispatch' && github.actor_id == '32674233' && github.triggering_actor == 'GLORIFIER7'))
+    environment: digital-me-publish
+    permissions:
+      contents: read
+      actions: read
+      checks: read
+      pull-requests: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Verify existing and new dispatcher contracts without secrets
+        run: |
+          node --test digital-me/test/*.test.mjs
+          node --import tsx/esm --test src/lib/governance/digital-me-dispatcher-authority.test.ts src/lib/autopilot-worker-store.test.ts
+      - name: Run bounded governed mission tick
+        env:
+          DIGITAL_ME_DISPATCHER_ENABLED: ${{ vars.DIGITAL_ME_DISPATCHER_ENABLED }}
+          DIGITAL_ME_DISPATCHER_FREE_TIER_CONFIRMED: ${{ vars.DIGITAL_ME_DISPATCHER_FREE_TIER_CONFIRMED }}
+          DIGITAL_ME_DISPATCHER_DATABASE_URL: ${{ secrets.DIGITAL_ME_DISPATCHER_DATABASE_URL }}
+          DIGITAL_ME_APP_PRIVATE_KEY: ${{ secrets.DIGITAL_ME_APP_PRIVATE_KEY }}
+          DIGITAL_ME_RULESET_ATTESTATION: ${{ needs.ruleset-attestation.outputs.attestation }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: node --import tsx/esm digital-me/src/dispatcher-scheduler-entry.mjs

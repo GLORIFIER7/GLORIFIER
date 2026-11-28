@@ -1,0 +1,16 @@
+91b1f7694979d39212e0bf422dfd2e8362a5a0c67b0d86e21adb6f0e4c0a1ee3  ./.github/workflows/digital-me-dispatcher-scheduler.yml
+9ae0e61bd3832eb839ce77944542a212ae4393d5d163c1cdf1c88cd9f2b46eab  ./digital-me/src/dispatcher-app-transport.mjs
+e611653e08e1f4bda4cc27b7b47ad5db3f3d05ea9d9aca446edeb561e7c47224  ./digital-me/src/dispatcher-publication-fence.mjs
+eaa2b581d45cccbf4f8f9c39a1f8a7d4aa75579c562415fb2484068dac91bf4b  ./digital-me/src/dispatcher-receipt-publisher.mjs
+2b887fa75dace775aad3844247c3ac1c86777ee1bdbfd932d8b6c71b9aed3f9b  ./digital-me/src/dispatcher-ruleset-attestation.mjs
+a69b0622a27aa389f259dac26c75b6d29337e40ed73ddfec6316c975e6c44377  ./digital-me/src/dispatcher-scheduler-entry.mjs
+1c8cfc567bce5638db16290726b97a3823718e9ed38d66d46d37110f1b0d3ac8  ./digital-me/src/dispatcher-scheduler-runtime.mjs
+e8b1ad7bd12d2f5bc74b5bb2cf0a6181e60cfb90d4544c454ad60e4a1a4e90ce  ./digital-me/test/dispatcher-app-transport.test.mjs
+e5ddae7fd2efe65662d9738ea2d3bc524ea2884f23b3ec1d839fc8f0239ed82e  ./digital-me/test/dispatcher-publication-fence.test.mjs
+0b3dc615a5cfd7795cbef94ec42106842cab3876a09850c7ca9f0e3e1935ef7d  ./digital-me/test/dispatcher-receipt-publisher-integration.test.mjs
+81b293679e361c1c06e97428d2aca8c7474f44397a6f4126a435ca15fc896ac1  ./digital-me/test/dispatcher-receipt-publisher.test.mjs
+2501d03ad6c0c87bd0fcbc05a893336472fdc63c2fa36ebb8a0656c343d83f38  ./digital-me/test/dispatcher-ruleset-attestation.test.mjs
+02fdd231db4341df6ed1a741e08faeeab9d21dd8fa808611b2fa2158ae879ed6  ./digital-me/test/dispatcher-scheduler-runtime.test.mjs
+aacfe04a1eb978b13e80a8cbab99b208092b9f1a28d58341f1876a307de84847  ./digital-me/test/dispatcher-scheduler-workflow.test.mjs
+2919dea4a6e2e5efbdba2f2620cf2a24b371df94920026882e4dd853aac19412  ./docs/operations/ISSUE-471-dispatcher-activation.md
+b19bd65d9ee691f2a12a1b2f84cf3b7985b84ef4b755d5b904fe88217361e363  ./docs/operations/ISSUE-471-dispatcher-grant-owner.sql
