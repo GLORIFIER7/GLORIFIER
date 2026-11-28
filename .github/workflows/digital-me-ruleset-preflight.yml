@@ -61,8 +61,36 @@ jobs:
             stage='ATTESTATION_INVALID';
             const attestation=makeRulesetAttestation({ruleset,sourceSha,runId});
             const ordinary=githubReadApi(readToken,observe('READ'));
+            const rulesetPath='/repos/GLORIFIER7/GLORIFIER/rulesets/28293483';
+            // Only this owner-only read-only job can reread full privileged policy.
+            // A static proof is NOT a substitute for the dispatcher's drift fence.
+            const verifyStatic=async()=>{
+              const trusted=githubReadApi(token,observe('STATIC'));
+              const fullRead=async path=>{
+                if(path!==rulesetPath)return ordinary(path);
+                const full=await trusted(path);
+                makeRulesetAttestation({ruleset:full,sourceSha,runId});
+                return full;
+              };
+              const freshApi=createAttestedReadApi({api:fullRead,attestation,sourceSha,runId});
+              const proof=createGithubEvidence({api:freshApi,resolveManifest:()=>{throw Error('PREFLIGHT_ONLY');}});
+              const signedMain=await proof.readMain();
+              await freshApi(rulesetPath);
+              if(signedMain.sha!==sourceSha||signedMain.verified!==true||signedMain.reason!=='valid')throw Error('STATIC_MAIN_MISMATCH');
+              console.log(JSON.stringify({status:'RULESET_STATIC_GOVERNANCE_VERIFIED_READ_ONLY',sourceSha,runId,zeroBypass:true,signedMain:true,protectedMain:true,runtimeCompatibilityVerified:false,executionAuthorized:false,publicationAuthorized:false,driftMarkerSemanticsVerified:false}));
+            };
             const api=createAttestedReadApi({api:async path=>{
               const result=await ordinary(path);
+              if(path===rulesetPath){
+                let issue;
+                if(result?.id!==ruleset.id)issue='RULESET_RUNTIME_ID_MISMATCH';
+                else if(typeof result.updated_at!=='string'||!Number.isFinite(Date.parse(result.updated_at)))issue='RULESET_RUNTIME_MARKER_UNAVAILABLE';
+                else if(result.updated_at!==ruleset.updated_at)issue='RULESET_RUNTIME_MARKER_DIFFERENT';
+                if(issue){
+                  console.error(issue);
+                  try{await verifyStatic();}catch{console.error('RULESET_STATIC_GOVERNANCE_DENIED');}
+                }
+              }
               stage='GOVERNANCE_OR_SIGNATURE_DENIED';
               return result;
             },attestation,sourceSha,runId});
