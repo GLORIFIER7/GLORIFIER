@@ -16,13 +16,15 @@ export function makeRulesetAttestation({ruleset,sourceSha,runId,now=Date.now()})
   return {schemaVersion:1,sourceSha,runId,observedAt:now,ruleset:structuredClone(ruleset)};
 }
 export function createAttestedReadApi({api,attestation,sourceSha,runId,now=Date.now}){
-  check(typeof api==='function'&&typeof now==='function'&&attestation?.schemaVersion===1&&attestation.sourceSha===sourceSha&&attestation.runId===runId);
+  if(!attestation)throw Error('DISPATCHER_RULESET_ATTESTATION_DENIED');
+  check(typeof api==='function'&&typeof now==='function'&&attestation.schemaVersion===1&&attestation.sourceSha===sourceSha&&attestation.runId===runId);
   const a=makeRulesetAttestation({ruleset:attestation.ruleset,sourceSha,runId,now:attestation.observedAt});
   function fresh(){const age=now()-a.observedAt;check(Number.isFinite(age)&&age>=0&&age<=1200000);}
   return async p=>{
     if(p!==path)return api(p);
     fresh();const live=await api(p);fresh();
-    check(live?.id===a.ruleset.id&&marker(live)&&live.updated_at===a.ruleset.updated_at);
+    if(!live)throw Error('DISPATCHER_RULESET_ATTESTATION_DENIED');
+    check(live.id===a.ruleset.id&&marker(live)&&live.updated_at===a.ruleset.updated_at);
     check(!Object.hasOwn(live,'bypass_actors')||(Array.isArray(live.bypass_actors)&&live.bypass_actors.length===0));
     check(visible(live)===visible(a.ruleset));
     return structuredClone(a.ruleset);

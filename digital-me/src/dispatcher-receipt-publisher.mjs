@@ -6,7 +6,8 @@ const sha=value=>typeof value==='string'&&/^[a-f0-9]{40}$/.test(value);
 const digest=value=>createHash('sha256').update(value).digest('hex');
 const requireThat=condition=>{if(!condition)throw Error('SIGNED_RECEIPT_PUBLICATION_DENIED');};
 function bytes(file,path,expected){
-  requireThat(file?.type==='file'&&file.path===path&&file.sha===expected&&file.encoding==='base64'&&
+  if(!file)throw Error('SIGNED_RECEIPT_PUBLICATION_DENIED');
+  requireThat(file.type==='file'&&file.path===path&&file.sha===expected&&file.encoding==='base64'&&
     typeof file.content==='string'&&file.content.length<=700000);
   const canonical=file.content.replace(/\n/g,'');
   const buffer=Buffer.from(canonical,'base64');
@@ -31,7 +32,8 @@ export function createReceiptPublisher({api,assertFence}={}){
       const source=[];
       for(const [i,path] of recipePaths.entries()){
         const change=candidate.changes[i];
-        requireThat(change?.path===path&&sha(change.before)&&sha(change.after)&&change.before!==change.after);
+        if(!change)throw Error('SIGNED_RECEIPT_PUBLICATION_DENIED');
+        requireThat(change.path===path&&sha(change.before)&&sha(change.after)&&change.before!==change.after);
         source.push(bytes(await api(root+'/contents/'+path+'?ref='+base),path,change.before));
       }
       const manifest=deriveRepair(source);

@@ -20,9 +20,11 @@ export async function withDispatcherApp(pem,fn,fetcher=fetch){
     const msg=enc({alg:'RS256',typ:'JWT'})+'.'+enc({iss:String(app),iat:now-30,exp:now+540});
     const jwt=msg+'.'+createSign('RSA-SHA256').update(msg).sign(pem).toString('base64url');
     const api=request(jwt,fetcher),i=await api(root+'/installation');
-    check(i?.app_id===app&&i.account?.login==='GLORIFIER7'&&i.repository_selection==='selected'&&Number.isSafeInteger(i.id)&&i.id>0&&Object.entries(permissions).every(([k,v])=>i.permissions?.[k]===v));
+    if(!i)throw Error('DISPATCHER_APP_SCOPE_DENIED');
+    check(i.app_id===app&&i.account?.login==='GLORIFIER7'&&i.repository_selection==='selected'&&Number.isSafeInteger(i.id)&&i.id>0&&Object.entries(permissions).every(([k,v])=>i.permissions?.[k]===v));
     const t=await api('/app/installations/'+i.id+'/access_tokens','POST',{repositories:['GLORIFIER'],permissions});
-    check(typeof t?.token==='string'&&t.token.length>0);
+    if(!t)throw Error('DISPATCHER_APP_SCOPE_DENIED');
+    check(typeof t.token==='string'&&t.token.length>0);
     const scoped=request(t.token,fetcher);
     try{
       check(t.repository_selection==='selected'&&t.repositories?.length===1&&t.repositories[0].full_name===repo&&exactPermissions(t.permissions));
