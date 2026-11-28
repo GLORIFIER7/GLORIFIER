@@ -1,0 +1,51 @@
+name: GLORIFIER Digital Me — ruleset credential preflight
+on:
+  workflow_dispatch:
+permissions: {}
+concurrency:
+  group: glorifier-digital-me-ruleset-preflight
+  cancel-in-progress: false
+jobs:
+  preflight:
+    if: >-
+      github.repository == 'GLORIFIER7/GLORIFIER' &&
+      github.ref == 'refs/heads/main' && github.run_attempt == 1 &&
+      github.event_name == 'workflow_dispatch' &&
+      github.actor_id == '32674233' && github.triggering_actor == 'GLORIFIER7'
+    environment: digital-me-ruleset-attest
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1
+        with:
+          node-version: '24'
+          package-manager-cache: false
+      - name: Verify isolated ruleset credential and protected signed main
+        env:
+          RULESET_ATTEST_TOKEN: ${{ secrets.DIGITAL_ME_RULESET_ATTEST_TOKEN }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'NODE'
+          import {makeRulesetAttestation,createAttestedReadApi} from './digital-me/src/dispatcher-ruleset-attestation.mjs';
+          import {githubReadApi,createGithubEvidence} from './digital-me/src/dispatcher-github-evidence.mjs';
+          try {
+            const token=process.env.RULESET_ATTEST_TOKEN;
+            const readToken=process.env.GITHUB_TOKEN;
+            delete process.env.RULESET_ATTEST_TOKEN;
+            delete process.env.GITHUB_TOKEN;
+            const sourceSha=process.env.GITHUB_SHA,runId=process.env.GITHUB_RUN_ID;
+            const ruleset=await githubReadApi(token)('/repos/GLORIFIER7/GLORIFIER/rulesets/27616646');
+            const attestation=makeRulesetAttestation({ruleset,sourceSha,runId});
+            const api=createAttestedReadApi({api:githubReadApi(readToken),attestation,sourceSha,runId});
+            const evidence=createGithubEvidence({api,resolveManifest:()=>{throw Error('PREFLIGHT_ONLY');}});
+            const main=await evidence.readMain();
+            if(main.sha!==sourceSha||main.verified!==true||main.reason!=='valid')throw Error('MAIN_MISMATCH');
+            console.log(JSON.stringify({status:'RULESET_PREFLIGHT_VERIFIED_READ_ONLY',sourceSha,runId,zeroBypass:true,signedMain:true,protectedMain:true,executionAuthorized:false,publicationAuthorized:false,driftMarkerSemanticsVerified:false}));
+          }catch{console.error('RULESET_PREFLIGHT_DENIED');process.exitCode=1;}
+          NODE
