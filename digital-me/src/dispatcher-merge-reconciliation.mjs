@@ -19,17 +19,23 @@ function validate(row){
 }
 export async function reconcileMergedMissions({rows,store,now,sourceSha,workerId,readMerge}){
   requireThat(Array.isArray(rows)&&rows.length<=100&&Number.isSafeInteger(now)&&now>0&&sha(sourceSha)&&/^github-run-\d+$/.test(workerId)&&typeof store?.get==='function'&&typeof store?.save==='function'&&typeof readMerge==='function');
-  let reconciled=0,pending=0;
+  let reconciled=0,pending=0,rejected=0;
   for(const observed of rows){
-    const p=validate(observed),row=await store.get(observed.id);
-    if(!row||row.version!==observed.version){pending++;continue;}
-    requireThat(same(row.dispatcher,p)&&row.status===observed.status);validate(row);
-    const proof=await readMerge({missionId:row.id,base:p.base,head:p.head,pr:p.pr,digest:p.digest,sourceSha});
-    if(proof?.status!=='MERGED'||proof.pr!==p.pr||proof.head!==p.head||proof.base!==p.base||proof.digest!==p.digest||proof.mainSha!==sourceSha||!sha(proof.mergeSha)||proof.reviewerId!==32674233||!Array.isArray(proof.checkIds)||proof.checkIds.length!==6||!proof.checkIds.every(positive)||new Set(proof.checkIds).size!==6||!Number.isFinite(Date.parse(proof.mergedAt))||Date.parse(proof.mergedAt)<Date.parse(p.provenance.at(-1).at)||Date.parse(proof.mergedAt)>now){pending++;continue;}
-    const at=new Date(now).toISOString(),event={schemaVersion:1,missionId:row.id,repository:repo,base:p.base,recipeId:recipe,grantId:p.grantId,workerId,attempt:p.attempts,maximumCostMicrousd:0,phase:'merged-reconciled',outcome:'PROTECTED_MERGE_RECONCILED',at,candidateDigest:p.digest,pr:p.pr,head:p.head,mergeSha:proof.mergeSha,mainSha:sourceSha,mergedAt:proof.mergedAt,reviewerId:proof.reviewerId,checkIds:proof.checkIds};
-    const next={...row,status:'completed',verificationState:'pending-external-evidence',updatedAt:at,dispatcher:{...p,phase:'merged-reconciled',mergeSha:proof.mergeSha,provenance:[...p.provenance.slice(-4),event]},evidenceRefs:[...new Set([...(Array.isArray(row.evidenceRefs)?row.evidenceRefs:[]),'https://github.com/'+repo+'/pull/'+p.pr,'https://github.com/'+repo+'/commit/'+proof.mergeSha])]};
-    delete next.lastError;delete next.nextRunAt;delete next.leaseOwner;delete next.leaseExpiresAt;
-    const saved=await store.save(next,row.version);requireThat(saved?.version===row.version+1&&saved.status==='completed'&&saved.dispatcher?.mergeSha===proof.mergeSha);reconciled++;
+    // A denied historic receipt must not starve unrelated missions. No raw
+    // error, API payload, or unvalidated identifier is emitted.
+    try{
+      const p=validate(observed),row=await store.get(observed.id);
+      if(!row||row.version!==observed.version){pending++;continue;}
+      requireThat(same(row.dispatcher,p)&&row.status===observed.status);validate(row);
+      const proof=await readMerge({missionId:row.id,base:p.base,head:p.head,pr:p.pr,digest:p.digest,sourceSha});
+      if(proof?.status!=='MERGED'||proof.pr!==p.pr||proof.head!==p.head||proof.base!==p.base||proof.digest!==p.digest||proof.mainSha!==sourceSha||!sha(proof.mergeSha)||proof.reviewerId!==32674233||!Array.isArray(proof.checkIds)||proof.checkIds.length!==6||!proof.checkIds.every(positive)||new Set(proof.checkIds).size!==6||!Number.isFinite(Date.parse(proof.mergedAt))||Date.parse(proof.mergedAt)<Date.parse(p.provenance.at(-1).at)||Date.parse(proof.mergedAt)>now){pending++;continue;}
+      const at=new Date(now).toISOString(),event={schemaVersion:1,missionId:row.id,repository:repo,base:p.base,recipeId:recipe,grantId:p.grantId,workerId,attempt:p.attempts,maximumCostMicrousd:0,phase:'merged-reconciled',outcome:'PROTECTED_MERGE_RECONCILED',at,candidateDigest:p.digest,pr:p.pr,head:p.head,mergeSha:proof.mergeSha,mainSha:sourceSha,mergedAt:proof.mergedAt,reviewerId:proof.reviewerId,checkIds:proof.checkIds};
+      const next={...row,status:'completed',verificationState:'pending-external-evidence',updatedAt:at,dispatcher:{...p,phase:'merged-reconciled',mergeSha:proof.mergeSha,provenance:[...p.provenance.slice(-4),event]},evidenceRefs:[...new Set([...(Array.isArray(row.evidenceRefs)?row.evidenceRefs:[]),'https://github.com/'+repo+'/pull/'+p.pr,'https://github.com/'+repo+'/commit/'+proof.mergeSha])]};
+      delete next.lastError;delete next.nextRunAt;delete next.leaseOwner;delete next.leaseExpiresAt;
+      const saved=await store.save(next,row.version);
+      if(!saved){pending++;continue;}
+      requireThat(saved.version===row.version+1&&saved.status==='completed'&&saved.dispatcher?.mergeSha===proof.mergeSha);reconciled++;
+    }catch{rejected++;}
   }
-  return {reconciled,pending};
+  return {reconciled,pending,rejected};
 }
