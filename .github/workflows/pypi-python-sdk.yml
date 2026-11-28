@@ -79,7 +79,7 @@ jobs:
         working-directory: sdk/python
         run: sha256sum dist/*
       - name: Upload reviewed distributions (not PyPI)
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: glorifier-neural-client-distributions
           path: sdk/python/dist/*
