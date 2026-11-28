@@ -1,15 +1,24 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {createHash} from 'node:crypto';
 const read=()=>readFileSync(new URL('../../.github/workflows/digital-me-ruleset-preflight.yml',import.meta.url),'utf8');
-test('preflight is manual, owner-only, main-only and first-attempt only',()=>{
-  const text=read();
+// Pin the complete reviewed credential-bearing workflow, not a partial YAML regex.
+// Intentional workflow changes require reviewing the complete file and updating this digest.
+// Normalize CRLF only for checkout portability. No other syntax is ignored.
+function assertReviewedWorkflow(text){
+  assert.equal(createHash('sha256').update(text.replace(/\r\n/g,'\n')).digest('hex'),
+    '2dacfe721355d9030074d07c6cd174bf523cf01525a27e73c861df4146cd833e',
+    'Credential-bearing workflow differs from reviewed source');
+}
+function assertOwnerGate(text){
+  assertReviewedWorkflow(text);
   assert.match(text,/^on:\n  workflow_dispatch:\npermissions: \{\}$/m);
   for(const gate of ["github.repository == 'GLORIFIER7/GLORIFIER'","github.ref == 'refs/heads/main'","github.event_name == 'workflow_dispatch'","github.actor_id == '32674233'","github.triggering_actor == 'GLORIFIER7'",'github.run_attempt == 1'])assert.ok(text.includes(gate),gate);
   assert.doesNotMatch(text,/\b(schedule|pull_request_target|issue_comment):/);
-});
-test('preflight has one isolated read-only job without execution or publication credentials',()=>{
-  const text=read();
+}
+function assertSingleJob(text){
+  assertReviewedWorkflow(text);
   assert.deepEqual([...text.matchAll(/^ {2}([\w-]+):\s*$/gm)].map(m=>m[1]),['workflow_dispatch','preflight']);
   assert.match(text,/environment: digital-me-ruleset-attest/);
   assert.match(text,/permissions:\n      contents: read/);
@@ -17,6 +26,17 @@ test('preflight has one isolated read-only job without execution or publication 
   assert.match(text,/persist-credentials: false/);
   assert.doesNotMatch(text,/\bwrite\b|DIGITAL_ME_APP_PRIVATE_KEY|DIGITAL_ME_DISPATCHER_DATABASE_URL|dispatcher-scheduler-entry|digital-me-publish|npm ci/);
   assert.deepEqual([...text.matchAll(/secrets\.([A-Z_]+)/g)].map(m=>m[1]),['DIGITAL_ME_RULESET_ATTEST_TOKEN']);
+}
+test('preflight is manual, owner-only, main-only and first-attempt only',()=>assertOwnerGate(read()));
+test('preflight has one isolated read-only job without execution or publication credentials',()=>assertSingleJob(read()));
+test('owner gate rejects an appended unconditional disjunction',()=>{
+  const changed=read().replace("github.triggering_actor == 'GLORIFIER7'","github.triggering_actor == 'GLORIFIER7' || true");
+  assert.notEqual(changed,read());
+  assert.throws(()=>assertOwnerGate(changed));
+});
+test('job contract rejects an inline second job',()=>{
+  const changed=read()+"  extra: {runs-on: ubuntu-latest, steps: [{run: 'echo unexpected'}]}\n";
+  assert.throws(()=>assertSingleJob(changed));
 });
 test('preflight reuses exact attestation and governance checks without runtime activation',()=>{
   const text=read();
