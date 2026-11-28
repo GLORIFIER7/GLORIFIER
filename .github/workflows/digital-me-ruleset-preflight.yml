@@ -72,5 +72,19 @@ jobs:
             stage='MAIN_MISMATCH';
             if(main.sha!==sourceSha||main.verified!==true||main.reason!=='valid')throw Error('MAIN_MISMATCH');
             console.log(JSON.stringify({status:'RULESET_PREFLIGHT_VERIFIED_READ_ONLY',sourceSha,runId,zeroBypass:true,signedMain:true,protectedMain:true,executionAuthorized:false,publicationAuthorized:false,driftMarkerSemanticsVerified:false}));
-          }catch{console.error('RULESET_PREFLIGHT_DENIED '+stage);process.exitCode=1;}
+          }catch(failure){
+            // Emit only fixed codes; never echo API payloads, error messages or credentials.
+            const safeCodes=new Set([
+              'RULESET_MISSING','RULESET_IDENTITY_OR_ENFORCEMENT','RULESET_SCOPE',
+              'DEFAULT_BRANCH_MISMATCH','RULE_TYPE_REQUIRED_SIGNATURES','RULE_TYPE_NON_FAST_FORWARD',
+              'RULE_TYPE_DELETION','RULE_TYPE_PULL_REQUEST','RULE_TYPE_REQUIRED_STATUS_CHECKS',
+              'RULE_TYPE_CODE_SCANNING','RULE_TYPE_CODE_QUALITY','REQUIRED_APPROVAL',
+              'STALE_APPROVAL_DISMISSAL','CODEOWNER_REVIEW','REVIEW_THREAD_RESOLUTION',
+              'STRICT_STATUS_CHECKS','REQUIRED_CHECK_BINDING','CODE_SCANNING_POLICY',
+              'CODE_QUALITY_POLICY','MAIN_SIGNATURE_INVALID','ATTESTATION_EXPIRED',
+              'RULESET_MARKER_MISMATCH','LIVE_BYPASS_DENIED','RULESET_VISIBLE_FIELDS_MISMATCH'
+            ]);
+            const reason=safeCodes.has(failure?.code)?failure.code:stage;
+            console.error('RULESET_PREFLIGHT_DENIED '+reason);process.exitCode=1;
+          }
           NODE

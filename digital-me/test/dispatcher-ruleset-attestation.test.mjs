@@ -54,3 +54,11 @@ test('attestation binds only the replacement ruleset identity',async()=>{
  assert.throws(()=>makeRulesetAttestation({ruleset:{...replacement,id:27616646},sourceSha,runId,now}));
  await assert.rejects(()=>create(async()=>({...replacement,id:27616646}),a)('/repos/GLORIFIER7/GLORIFIER/rulesets/28293483'));
 });
+
+test('attestation diagnoses marker changes separately from ruleset response differences',async()=>{
+ for(const [live,code] of [
+  [{...ruleset,updated_at:'2026-11-28T10:01:00Z'},'RULESET_MARKER_MISMATCH'],
+  [{...ruleset,bypass_actors:[{actor_id:2}]},'LIVE_BYPASS_DENIED'],
+  [{...ruleset,enforcement:'disabled'},'RULESET_VISIBLE_FIELDS_MISMATCH'],
+ ])await assert.rejects(()=>create(read(live))(path),{message:'DISPATCHER_RULESET_ATTESTATION_DENIED',code});
+});

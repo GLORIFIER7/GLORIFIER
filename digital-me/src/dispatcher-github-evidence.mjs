@@ -5,8 +5,8 @@ const BOT_EMAIL=BOT_ID+'+'+BOT+'@users.noreply.github.com';
 const CHECKS=['Required CI','CodeQL (python, none)','CodeQL (javascript-typescript, none)','npm-security','Dependency Review','validate-and-build'];
 const sha=x=>typeof x==='string'&&/^[a-f0-9]{40}$/.test(x);
 const digest=x=>createHash('sha256').update(x).digest('hex');
-const denied=()=>Error('DISPATCHER_GITHUB_EVIDENCE_DENIED');
-const requireThat=x=>{if(!x)throw denied();};
+const denied=code=>Object.assign(Error('DISPATCHER_GITHUB_EVIDENCE_DENIED'),code?{code}:{});
+const requireThat=(x,code)=>{if(!x)throw denied(code);};
 function signed(commit, head) {
  const verification=commit?.commit?.verification;
  return Boolean(commit&&verification&&commit.sha===head&&verification.verified===true&&verification.reason==='valid');
@@ -47,20 +47,28 @@ export function createGithubEvidence({api,resolveManifest}={}){
  requireThat(typeof api==='function'&&typeof resolveManifest==='function');
  async function readMain(){
   const r=await api(ROOT+'/rulesets/28293483');
-  if (!r || !Array.isArray(r.rules)) throw denied();
-  requireThat(r.id===28293483&&r.enforcement==='active'&&r.target==='branch'&&Array.isArray(r.bypass_actors)&&r.bypass_actors.length===0);
+  if (!r || !Array.isArray(r.rules)) throw denied('RULESET_MISSING');
+  requireThat(r.id===28293483&&r.enforcement==='active'&&r.target==='branch'&&Array.isArray(r.bypass_actors)&&r.bypass_actors.length===0,'RULESET_IDENTITY_OR_ENFORCEMENT');
   const scope=r.conditions?.ref_name;
-  if (!scope || !Array.isArray(scope.include) || !Array.isArray(scope.exclude)) throw denied();
-  requireThat((scope.include.includes('refs/heads/main')||scope.include.includes('~DEFAULT_BRANCH'))&&scope.exclude.length===0);
-  if(!scope.include.includes('refs/heads/main')){const repo=await api(ROOT);requireThat(repo?.full_name===REPO&&repo.default_branch==='main');}
-  const one=t=>{const a=r.rules.filter(x=>x.type===t);requireThat(a.length===1);return a[0].parameters;};
+  if (!scope || !Array.isArray(scope.include) || !Array.isArray(scope.exclude)) throw denied('RULESET_SCOPE');
+  requireThat((scope.include.includes('refs/heads/main')||scope.include.includes('~DEFAULT_BRANCH'))&&scope.exclude.length===0,'RULESET_SCOPE');
+  if(!scope.include.includes('refs/heads/main')){const repo=await api(ROOT);requireThat(repo?.full_name===REPO&&repo.default_branch==='main','DEFAULT_BRANCH_MISMATCH');}
+  const one=t=>{const a=r.rules.filter(x=>x.type===t);requireThat(a.length===1,'RULE_TYPE_'+t.toUpperCase());return a[0].parameters;};
   for(const type of ['required_signatures','non_fast_forward','deletion'])one(type);
-  const p=one('pull_request');requireThat(p?.required_approving_review_count>=1&&Number.isSafeInteger(p.required_approving_review_count)&&p.dismiss_stale_reviews_on_push===true&&p.require_code_owner_review===true&&p.required_review_thread_resolution===true);
-  const s=one('required_status_checks');requireThat(s?.strict_required_status_checks_policy===true&&Array.isArray(s.required_status_checks)&&CHECKS.every(context=>s.required_status_checks.some(x=>x.context===context&&x.integration_id===15368)));
-  const scanning=one('code_scanning');requireThat(scanning?.code_scanning_tools?.some(x=>x.tool==='CodeQL'&&x.security_alerts_threshold==='high_or_higher'&&x.alerts_threshold==='errors'));
-  requireThat(one('code_quality')?.severity==='all');
+  const p=one('pull_request');
+  if (!p) throw denied('REQUIRED_APPROVAL');
+  requireThat(p.required_approving_review_count>=1&&Number.isSafeInteger(p.required_approving_review_count),'REQUIRED_APPROVAL');
+  requireThat(p.dismiss_stale_reviews_on_push===true,'STALE_APPROVAL_DISMISSAL');
+  requireThat(p.require_code_owner_review===true,'CODEOWNER_REVIEW');
+  requireThat(p.required_review_thread_resolution===true,'REVIEW_THREAD_RESOLUTION');
+  const s=one('required_status_checks');
+  if (!s) throw denied('STRICT_STATUS_CHECKS');
+  requireThat(s.strict_required_status_checks_policy===true,'STRICT_STATUS_CHECKS');
+  requireThat(Array.isArray(s.required_status_checks)&&CHECKS.every(context=>s.required_status_checks.some(x=>x.context===context&&x.integration_id===15368)),'REQUIRED_CHECK_BINDING');
+  const scanning=one('code_scanning');requireThat(scanning?.code_scanning_tools?.some(x=>x.tool==='CodeQL'&&x.security_alerts_threshold==='high_or_higher'&&x.alerts_threshold==='errors'),'CODE_SCANNING_POLICY');
+  requireThat(one('code_quality')?.severity==='all','CODE_QUALITY_POLICY');
   const c=await api(ROOT+'/commits/main');
-  if (!c || !sha(c.sha) || !signed(c,c.sha)) throw denied();
+  if (!c || !sha(c.sha) || !signed(c,c.sha)) throw denied('MAIN_SIGNATURE_INVALID');
   return {sha:c.sha,verified:true,reason:'valid'};
  }
  async function readPublication(fence,written){
