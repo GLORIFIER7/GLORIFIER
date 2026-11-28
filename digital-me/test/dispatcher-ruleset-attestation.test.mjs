@@ -75,3 +75,20 @@ test('submillisecond changes are denied, not rounded away',async()=>{
 test('invalid calendar dates cannot be normalized into valid revisions',()=>{
  assert.throws(()=>makeRulesetAttestation({ruleset:{...ruleset,updated_at:'2026-02-30T10:00:00Z'},sourceSha,runId,now}));
 });
+
+test('observed GitHub +07:00 revision is identical to its UTC instant',async()=>{
+ const privileged={...ruleset,updated_at:'2026-11-28T20:52:48.235+07:00',created_at:'2026-11-28T20:52:48.100+07:00'};
+ const {bypass_actors,...visible}=privileged;
+ const live={...visible,updated_at:'2026-11-28T13:52:48.235Z',created_at:'2026-11-28T13:52:48.1Z'};
+ const a=makeRulesetAttestation({ruleset:privileged,sourceSha,runId,now});
+ assert.deepEqual(await create(read(live),a)(path),privileged);
+ await assert.rejects(()=>create(read({...live,updated_at:'2026-11-28T13:52:48.235000001Z'}),a)(path),{code:'RULESET_MARKER_MISMATCH'});
+ await assert.rejects(()=>create(read({...live,created_at:'2026-11-28T13:52:48.100000001Z'}),a)(path),{code:'RULESET_VISIBLE_FIELDS_MISMATCH'});
+});
+test('negative offsets and day rollover preserve fractional precision',async()=>{
+ const a=makeRulesetAttestation({ruleset:{...ruleset,updated_at:'2026-11-28T23:59:59.123456789-03:30'},sourceSha,runId,now});
+ assert.deepEqual(await create(read({...ruleset,updated_at:'2026-11-29T03:29:59.123456789Z'}),a)(path),a.ruleset);
+});
+test('malformed offset, unknown offset and impossible local calendar dates are denied',()=>{
+ for(const updated_at of ['2026-11-28T20:52:48.235+24:00','2026-11-28T20:52:48.235+07:60','2026-11-28T20:52:48.235-00:00','2026-02-30T20:52:48.235+07:00','2026-11-28T20:52:48.235+07:00\n'])assert.throws(()=>makeRulesetAttestation({ruleset:{...ruleset,updated_at},sourceSha,runId,now}));
+});
