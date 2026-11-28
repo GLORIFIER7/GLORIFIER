@@ -171,6 +171,34 @@ export class WorkerAutopilotMissionStore implements AutopilotMissionStore {
     }, true);
   }
 
+  /** Readiness for the dedicated coding dispatcher; it must not create missions. */
+  async initializeDispatcher(): Promise<void> {
+    if (this.requester !== 'github:32674233' || this.allowAll || this.source === 'internal-service') {
+      throw new Error('Dispatcher readiness requires the fixed owner requester partition.');
+    }
+    await this.withTransaction(async client => {
+      const result = await client.query(
+        `SELECT
+           to_regclass('${TABLE_NAME}')::text AS table_name,
+           pg_has_role(current_user, 'digital_me_dispatcher', 'USAGE') AS dispatcher_member,
+           row_security_active('${TABLE_NAME}') AS scoped_rls,
+           has_table_privilege(current_user, '${TABLE_NAME}', 'SELECT') AS can_select,
+           (SELECT bool_and(has_column_privilege(current_user, '${TABLE_NAME}', col, 'UPDATE'))
+              FROM unnest(ARRAY['status','version','payload','next_run_at','lease_owner','lease_expires_at','updated_at']) AS fields(col)) AS can_update,
+           has_function_privilege(current_user, 'public.read_digital_me_dispatcher_grant(text,text)', 'EXECUTE') AS can_read_grant,
+           has_any_column_privilege(current_user, '${TABLE_NAME}', 'INSERT') AS can_insert,
+           has_table_privilege(current_user, '${TABLE_NAME}', 'DELETE,TRUNCATE') AS can_destroy,
+           has_table_privilege(current_user, 'public.digital_me_dispatcher_grants', 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE') AS can_access_grant_table`,
+      );
+      const row = result.rows[0] ?? {};
+      if (!row.table_name || row.dispatcher_member !== true || row.scoped_rls !== true ||
+          row.can_select !== true || row.can_update !== true || row.can_read_grant !== true ||
+          row.can_insert !== false || row.can_destroy !== false || row.can_access_grant_table !== false) {
+        throw new WorkerAutopilotSchemaNotReadyError('Dedicated dispatcher privileges are not ready.');
+      }
+    }, true);
+  }
+
   async create(mission: AutopilotMission): Promise<AutopilotMission> {
     if (!mission || this.requireOwnRequester(mission.requester, 'mission creation') !== mission.requester) {
       throw new Error('Autopilot mission requester does not match the verified identity.');
