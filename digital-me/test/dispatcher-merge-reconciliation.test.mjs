@@ -11,3 +11,15 @@ test('a proven historical merge reconciles without grant renewal or another publ
 test('open, closed without merge, unverifiable, or mismatched proof does not mark complete',async()=>{for(const result of [{status:'PENDING'},{status:'CLOSED_UNMERGED'},{...proof,head:base},{...proof,mainSha:base},{...proof,digest:'f'.repeat(64)}]){const f=fixture();f.deps.readMerge=async()=>result;await reconcileMergedMissions(f.deps);assert.equal(f.writes,0);assert.equal(f.row.status,'blocked');}});
 test('invalid durable provenance prevents external reads and writes',async()=>{const f=fixture();f.deps.rows[0].dispatcher.provenance.pop();f.deps.readMerge=async()=>{assert.fail('unexpected read');};await assert.rejects(()=>reconcileMergedMissions(f.deps));assert.equal(f.writes,0);});
 test('CAS failure does not claim completion',async()=>{const f=fixture();f.deps.store.save=async()=>null;await assert.rejects(()=>reconcileMergedMissions(f.deps));assert.equal(f.writes,0);});
+
+test('explicit null guards reject absent rows and dispatcher payloads before property access',async()=>{
+  for(const invalid of [null,undefined,{...row,dispatcher:null},{...row,dispatcher:undefined}]){
+    const f=fixture();f.deps.rows=[invalid];f.deps.readMerge=async()=>assert.fail('unexpected external read');
+    await assert.rejects(()=>reconcileMergedMissions(f.deps),{message:'MERGE_RECONCILIATION_DENIED'});
+    assert.equal(f.writes,0);
+  }
+  const {readFileSync}=await import('node:fs');
+  const source=readFileSync(new URL('../src/dispatcher-merge-reconciliation.mjs',import.meta.url),'utf8');
+  assert.match(source,/if\s*\(!row\)\s*throw Error\('MERGE_RECONCILIATION_DENIED'\)/);
+  assert.match(source,/if\s*\(!p\)\s*throw Error\('MERGE_RECONCILIATION_DENIED'\)/);
+});
