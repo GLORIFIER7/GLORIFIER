@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {createAttestedReadApi,makeRulesetAttestation} from '../src/dispatcher-ruleset-attestation.mjs';
 const path='/repos/GLORIFIER7/GLORIFIER/rulesets/27616646';
 const sourceSha='a'.repeat(40),runId='123456',now=Date.parse('2026-11-28T11:00:00Z');
@@ -21,3 +22,18 @@ test('rejects stale, wrong run, wrong source, or future attestations',async()=>{
   for(const a of [{...att(),runId:'9'},{...att(),sourceSha:'b'.repeat(40)},{...att(),observedAt:now+1000},{...att(),observedAt:now-1200001}])await assert.rejects(async()=>create(read(),a)(path));
 });
 test('rechecks visible rules on every fence read',async()=>{let r=ruleset;const api=create(async()=>r);await api(path);r={...ruleset,updated_at:'2026-11-28T10:01:00Z'};await assert.rejects(()=>api(path));});
+
+test('canonical object ordering specifies an explicit locale-aware comparator',()=>{
+  const source=readFileSync(new URL('../src/dispatcher-ruleset-attestation.mjs',import.meta.url),'utf8');
+  assert.doesNotMatch(source,/Object\.keys\(v\)\.sort\(\s*\)/);
+  assert.match(source,/localeCompare\(/);
+});
+test('canonical comparison is independent of nested key insertion order even for collation ties',async()=>{
+  const original={...ruleset,metadata:{z:1,'é':2,'e\u0301':3,A:{b:true,a:false}}};
+  const {bypass_actors,...rest}=original;
+  const reordered={...rest,metadata:{A:{a:false,b:true},'e\u0301':3,'é':2,z:1}};
+  const a=makeRulesetAttestation({ruleset:original,sourceSha,runId,now});
+  const api=create(read(reordered),a);
+  assert.deepEqual(await api(path),original);
+  await assert.rejects(()=>create(read({...reordered,metadata:{...reordered.metadata,'é':9}}),a)(path));
+});
