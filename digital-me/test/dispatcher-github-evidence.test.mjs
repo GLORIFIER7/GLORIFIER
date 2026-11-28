@@ -127,3 +127,21 @@ test('missing or null governance rule parameters fail closed with explicit denia
   }
  }
 });
+
+const mergeDigest='6063d9806958746c1f97a97575f4423a35ad2265dfb6b74e52e3d202bce7e330';
+const mergeFiles=[{filename:'digital-me/src/mission-dispatcher.mjs',sha:'95cc9c89bf26641ac278a64dd53e3717268a0175',status:'modified'},{filename:'digital-me/test/dispatcher-provenance.test.mjs',sha:'17e8f4fcdcbb6ff70e7e7bb4532853ebc83f6adb',status:'modified'}];
+function mergeFixture(){
+ const f=fixture(), main='e'.repeat(40), tree='f'.repeat(40), mergedAt='2026-11-28T16:14:01Z',reviewAt='2026-11-28T16:13:47Z',branch='digital-me/repair-'+hash(base+id+mergeDigest);
+ const s=f.state;s.main.sha=main;
+ const pr={number:9,state:'closed',merged:true,draft:false,merged_at:mergedAt,merged_by:{login:'GLORIFIER7',id:32674233},user:{login:bot,id:359913464},merge_commit_sha:merge,base:{ref:'main',sha:base,repo:{id:1377237797}},head:{ref:branch,sha:head,repo:{id:1377237797}}};
+ const commit={...s.commit,files:structuredClone(mergeFiles),commit:{...s.commit.commit,tree:{sha:tree}}};
+ const merged={sha:merge,parents:[{sha:base}],files:structuredClone(mergeFiles),commit:{tree:{sha:tree},verification:{verified:true,reason:'valid'}}};
+ const reviews=[{id:1,state:'APPROVED',user:{login:'GLORIFIER7',id:32674233},commit_id:head,submitted_at:reviewAt}];
+ const checks={total_count:6,check_runs:s.rules.rules[4].parameters.required_status_checks.map((c,i)=>({id:i+1,name:c.context,app:{id:15368},head_sha:head,status:'completed',conclusion:'success',completed_at:reviewAt}))};
+ const compare={status:'ahead',behind_by:0,merge_base_commit:{sha:merge},base_commit:{sha:merge}};
+ const state={pr,commit,merged,reviews,checks,compare};
+ const api=async p=>{if(p===root+'/rulesets/28293483')return s.rules;if(p===root+'/commits/main')return s.main;if(p===root+'/pulls/9')return state.pr;if(p===root+'/commits/'+head)return state.commit;if(p===root+'/commits/'+merge)return state.merged;if(p===root+'/pulls/9/reviews?per_page=100')return state.reviews;if(p===root+'/commits/'+head+'/check-runs?per_page=100')return state.checks;if(p===root+'/compare/'+merge+'...'+main+'?per_page=1')return state.compare;throw Error('unexpected route '+p);};
+ return {state,read:()=>createGithubEvidence({api,resolveManifest:async()=>{throw Error('no publication');}}).readMergedReceipt({missionId:id,base,head,pr:9,digest:mergeDigest,sourceSha:main})};
+}
+test('historical signed squash merge matches the exact recipe, independent review, trusted checks and main ancestry',async()=>{const f=mergeFixture();const r=await f.read();assert.equal(r.status,'MERGED');assert.equal(r.mergeSha,merge);assert.equal(r.checkIds.length,6);});
+test('unmerged or incomplete proof does not certify a merge',async()=>{const f=mergeFixture();f.state.pr.merged=false;assert.equal((await f.read()).status,'CLOSED_UNMERGED');for(const alter of [s=>s.commit.author.id=7,s=>s.merged.commit.verification.verified=false,s=>s.merged.commit.tree.sha=base,s=>s.merged.files.pop(),s=>s.reviews[0].commit_id=base,s=>s.reviews.push({...s.reviews[0],id:2,state:'DISMISSED'}),s=>s.checks.check_runs[0].app.id=7,s=>s.checks.check_runs[0].completed_at='2026-11-29T00:00:00Z',s=>s.compare.behind_by=1]){const x=mergeFixture();alter(x.state);await assert.rejects(x.read);}});

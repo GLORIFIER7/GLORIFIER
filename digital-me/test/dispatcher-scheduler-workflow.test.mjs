@@ -47,3 +47,10 @@ test('owner grant safely decodes the string objective, including explicit JSON n
   assert.match(grant,/objective->'target'->'headSha' = 'null'::jsonb/);
   assert.doesNotMatch(grant,/payload->'objective'->/);
 });
+test('historic merge inventory is scoped and runs without a current grant before normal dispatch',()=>{
+  const selection=entry.slice(entry.indexOf('const {rows:awaiting}='),entry.indexOf('const reconciliation='));
+  assert.ok(selection.includes("status='blocked'")&&selection.includes("payload->'dispatcher'->>'phase'='awaiting-review'")&&selection.includes('requester=$1')&&selection.includes('lease_owner IS NULL')&&selection.includes('lease_expires_at IS NULL')&&selection.includes('LIMIT 101'));
+  assert.doesNotMatch(selection,/read_digital_me_dispatcher_grant|base_sha/);
+  assert.ok(entry.indexOf('const reconciliation=await reconcileMergedMissions')<entry.indexOf('const result=await runSchedulerTick'));
+  assert.ok(entry.includes('readMerge:evidence.readMergedReceipt')&&entry.includes('eligibleMissions:eligible.length,reconciliation,...result'));
+});
