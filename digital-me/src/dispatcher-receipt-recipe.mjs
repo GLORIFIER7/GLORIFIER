@@ -12,7 +12,8 @@ const repairedHashes = ['32124540b341fe98655b7c461a516313103ed635a65a1e87f2e3729
 const regression = "test('each retry transition preserves only the newest five receipts',async()=>{\n  const f=fixture();\n  const row=await f.deps.store.get(id);\n  const prior=Array.from({length:5},(_,i)=>({outcome:`prior-${i}`}));\n  await f.deps.store.save({...row,dispatcher:{phase:'retryable',attempts:1,provenance:prior}},row.version);\n  let claim;\n  f.deps.prepare=async()=>{claim=f.row().dispatcher.provenance;throw Error('candidate rejected');};\n  assert.equal(await dispatchMission(id,f.deps).then(r=>r.status),'CANDIDATE_REJECTED');\n  assert.deepEqual(claim.map(e=>e.outcome),['prior-1','prior-2','prior-3','prior-4','CLAIMED']);\n  assert.deepEqual(f.row().dispatcher.provenance.map(e=>e.outcome),['prior-2','prior-3','prior-4','CLAIMED','CANDIDATE_REJECTED']);\n});\n";
 const GIT_EXECUTABLE = process.platform === 'win32' ? 'C:\\Program Files\\Git\\cmd\\git.exe' : '/usr/bin/git';
 const gitEnv = {GIT_CONFIG_NOSYSTEM:'1',GIT_CONFIG_GLOBAL:process.platform === 'win32' ? 'NUL' : '/dev/null'};
-const focusedTests = [recipePaths[1], 'digital-me/test/mission-dispatcher.test.mjs', 'digital-me/test/mission-dispatcher-verification.test.mjs'];
+const companionTests = Object.freeze([ 'digital-me/test/mission-dispatcher.test.mjs', 'digital-me/test/mission-dispatcher-verification.test.mjs']);
+const focusedTests = [recipePaths[1], ...companionTests];
 const sha256 = x=>createHash('sha256').update(x).digest('hex');
 // Git object IDs are repository identifiers, not security digests. SHA-256 above
 // remains mandatory for content integrity; delegate Git-format hashing to Git.
@@ -36,16 +37,24 @@ export function deriveRepair(files){
   const changes=recipePaths.map((path,i)=>({path,before:originalBlobs[i],after:repairedBlobs[i],contents:repaired[i].toString('base64')}));
   return {changes,digest:sha256(JSON.stringify(changes))};
 }
-export function readRepairFiles(cwd,sourceSha){
+function assertSource(cwd,sourceSha){
   if(!/^[a-f0-9]{40}$/.test(sourceSha)||git(cwd,['rev-parse','HEAD']).toString().trim()!==sourceSha)throw Error('SOURCE_CHANGED');
-  return recipePaths.map(path=>{
-    const match=/^100644 blob ([a-f0-9]{40})\t/.exec(git(cwd,['ls-tree',sourceSha,'--',path]).toString());
-    const file=join(cwd,path);
-    if(!match||!lstatSync(file).isFile())throw Error('SOURCE_FILE_CHANGED');
-    const bytes=readFileSync(file);
-    if(!bytes.equals(git(cwd,['cat-file','blob',match[1]])))throw Error('SOURCE_FILE_CHANGED');
-    return bytes;
-  });
+}
+function readCommittedFile(cwd,sourceSha,path){
+  const match=/^100644 blob ([a-f0-9]{40})\t/.exec(git(cwd,['ls-tree',sourceSha,'--',path]).toString());
+  const file=join(cwd,path);
+  if(!match||!lstatSync(file).isFile())throw Error('SOURCE_FILE_CHANGED');
+  const bytes=readFileSync(file);
+  if(!bytes.equals(git(cwd,['cat-file','blob',match[1]])))throw Error('SOURCE_FILE_CHANGED');
+  return bytes;
+}
+function assertCompanions(cwd,sourceSha){
+  assertSource(cwd,sourceSha);
+  for(const path of companionTests)readCommittedFile(cwd,sourceSha,path);
+}
+export function readRepairFiles(cwd,sourceSha){
+  assertCompanions(cwd,sourceSha);
+  return recipePaths.map(path=>readCommittedFile(cwd,sourceSha,path));
 }
 function runTests(cwd,paths){
   return new Promise((resolve,reject)=>execFile(process.execPath,['--test','--test-reporter=tap',...paths],{cwd,env:{CI:'true'},encoding:'utf8',timeout:90000,maxBuffer:1048576},(error,stdout)=>{
@@ -55,16 +64,22 @@ function runTests(cwd,paths){
 }
 export async function verifyCandidate(cwd,sourceSha){
   const files=readRepairFiles(cwd,sourceSha),state=repairStatus(files);
-  if((await runTests(cwd,focusedTests)).status!==0)throw Error('BASELINE_TESTS_FAILED');
+  const baseline=await runTests(cwd,focusedTests);
+  readRepairFiles(cwd,sourceSha);
+  if(baseline.status!==0)throw Error('BASELINE_TESTS_FAILED');
   if(state==='already-applied')return {outcome:'already-applied'};
   const manifest=deriveRepair(files);
   const write=(i,b)=>writeFileSync(join(cwd,recipePaths[i]),b);
   try{
     write(1,Buffer.from(manifest.changes[1].contents,'base64'));
+    assertCompanions(cwd,sourceSha);
     const red=await runTests(cwd,[recipePaths[1]]);
+    assertCompanions(cwd,sourceSha);
     if(red.status!==1||!/^# fail 1$/m.test(red.stdout)||!/^not ok \d+ - each retry transition preserves only the newest five receipts/m.test(red.stdout)||!red.stdout.includes('prior-0'))throw Error('EXPECTED_REGRESSION_NOT_REPRODUCED');
     write(0,Buffer.from(manifest.changes[0].contents,'base64'));
-    if((await runTests(cwd,focusedTests)).status!==0)throw Error('REPAIRED_TESTS_FAILED');
+    const green=await runTests(cwd,focusedTests);
+    assertCompanions(cwd,sourceSha);
+    if(green.status!==0)throw Error('REPAIRED_TESTS_FAILED');
     git(cwd,['diff','--check','--',...recipePaths]);
     if(repairStatus(recipePaths.map(p=>readFileSync(join(cwd,p))))!=='already-applied')throw Error('CANDIDATE_BYTES_CHANGED');
     return {outcome:'candidate-created',candidateDigest:manifest.digest};
