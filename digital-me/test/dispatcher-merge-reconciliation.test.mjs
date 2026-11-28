@@ -1,0 +1,36 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {reconcileMergedMissions} from '../src/dispatcher-merge-reconciliation.mjs';
+const base='a'.repeat(40),head='b'.repeat(40),merge='c'.repeat(40),current='d'.repeat(40),id='mission-coding-'+'e'.repeat(64),digest='6063d9806958746c1f97a97575f4423a35ad2265dfb6b74e52e3d202bce7e330';
+const at='2026-11-28T16:10:45.333Z', now=Date.parse('2026-11-28T17:00:00Z');
+const details={schemaVersion:1,missionId:id,repository:'GLORIFIER7/GLORIFIER',base,recipeId:'dispatcher-receipt-limit',grantId:'digital-me-grant-'+id.slice(15),workerId:'github-run-1',attempt:1,maximumCostMicrousd:0,at,candidateDigest:digest};
+const row={id,requester:'github:32674233',title:'GitHub fix #471',status:'blocked',version:4,verificationState:'pending-external-evidence',lastError:'old',evidenceRefs:['existing'],dispatcher:{phase:'awaiting-review',base,head,pr:1129,digest,recipeId:details.recipeId,grantId:details.grantId,attempts:1,provenance:[{...details,phase:'publishing',outcome:'CANDIDATE_VERIFIED',candidateVerification:{baselinePassed:true,redReproduced:true,greenPassed:true,independentVerifierPassed:true}},{...details,phase:'awaiting-review',outcome:'SIGNED_DRAFT_VERIFIED',head,pr:1129,signatureVerified:true,ciJobsCreated:true}]}};
+const proof={status:'MERGED',pr:1129,head,base,mergeSha:merge,mainSha:current,digest,mergedAt:'2026-11-28T16:14:01Z',reviewerId:32674233,checkIds:[1,2,3,4,5,6]};
+function fixture(){let saved=structuredClone(row),writes=0;return {get row(){return saved},get writes(){return writes},deps:{rows:[structuredClone(row)],now,sourceSha:current,workerId:'github-run-2',readMerge:async()=>proof,store:{get:async()=>structuredClone(saved),save:async(next,version)=>{if(saved.version!==version)return null;writes++;saved={...next,version:version+1};return saved;}}}};}
+test('a proven historical merge reconciles without grant renewal or another publication',async()=>{const f=fixture();const r=await reconcileMergedMissions(f.deps);assert.equal(r.reconciled,1);assert.equal(f.row.status,'completed');assert.equal(f.row.dispatcher.phase,'merged-reconciled');assert.equal(f.row.verificationState,'pending-external-evidence');assert.equal(f.row.dispatcher.provenance.at(-1).outcome,'PROTECTED_MERGE_RECONCILED');assert.equal(f.row.dispatcher.provenance.at(-1).mergeSha,merge);assert.equal(f.row.version,5);assert.ok(f.row.evidenceRefs.includes('existing'));await reconcileMergedMissions(f.deps);assert.equal(f.writes,1);});
+test('open, closed without merge, unverifiable, or mismatched proof does not mark complete',async()=>{for(const result of [{status:'PENDING'},{status:'CLOSED_UNMERGED'},{...proof,head:base},{...proof,mainSha:base},{...proof,digest:'f'.repeat(64)}]){const f=fixture();f.deps.readMerge=async()=>result;await reconcileMergedMissions(f.deps);assert.equal(f.writes,0);assert.equal(f.row.status,'blocked');}});
+test('invalid durable provenance prevents external reads and writes',async()=>{const f=fixture();f.deps.rows[0].dispatcher.provenance.pop();f.deps.readMerge=async()=>{assert.fail('unexpected read');};assert.equal((await reconcileMergedMissions(f.deps)).rejected,1);assert.equal(f.writes,0);});
+test('CAS failure does not claim completion',async()=>{const f=fixture();f.deps.store.save=async()=>null;assert.equal((await reconcileMergedMissions(f.deps)).pending,1);assert.equal(f.writes,0);});
+
+test('explicit null guards reject absent rows and dispatcher payloads before property access',async()=>{
+  for(const invalid of [null,undefined,{...row,dispatcher:null},{...row,dispatcher:undefined}]){
+    const f=fixture();f.deps.rows=[invalid];f.deps.readMerge=async()=>assert.fail('unexpected external read');
+    assert.equal((await reconcileMergedMissions(f.deps)).rejected,1);
+    assert.equal(f.writes,0);
+  }
+  const {readFileSync}=await import('node:fs');
+  const source=readFileSync(new URL('../src/dispatcher-merge-reconciliation.mjs',import.meta.url),'utf8');
+  assert.match(source,/if\s*\(!row\)\s*throw Error\('MERGE_RECONCILIATION_DENIED'\)/);
+  assert.match(source,/if\s*\(!p\)\s*throw Error\('MERGE_RECONCILIATION_DENIED'\)/);
+});
+
+test('one invalid historical receipt does not prevent a later valid receipt from completing',async()=>{
+  const f=fixture();f.deps.rows=[{...structuredClone(row),dispatcher:null},structuredClone(row)];
+  const result=await reconcileMergedMissions(f.deps);
+  assert.equal(result.reconciled,1);assert.equal(result.rejected,1);assert.equal(f.writes,1);
+});
+test('unverifiable history is reported without aborting the reconciliation batch',async()=>{
+  const f=fixture();f.deps.readMerge=async()=>{throw Error('untrusted response');};
+  const result=await reconcileMergedMissions(f.deps);
+  assert.equal(result.rejected,1);assert.equal(result.reconciled,0);assert.equal(f.writes,0);
+});
