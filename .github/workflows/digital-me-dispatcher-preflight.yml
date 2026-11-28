@@ -32,32 +32,48 @@ jobs:
           import pg from 'pg';
           const host = 'ep-wild-tree-b5yekavc.c-7.us-east-2.aws.neon.tech';
           const role = 'digital_me_dispatcher_login';
-          const deny = () => { throw Error('PREFLIGHT_DENIED'); };
+          const deny = (reason='CHECK_FAILED') => { throw new Error(reason); };
+          function category(error, stage) {
+            const codes = new Set(['28P01','28000','3D000','42501','53300','57P03','08001','08006','ENOTFOUND','EAI_AGAIN','ECONNREFUSED','ECONNRESET','ETIMEDOUT','ERR_TLS_CERT_ALTNAME_INVALID','UNABLE_TO_VERIFY_LEAF_SIGNATURE','SELF_SIGNED_CERT_IN_CHAIN','CERT_HAS_EXPIRED']);
+            const reasons = new Set(['SECRET_MISSING','URI_FORMAT','URI_PROTOCOL','URI_HOST','URI_PORT','URI_ROLE','URI_PASSWORD','URI_DATABASE','URI_PARAMETERS','URI_SSLMODE','URI_CHANNEL_BINDING','URI_PASSWORD_ENCODING','CHECK_FAILED']);
+            if (codes.has(error?.code)) return error.code;
+            if (stage==='CONFIG' && reasons.has(error?.message)) return error.message;
+            return 'CHECK_FAILED';
+          }
           function config(value) {
-            const u = new URL(value);
-            if (!['postgres:', 'postgresql:'].includes(u.protocol) ||
-                u.hostname !== host || (u.port && u.port !== '5432') ||
-                u.username !== role || !u.password || u.pathname !== '/glorifier' || u.hash ||
-                [...u.searchParams.keys()].some(k => !['sslmode','channel_binding'].includes(k)) ||
-                u.searchParams.getAll('sslmode').length > 1 ||
-                u.searchParams.getAll('channel_binding').length > 1 ||
-                ![null,'require','verify-full'].includes(u.searchParams.get('sslmode')) ||
-                ![null,'require','prefer'].includes(u.searchParams.get('channel_binding'))) deny();
+            if (typeof value !== 'string' || !value.trim()) deny('SECRET_MISSING');
+            let u; try { u = new URL(value); } catch { deny('URI_FORMAT'); }
+            if (!['postgres:', 'postgresql:'].includes(u.protocol)) deny('URI_PROTOCOL');
+            if (u.hostname !== host) deny('URI_HOST');
+            if (u.port && u.port !== '5432') deny('URI_PORT');
+            if (u.username !== role) deny('URI_ROLE');
+            if (!u.password) deny('URI_PASSWORD');
+            if (u.pathname !== '/glorifier') deny('URI_DATABASE');
+            if (u.hash || [...u.searchParams.keys()].some(k => !['sslmode','channel_binding'].includes(k)) ||
+                u.searchParams.getAll('sslmode').length > 1 || u.searchParams.getAll('channel_binding').length > 1) deny('URI_PARAMETERS');
+            if (![null,'require','verify-full'].includes(u.searchParams.get('sslmode'))) deny('URI_SSLMODE');
+            if (![null,'require','prefer'].includes(u.searchParams.get('channel_binding'))) deny('URI_CHANNEL_BINDING');
+            let password; try { password=decodeURIComponent(u.password); } catch { deny('URI_PASSWORD_ENCODING'); }
             return {host, port:5432, database:'glorifier', user:role,
-              password:decodeURIComponent(u.password), ssl:{rejectUnauthorized:true,servername:host},
+              password, ssl:{rejectUnauthorized:true,servername:host},
               enableChannelBinding:true, connectionTimeoutMillis:10000, query_timeout:8000,
               statement_timeout:8000, application_name:'digital-me-dispatcher-preflight'};
           }
-          let client, started=false;
+          let client, started=false, stage='CONTEXT';
           try {
             if (!/^[a-f0-9]{40}$/.test(process.env.GITHUB_SHA || '') ||
                 process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') deny();
+            stage='CONFIG';
             client = new pg.Client(config(process.env.DIGITAL_ME_DISPATCHER_DATABASE_URL));
             delete process.env.DIGITAL_ME_DISPATCHER_DATABASE_URL;
+            stage='CONNECT';
             await client.connect();
+            stage='TLS';
             const stream = client.connection.stream;
             if (stream.encrypted !== true || stream.authorized !== true || !['TLSv1.2','TLSv1.3'].includes(stream.getProtocol())) deny();
+            stage='READ_ONLY_TRANSACTION';
             await client.query('BEGIN READ ONLY'); started=true;
+            stage='PRIVILEGES_QUERY';
             const {rows:[r]} = await client.query(`SELECT current_user AS role,session_user AS session_role,
               current_database() AS db,current_setting('transaction_read_only') AS read_only,
               pg_has_role(current_user,'digital_me_dispatcher','USAGE') AS scoped_member,
@@ -69,19 +85,23 @@ jobs:
               has_table_privilege(current_user,'public.glorifier_autopilot_missions','DELETE,TRUNCATE') AS can_destroy,
               has_table_privilege(current_user,'public.digital_me_dispatcher_grants','SELECT,INSERT,UPDATE,DELETE,TRUNCATE') AS can_access_grants,
               (SELECT with_check LIKE '%executing%' FROM pg_policies WHERE schemaname='public' AND tablename='glorifier_autopilot_missions' AND policyname='digital_me_dispatcher_scope') AS policy_active`);
+            stage='PRIVILEGES_ASSERT';
             if (!r || r.role!==role || r.session_role!==role || r.db!=='glorifier' || r.read_only!=='on' ||
                 !['scoped_member','rls','can_select','can_update','can_read_grant','policy_active'].every(k=>r[k]===true) ||
                 !['can_insert','can_destroy','can_access_grants'].every(k=>r[k]===false)) deny();
+            stage='MISSION_QUERY';
             const {rows:[m]}=await client.query(`SELECT count(*)::int AS visible,
               count(*) FILTER (WHERE requester<>'github:32674233' OR payload->>'title' IS DISTINCT FROM 'GitHub fix #471')::int AS outside_scope,
               count(*) FILTER (WHERE status='blocked' AND (payload->>'objective')::jsonb->>'sourceSnapshotSha'=$1)::int AS matching_main,
               count(*) FILTER (WHERE status='blocked' AND (payload->>'objective')::jsonb->>'sourceSnapshotSha'=$1 AND public.read_digital_me_dispatcher_grant(id,$1) IS NOT NULL)::int AS grants_for_main
               FROM public.glorifier_autopilot_missions`,[process.env.GITHUB_SHA]);
+            stage='MISSION_SCOPE';
             if (!m || m.outside_scope!==0) deny();
+            stage='ROLLBACK';
             await client.query('ROLLBACK'); started=false;
             console.log(JSON.stringify({status:'DISPATCHER_CREDENTIAL_VERIFIED_READ_ONLY',sourceSha:process.env.GITHUB_SHA,tls:stream.getProtocol(),certificateVerified:true,roleVerified:true,rls:true,policyActive:true,visibleMissions:m.visible,currentBaseMissions:m.matching_main,currentBaseGrantRows:m.grants_for_main,executionAuthorized:false,publicationAuthorized:false,fullyVerified:false}));
-          } catch {
-            console.error('DISPATCHER_PREFLIGHT_DENIED: verify secret, TLS, scoped privileges, and database policy. No execution attempted.');
+          } catch (error) {
+            console.error(JSON.stringify({status:'DISPATCHER_PREFLIGHT_DENIED',stage,category:category(error,stage),executionAuthorized:false}));
             process.exitCode=1;
           } finally {
             if (client) { if (started) await client.query('ROLLBACK').catch(()=>{}); await client.end().catch(()=>{}); }
